@@ -14,7 +14,7 @@ varying vec2 vUv;
 varying float vDisplacement;
 varying float vRadius;
 varying vec3 vViewPosition;
-varying vec3 vWorldNormal;
+varying vec3 vViewNormal;
 
 void main() {
     vUv = uv;
@@ -89,15 +89,15 @@ varying vec3 vViewPosition;
 varying vec3 vViewNormal;
 
 void main() {
-    vec3 N = normalize(vViewNormal);
-    vec3 V = normalize(vViewPosition);
+    vec3 N = length(vViewNormal) > 1e-5 ? normalize(vViewNormal) : vec3(0.0, 0.0, 1.0);
+    vec3 V = length(vViewPosition) > 1e-5 ? normalize(vViewPosition) : vec3(0.0, 0.0, 1.0);
 
-    float NdotV = abs(dot(N, V));
-    float fresnel = pow(1.0 - NdotV, 2.6);
+    float NdotV = clamp(abs(dot(N, V)), 0.0, 1.0);
+    float fresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), 2.6);
 
-    // OKLab Cosine palette color along trajectory
+    // Cosine palette color along trajectory
     float colorT = vUv.x * 1.5 + vRadius * 0.08 - uTime * 0.06;
-    vec3 palColor = oklabCosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
+    vec3 palColor = cosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
     // Glowing crests on displacement peaks with Apple radiant tone
     vec3 crestColor = mix(palColor, uCoreGlow, clamp(vDisplacement * 1.5, 0.0, 1.0));
@@ -120,7 +120,12 @@ void main() {
     float alpha = clamp(0.40 + fresnel * 0.45 + borderGlow * 0.5 + wireframe * 0.35 + vDisplacement * 0.5, 0.0, 0.96);
     alpha *= exp(-0.035 * vRadius);
 
-    gl_FragColor = vec4(finalRgb, alpha);
+    if (isnan(finalRgb.r) || isnan(finalRgb.g) || isnan(finalRgb.b) || isnan(alpha) ||
+        isinf(finalRgb.r) || isinf(finalRgb.g) || isinf(finalRgb.b) || isinf(alpha)) {
+        discard;
+    }
+
+    gl_FragColor = vec4(clamp(finalRgb, 0.0, 10.0), clamp(alpha, 0.0, 1.0));
 }
 `;
 

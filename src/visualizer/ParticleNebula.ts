@@ -41,7 +41,7 @@ export class ParticleNebula {
       },
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
     });
 
     this.points = new THREE.Points(geometry, this.material);
@@ -61,20 +61,21 @@ export class ParticleNebula {
     const particlesPerShell = Math.floor(this.particleCount / numShells);
 
     let idx = 0;
-    for (let s = 0; s < numShells; s++) {
-      const baseR = 1.0 + s * 0.32;
-      const freqNorm = Math.pow(s / (numShells - 1), 1.2); // Logarithmic frequency assignment
+    for (let p = 0; p < particlesPerShell; p++) {
+      const inclination = Math.acos(1 - 2 * ((p + 0.5) / particlesPerShell));
+      const azimuth = angleIncrement * p;
 
-      for (let p = 0; p < particlesPerShell && idx < this.particleCount; p++) {
-        const inclination = Math.acos(1 - 2 * ((p + 0.5) / particlesPerShell));
-        const azimuth = angleIncrement * p;
+      for (let s = 0; s < numShells && idx < this.particleCount; s++) {
+        const baseR = 1.0 + s * 0.32;
+        const freqNorm = Math.pow(s / (numShells - 1), 1.2); // Logarithmic frequency assignment
 
         const jitter = (Math.random() - 0.5) * 0.08;
         const r = baseR + jitter;
 
-        const x = r * Math.sin(inclination) * Math.cos(azimuth);
+        const shellAzimuth = azimuth + s * 0.25;
+        const x = r * Math.sin(inclination) * Math.cos(shellAzimuth);
         const y = r * Math.cos(inclination);
-        const z = r * Math.sin(inclination) * Math.sin(azimuth);
+        const z = r * Math.sin(inclination) * Math.sin(shellAzimuth);
 
         positions[idx * 3 + 0] = x;
         positions[idx * 3 + 1] = y;
@@ -128,11 +129,27 @@ export class ParticleNebula {
     this.material.uniforms.uParticleScale.value = scale;
   }
 
+  public setParticleDensity(count: number): void {
+    const clamped = Math.max(1024, Math.min(this.particleCount, Math.round(count)));
+    if (this.points && this.points.geometry) {
+      this.points.geometry.setDrawRange(0, clamped);
+    }
+  }
+
+  public setParticleCount(count: number): void {
+    this.setParticleDensity(count);
+  }
+
   public setPropagationSpeed(speed: number): void {
     this.material.uniforms.uPropagationSpeed.value = speed;
   }
 
   public setVisible(visible: boolean): void {
     this.group.visible = visible;
+  }
+
+  public dispose(): void {
+    this.points.geometry.dispose();
+    this.material.dispose();
   }
 }

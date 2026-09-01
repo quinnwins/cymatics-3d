@@ -19,6 +19,7 @@ import { BioAcousticResonator } from './BioAcousticResonator';
 import { AcousticTherapyLab } from './AcousticTherapyLab';
 import { VocalBiometricsLab } from './VocalBiometricsLab';
 import { NobelDiscoveryLab } from './NobelDiscoveryLab';
+import { ScientificGroundDatum } from './ScientificGroundDatum';
 import { ColorPalettes, PalettePreset } from './ColorPalettes';
 
 export type VisualStyle = 'wavefront' | 'particles' | 'cymatics' | 'ribbon' | 'hybrid' | 'bio-acoustics' | 'therapy-lab' | 'voice-biometrics' | 'nobel-lab';
@@ -47,6 +48,13 @@ export class VisualizerEngine {
   public acousticTherapyLab: AcousticTherapyLab;
   public vocalBiometricsLab: VocalBiometricsLab;
   public nobelDiscoveryLab: NobelDiscoveryLab;
+  public scientificGroundDatum!: ScientificGroundDatum;
+
+  // Calibrated 3-Point Studio Lighting Rig
+  private keyLight!: THREE.DirectionalLight;
+  private fillLight!: THREE.DirectionalLight;
+  private rimLight!: THREE.DirectionalLight;
+  private hemiLight!: THREE.HemisphereLight;
 
   // State
   private currentStyle: VisualStyle = 'hybrid';
@@ -65,6 +73,8 @@ export class VisualizerEngine {
   public waveDamping = 0.12;
   public bloomStrength = 0.35;
   public particleScale = 1.0;
+  public particleDensity = 131072;
+  public cymaticsVisibilityMode: 'both' | 'particles' | 'droplet' = 'both';
   public autoRotateSpeed = 0.5;
 
   // Performance telemetry
@@ -160,7 +170,31 @@ export class VisualizerEngine {
     this.scene.add(this.vocalBiometricsLab.group);
     this.scene.add(this.nobelDiscoveryLab.group);
 
-    // 7. Post-Processing Pipeline
+    // 7. Calibrated 3-Point Studio Lighting Rig
+    // Key Light: Neutral 4500K warm key (0xffeedb)
+    this.keyLight = new THREE.DirectionalLight(0xffeedb, 1.8);
+    this.keyLight.position.set(6.0, 8.0, 5.0);
+    this.scene.add(this.keyLight);
+
+    // Fill Light: 6500K cool daylight fill (0xdceeff)
+    this.fillLight = new THREE.DirectionalLight(0xdceeff, 0.9);
+    this.fillLight.position.set(-6.0, 3.0, 4.0);
+    this.scene.add(this.fillLight);
+
+    // Rim Light: Soft neutral rim backlight (0xf0f4ff)
+    this.rimLight = new THREE.DirectionalLight(0xf0f4ff, 1.5);
+    this.rimLight.position.set(0.0, 5.0, -7.0);
+    this.scene.add(this.rimLight);
+
+    // Subtle ambient hemisphere
+    this.hemiLight = new THREE.HemisphereLight(0x1a2236, 0x02040a, 0.45);
+    this.scene.add(this.hemiLight);
+
+    // 8. Scientific Ground Datum Grid (Anti-Aliased Ground Coordinate Plane)
+    this.scientificGroundDatum = new ScientificGroundDatum(18.0);
+    this.scene.add(this.scientificGroundDatum.mesh);
+
+    // 9. Post-Processing Pipeline with Tuned UnrealBloomPass (threshold ~0.88, strength ~0.25)
     const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
       type: THREE.HalfFloatType,
       format: THREE.RGBAFormat,
@@ -170,9 +204,9 @@ export class VisualizerEngine {
 
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      0.35,
-      0.25,
-      0.85
+      0.22, // strength 0.22 (calibrated high-energy peak glow without washing out structural textures)
+      0.35, // radius
+      0.88  // threshold 0.88 (prevents blown-out white glare)
     );
     this.composer.addPass(this.bloomPass);
     this.composer.addPass(new OutputPass());
@@ -193,6 +227,7 @@ export class VisualizerEngine {
     this.acousticTherapyLab.setVisible(false);
     this.vocalBiometricsLab.setVisible(false);
     this.nobelDiscoveryLab.setVisible(false);
+    this.scientificGroundDatum.setVisible(true);
 
     switch (style) {
       case 'wavefront':
@@ -212,13 +247,16 @@ export class VisualizerEngine {
       case 'cymatics':
         this.wavefrontShells.setVisible(false);
         this.particleNebula.setVisible(false);
-        this.cymaticsMesh.setVisible(false);
+        const showDroplet = this.cymaticsVisibilityMode === 'both' || this.cymaticsVisibilityMode === 'droplet';
+        const showParticles = this.cymaticsVisibilityMode === 'both' || this.cymaticsVisibilityMode === 'particles';
+        this.cymaticsMesh.setVisible(showDroplet);
+        this.gpuAcousticParticles.setVisible(showParticles);
         this.sonicRibbon.setVisible(false);
         this.centralEmitter.group.visible = false;
-        this.volumetricChladni.setVisible(true);
-        this.gpuAcousticParticles.setVisible(true);
-        this.chamberEnclosure.setVisible(true);
-        this.volumetricChladni.group.position.y = 0.45;
+        this.volumetricChladni.setVisible(false);
+        this.chamberEnclosure.setVisible(false);
+        this.scientificGroundDatum.setVisible(true);
+        this.cymaticsMesh.group.position.y = 0.45;
         this.gpuAcousticParticles.group.position.y = 0.45;
         this.chamberEnclosure.group.position.y = 0.45;
         break;
@@ -280,6 +318,52 @@ export class VisualizerEngine {
     return this.currentStyle;
   }
 
+  public setBloomStrength(strength: number): void {
+    this.bloomStrength = strength;
+    if (this.bloomPass) {
+      this.bloomPass.strength = strength;
+    }
+  }
+
+  public setParticleDensity(count: number): void {
+    this.particleDensity = count;
+    this.gpuAcousticParticles.setParticleDensity(count);
+    this.particleNebula.setParticleDensity(count);
+  }
+
+  public setParticleCount(count: number): void {
+    this.setParticleDensity(count);
+  }
+
+  public setParticleScale(scale: number): void {
+    this.particleScale = scale;
+    this.gpuAcousticParticles.setParticleScale(scale);
+    this.particleNebula.setParticleScale(scale);
+  }
+
+  public setCymaticsVisibilityMode(mode: 'both' | 'particles' | 'droplet'): void {
+    this.cymaticsVisibilityMode = mode;
+    if (this.currentStyle === 'cymatics') {
+      const showDroplet = mode === 'both' || mode === 'droplet';
+      const showParticles = mode === 'both' || mode === 'particles';
+      this.cymaticsMesh.setVisible(showDroplet);
+      this.gpuAcousticParticles.setVisible(showParticles);
+    }
+  }
+
+  public setDropletVisible(visible: boolean): void {
+    const showParticles = this.gpuAcousticParticles.isVisible();
+    if (visible && showParticles) {
+      this.setCymaticsVisibilityMode('both');
+    } else if (visible && !showParticles) {
+      this.setCymaticsVisibilityMode('droplet');
+    } else if (!visible && showParticles) {
+      this.setCymaticsVisibilityMode('particles');
+    } else {
+      this.setCymaticsVisibilityMode('particles'); // fallback
+    }
+  }
+
   public setPalette(paletteId: string): void {
     const pal = ColorPalettes.getPalette(paletteId);
     this.currentPalette = pal;
@@ -291,6 +375,10 @@ export class VisualizerEngine {
     this.volumetricChladni.setPalette(pal);
     this.gpuAcousticParticles.setPalette(pal);
     this.chamberEnclosure.setPalette(pal);
+  }
+
+  public getCurrentPaletteId(): string {
+    return this.currentPalette?.id || 'cosmic-nebula';
   }
 
   public setCameraMode(mode: CameraMode): void {
@@ -363,19 +451,25 @@ export class VisualizerEngine {
     const vShockwaves = shockwaves.map(sw => new THREE.Vector4(sw.birthTime, sw.strength, sw.speed, 0));
 
     // Update 3D visual components
+    this.scientificGroundDatum.update(this.camera);
     this.wavefrontShells.update(time, historyHead, vBands03, vBands45, vShockwaves);
-    this.cymaticsMesh.update(time, vBands03, vBands45, fundamentalHz);
-    this.particleNebula.update(time, historyHead, vBands03, vBands45, vShockwaves);
     const dt = this.lastAnimTime > 0 ? Math.min(0.1, time - this.lastAnimTime) : 0.016;
     this.lastAnimTime = time;
+
+    this.cymaticsMesh.update(time, vBands03, vBands45, fundamentalHz, dt, this.camera);
+    this.particleNebula.update(time, historyHead, vBands03, vBands45, vShockwaves);
 
     this.sonicRibbon.update(time, historyHead, vBands03, vBands45);
     this.centralEmitter.update(time, bands.subBass, shockwaves.length > 0 ? shockwaves[0].strength : 0);
     this.volumetricChladni.update(time, vBands03, vBands45, fundamentalHz, this.camera);
     if (this.currentStyle === 'particles' || this.currentStyle === 'cymatics') {
+      const activeModes = this.cymaticsMesh.getModes();
+      this.gpuAcousticParticles.setModalNumbers(activeModes.x, activeModes.y, activeModes.z);
       this.gpuAcousticParticles.update(time, dt, vBands03, vBands45, vShockwaves, fundamentalHz);
     }
-    this.chamberEnclosure.update(time, dt, vBands03, vBands45, this.camera);
+    if (this.chamberEnclosure.isVisible()) {
+      this.chamberEnclosure.update(time, dt, vBands03, vBands45, this.camera);
+    }
     this.bioAcousticResonator.update(time, dt, this.camera, vBands03);
     this.acousticTherapyLab.update(time, dt, this.camera, vBands03);
     this.nobelDiscoveryLab.update(time, dt, this.camera, vBands03);
@@ -442,7 +536,7 @@ export class VisualizerEngine {
       this.controls.update();
     }
 
-    // Direct high-performance rendering (crystal-clear 120 FPS shader glow)
-    this.renderer.render(this.scene, this.camera);
+    // Calibrated post-processed rendering (120 FPS tuned bloom + ACES Filmic tonemapping)
+    this.composer.render();
   };
 }

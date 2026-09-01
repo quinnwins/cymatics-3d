@@ -184,6 +184,10 @@ export class FrequencySynthesizer {
     const now = this.ctx.currentTime;
     this.masterGain.gain.cancelScheduledValues(now);
     this.masterGain.gain.setTargetAtTime(0, now, 0.08);
+    if (this.heterodyneGain) {
+      this.heterodyneGain.gain.cancelScheduledValues(now);
+      this.heterodyneGain.gain.setTargetAtTime(0, now, 0.05);
+    }
     this.isPlaying = false;
   }
 

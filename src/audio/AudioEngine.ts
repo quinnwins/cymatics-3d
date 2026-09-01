@@ -41,9 +41,29 @@ export class AudioEngine {
   private listeners: Set<() => void> = new Set();
 
   constructor() {
-    this.audioElement = new Audio();
-    this.audioElement.crossOrigin = 'anonymous';
-    this.audioElement.loop = true;
+    if (typeof Audio !== 'undefined') {
+      this.audioElement = new Audio();
+      this.audioElement.crossOrigin = 'anonymous';
+      this.audioElement.loop = true;
+
+      // Reactively notify listeners on playback timeline and state changes
+      this.audioElement.addEventListener('timeupdate', () => this.notifyChange());
+      this.audioElement.addEventListener('durationchange', () => this.notifyChange());
+      this.audioElement.addEventListener('loadedmetadata', () => this.notifyChange());
+      this.audioElement.addEventListener('ended', () => this.notifyChange());
+      this.audioElement.addEventListener('play', () => this.notifyChange());
+      this.audioElement.addEventListener('pause', () => this.notifyChange());
+    } else {
+      this.audioElement = {
+        currentTime: 0,
+        duration: 0,
+        paused: true,
+        play: () => Promise.resolve(),
+        pause: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      } as unknown as HTMLAudioElement;
+    }
   }
 
   public subscribe(listener: () => void): () => void {
@@ -83,9 +103,10 @@ export class AudioEngine {
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
 
-      // Audio Graph: Sources -> MasterGain -> AnalyserNode -> Destination (Speakers)
+      // Audio Graph: Sources -> MasterGain -> Destination (Speakers)
+      // MasterGain and MicSource -> AnalyserNode (Isolated Visualization Tap)
+      this.masterGain.connect(this.ctx.destination);
       this.masterGain.connect(this.analyserNode);
-      this.analyserNode.connect(this.ctx.destination);
 
       this.synthesizer = new FrequencySynthesizer(this.ctx, this.masterGain);
       this.analyzer = new SpectralAnalyzer(this.analyserNode, this.ctx.sampleRate);
@@ -226,6 +247,39 @@ export class AudioEngine {
     return file.name;
   }
 
+  public getCurrentTime(): number {
+    if (this.currentMode === 'file-upload') {
+      return this.audioElement.currentTime || 0;
+    }
+    return 0;
+  }
+
+  public getDuration(): number {
+    if (this.currentMode === 'file-upload') {
+      const d = this.audioElement.duration;
+      return (isNaN(d) || !isFinite(d)) ? 0 : d;
+    }
+    return 0;
+  }
+
+  public seek(seconds: number): void {
+    if (this.currentMode === 'file-upload') {
+      const dur = this.getDuration();
+      const targetTime = Math.max(0, dur > 0 ? Math.min(dur, seconds) : Math.max(0, seconds));
+      this.audioElement.currentTime = targetTime;
+      this.notifyChange();
+    }
+  }
+
+  public getProgress(): number {
+    const dur = this.getDuration();
+    return dur > 0 ? Math.max(0, Math.min(1, this.getCurrentTime() / dur)) : 0;
+  }
+
+  public isSeekable(): boolean {
+    return this.currentMode === 'file-upload' && this.getDuration() > 0;
+  }
+
   public togglePlayPause(): boolean {
     if (this.currentMode === 'demo-track') {
       if (this.demoGenerator?.getIsPlaying()) {
@@ -268,6 +322,10 @@ export class AudioEngine {
         this.soundMedicine.stop();
         this.notifyChange();
         return false;
+      } else if (this.soundMedicine?.getActivePrescription()) {
+        this.soundMedicine.playPrescription(this.soundMedicine.getActivePrescription()!, this.masterVolume);
+        this.notifyChange();
+        return true;
       }
     }
 
@@ -402,7 +460,7 @@ export class AudioEngine {
 
   public getFundamentalFrequency(): number {
     if (this.currentMode === 'frequency-lab') {
-      return this.synthesizer ? this.synthesizer.frequency : 432;
+      return this.synthesizer && this.synthesizer.getIsPlaying() ? this.synthesizer.frequency : 0;
     }
     return this.analyzer ? this.analyzer.fundamentalFreq : 0;
   }

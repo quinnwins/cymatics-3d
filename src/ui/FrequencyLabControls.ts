@@ -2,6 +2,7 @@ import { AudioEngine } from '../audio/AudioEngine';
 import { WavePhysics, NoteInfo } from '../math/WavePhysics';
 import { WaveformType } from '../audio/FrequencySynthesizer';
 import { EngineMode } from './Header';
+import { VisualizerEngine } from '../visualizer/VisualizerEngine';
 
 export class FrequencyLabControls {
   private element: HTMLElement;
@@ -12,6 +13,7 @@ export class FrequencyLabControls {
 
   constructor(
     private audioEngine: AudioEngine,
+    private visualizer?: VisualizerEngine,
     onSwitchMode?: (mode: EngineMode) => void
   ) {
     this.onSwitchMode = onSwitchMode;
@@ -318,6 +320,9 @@ export class FrequencyLabControls {
     this.currentFreq = Math.max(1, Math.min(20000, hz));
     if (this.audioEngine.synthesizer) {
       this.audioEngine.synthesizer.setFrequency(this.currentFreq);
+    }
+    if (this.visualizer) {
+      this.visualizer.cymaticsMesh.setFrequency(this.currentFreq);
     }
     this.updateDisplay(fromSlider);
   }

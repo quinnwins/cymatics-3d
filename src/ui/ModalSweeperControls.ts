@@ -166,6 +166,18 @@ export class ModalSweeperControls {
     };
 
     this.recalculatePhysics();
+
+    this.audioEngine.subscribe(() => {
+      if (this.isVisible) {
+        this.updateDisplay();
+      }
+    });
+
+    window.addEventListener('cymatics-visibility-changed', () => {
+      if (this.isVisible) {
+        this.render();
+      }
+    });
   }
 
   private preventEventBleeding(): void {
@@ -204,6 +216,10 @@ export class ModalSweeperControls {
 
   private notifyStateChange(): void {
     this.recalculatePhysics();
+
+    if (this.audioEngine.synthesizer?.getIsPlaying()) {
+      this.audioEngine.synthesizer.setFrequency(this.state.calculatedEigenfrequency);
+    }
 
     if (this.onStateChange) {
       this.onStateChange(this.state);
@@ -305,9 +321,9 @@ export class ModalSweeperControls {
           <div class="flex flex-col">
             <span class="text-[8px] uppercase tracking-wider text-gray-400 font-semibold">Resonant Frequency</span>
             <div class="flex items-baseline gap-1.5 font-mono">
-              <span class="text-xs sm:text-sm font-bold text-cyan-400">${calculatedEigenfrequency.toFixed(1)} Hz</span>
-              <span class="text-[11px] font-semibold text-blue-400">${noteInfo.name}</span>
-              <span class="text-[9px] text-gray-400">${noteInfo.cents >= 0 ? '+' : ''}${noteInfo.cents}c</span>
+              <span id="modal-freq-val" class="text-xs sm:text-sm font-bold text-cyan-400">${calculatedEigenfrequency.toFixed(1)} Hz</span>
+              <span id="modal-note-name" class="text-[11px] font-semibold text-blue-400">${noteInfo.name}</span>
+              <span id="modal-note-cents" class="text-[9px] text-gray-400">${noteInfo.cents >= 0 ? '+' : ''}${noteInfo.cents}c</span>
             </div>
           </div>
 
@@ -464,7 +480,34 @@ export class ModalSweeperControls {
             </div>
           </div>
 
-          <!-- 2. Trapping Mode Switcher (Radiation Force Levitation) -->
+          <!-- 2. Specimen Display Layer Selector -->
+          <div class="flex flex-col gap-1">
+            <span class="text-[10px] font-semibold text-gray-300">Specimen Display:</span>
+            <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border-white/5">
+              ${[
+                { id: 'both', label: 'All Layers' },
+                { id: 'particles', label: 'Dust Only' },
+                { id: 'droplet', label: 'Droplet Only' },
+              ]
+                .map(
+                  v => `
+                <button
+                  data-cymatics-vis="${v.id}"
+                  class="btn-sweeper-vis flex-1 py-1.5 px-1.5 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                    (this.visualizer?.cymaticsVisibilityMode || 'both') === v.id
+                      ? 'glass-btn-active font-bold text-cyan-300 shadow-sm'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }"
+                >
+                  <span>${v.label}</span>
+                </button>
+              `
+                )
+                .join('')}
+            </div>
+          </div>
+
+          <!-- 3. Trapping Mode Switcher (Radiation Force Levitation) -->
           <div class="flex flex-col gap-1">
             <span class="text-[10px] font-semibold text-gray-300">Particle Trapping:</span>
             <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border-white/5">
@@ -513,7 +556,7 @@ export class ModalSweeperControls {
             <span class="text-[10px] font-bold text-gray-300 flex items-center gap-1.5">
               <span>Wave Shape Presets:</span>
             </span>
-            <span class="text-[9px] text-gray-400 font-mono">
+            <span id="modal-total-cells" class="text-[9px] text-gray-400 font-mono">
               Grid: <strong class="text-cyan-400">${totalNodalCells}</strong> Cells
             </span>
           </div>
@@ -551,6 +594,20 @@ export class ModalSweeperControls {
   private updateDisplay(fromSlider = false): void {
     const { n, m, l, calculatedEigenfrequency, noteInfo } = this.state;
     const isPlayingSynth = this.audioEngine.synthesizer?.getIsPlaying() ?? false;
+
+    // Resonant Frequency & Note Readout
+    const freqEl = this.element.querySelector('#modal-freq-val');
+    if (freqEl) freqEl.textContent = `${calculatedEigenfrequency.toFixed(1)} Hz`;
+    const noteNameEl = this.element.querySelector('#modal-note-name');
+    if (noteNameEl) noteNameEl.textContent = noteInfo.name;
+    const noteCentsEl = this.element.querySelector('#modal-note-cents');
+    if (noteCentsEl) noteCentsEl.textContent = `${noteInfo.cents >= 0 ? '+' : ''}${noteInfo.cents}c`;
+
+    // Total cells badge
+    const totalCellsEl = this.element.querySelector('#modal-total-cells');
+    if (totalCellsEl) {
+      totalCellsEl.innerHTML = `Grid: <strong class="text-cyan-400">${n * m * l}</strong> Cells`;
+    }
 
     // Badges
     const badgeN = this.element.querySelector('#badge-mode-n');
@@ -641,6 +698,19 @@ export class ModalSweeperControls {
         const geom = target.getAttribute('data-geometry') as ChamberGeometry;
         if (geom) {
           this.setGeometry(geom);
+        }
+      });
+    });
+
+    // 3b. Specimen Layer Visibility Buttons (Both / Dust / Droplet)
+    this.element.querySelectorAll('.btn-sweeper-vis').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const target = e.currentTarget as HTMLElement;
+        const visMode = target.getAttribute('data-cymatics-vis') as 'both' | 'particles' | 'droplet';
+        if (visMode && this.visualizer) {
+          this.visualizer.setCymaticsVisibilityMode(visMode);
+          this.render();
+          window.dispatchEvent(new CustomEvent('cymatics-visibility-changed', { detail: { mode: visMode } }));
         }
       });
     });

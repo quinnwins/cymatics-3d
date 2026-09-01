@@ -41,10 +41,12 @@ export class CentralEmitter {
         varying vec3 vNormal;
         varying vec3 vViewPosition;
         void main() {
-          float NdotV = max(dot(vNormal, normalize(vViewPosition)), 0.0);
-          float fresnel = pow(1.0 - NdotV, 2.5);
+          vec3 N = length(vNormal) > 1e-5 ? normalize(vNormal) : vec3(0.0, 1.0, 0.0);
+          vec3 V = length(vViewPosition) > 1e-5 ? normalize(vViewPosition) : vec3(0.0, 0.0, 1.0);
+          float NdotV = clamp(dot(N, V), 0.0, 1.0);
+          float fresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), 2.5);
           vec3 radiant = uColor * (0.8 + uIntensity * 0.3);
-          gl_FragColor = vec4(radiant, fresnel * 0.4);
+          gl_FragColor = vec4(radiant, clamp(fresnel * 0.4, 0.0, 1.0));
         }
       `,
       uniforms: {
@@ -91,5 +93,14 @@ export class CentralEmitter {
     this.coreMaterial.color.copy(palette.coreGlow);
     this.glowMaterial.uniforms.uColor.value.copy(palette.coreGlow);
     this.ringMaterial.color.copy(palette.accent);
+  }
+
+  public dispose(): void {
+    this.coreMesh.geometry.dispose();
+    this.coreMaterial.dispose();
+    this.glowMesh.geometry.dispose();
+    this.glowMaterial.dispose();
+    this.ringMesh.geometry.dispose();
+    this.ringMaterial.dispose();
   }
 }

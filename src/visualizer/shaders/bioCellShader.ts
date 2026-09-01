@@ -209,7 +209,7 @@ void main() {
     vec3 posDY = (pY + normalize(pY) * dispY) - displacedPosition;
     vec3 calculatedNormal = normalize(cross(posDX, posDY));
 
-    vWorldNormal = normalize(normalMatrix * calculatedNormal);
+    vWorldNormal = normalize(mat3(modelMatrix) * calculatedNormal);
     vViewNormal  = normalize((modelViewMatrix * vec4(calculatedNormal, 0.0)).xyz);
     
     vec4 worldPos = modelMatrix * vec4(displacedPosition, 1.0);
@@ -303,17 +303,18 @@ vec3 computeSSS(vec3 lightDir, vec3 viewDir, vec3 normal, float thickness, vec3 
 }
 
 void main() {
-    vec3 N = normalize(vWorldNormal);
-    vec3 V = normalize(uCameraPosition - vWorldPosition);
+    vec3 N = length(vWorldNormal) > 1e-5 ? normalize(vWorldNormal) : vec3(0.0, 1.0, 0.0);
+    vec3 toCam = uCameraPosition - vWorldPosition;
+    vec3 V = length(toCam) > 1e-5 ? normalize(toCam) : vec3(0.0, 0.0, 1.0);
     vec3 L1 = normalize(vec3(1.5, 3.0, 2.0));
     vec3 L2 = normalize(vec3(-2.0, -1.0, -1.5));
 
     // 1. Chromatic Fresnel Reflectance (Thin-film lipid dispersion)
     float F0 = 0.04;
     float nDotV = clamp(dot(N, V), 0.0, 1.0);
-    float fresnelR = F0 + (1.0 - F0) * pow(1.0 - nDotV, 3.8);
-    float fresnelG = F0 + (1.0 - F0) * pow(1.0 - nDotV, 4.4);
-    float fresnelB = F0 + (1.0 - F0) * pow(1.0 - nDotV, 5.0);
+    float fresnelR = F0 + (1.0 - F0) * pow(clamp(1.0 - nDotV, 0.0, 1.0), 3.8);
+    float fresnelG = F0 + (1.0 - F0) * pow(clamp(1.0 - nDotV, 0.0, 1.0), 4.4);
+    float fresnelB = F0 + (1.0 - F0) * pow(clamp(1.0 - nDotV, 0.0, 1.0), 5.0);
     vec3 chromaticFresnel = vec3(fresnelR, fresnelG, fresnelB);
 
     // 2. Inigo Quilez Palette Disease State Grading

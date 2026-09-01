@@ -24,7 +24,7 @@ void main() {
 
     vec4 worldPos = modelMatrix * vec4(displacedPos, 1.0);
     vWorldPosition = worldPos.xyz;
-    vWorldNormal = normalize(normalMatrix * normal);
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
 
     vFlashIntensity = exp(-uFlashProgress * 6.5) * smoothstep(0.0, 0.05, uFlashProgress);
 
@@ -45,11 +45,12 @@ varying vec3 vWorldNormal;
 varying float vFlashIntensity;
 
 void main() {
-    vec3 N = normalize(vWorldNormal);
-    vec3 V = normalize(uCameraPosition - vWorldPosition);
+    vec3 N = length(vWorldNormal) > 1e-5 ? normalize(vWorldNormal) : vec3(0.0, 1.0, 0.0);
+    vec3 toCam = uCameraPosition - vWorldPosition;
+    vec3 V = length(toCam) > 1e-5 ? normalize(toCam) : vec3(0.0, 0.0, 1.0);
 
     float nDotV = clamp(dot(N, V), 0.0, 1.0);
-    float rimShock = pow(1.0 - nDotV, 3.5);
+    float rimShock = pow(clamp(1.0 - nDotV, 0.0, 1.0), 3.5);
 
     vec3 flashRgb = mix(uSonoluminescenceColor, uHotCoreColor, vFlashIntensity * 1.4);
     flashRgb += rimShock * uSonoluminescenceColor * 3.0;
@@ -57,7 +58,7 @@ void main() {
     vec3 finalColor = flashRgb * (vFlashIntensity * 5.0 + rimShock * 2.0);
     float alpha = clamp((vFlashIntensity * 0.95 + rimShock * 0.75) * exp(-uFlashProgress * 3.0), 0.0, 1.0);
 
-    gl_FragColor = vec4(finalColor, alpha);
+    gl_FragColor = vec4(clamp(finalColor, 0.0, 10.0), alpha);
 }
 `;
 

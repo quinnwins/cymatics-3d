@@ -37,7 +37,7 @@ void main() {
     // Map spherical coordinates (theta, phi) to frequency bin u in [0, 1]
     float freqU = clamp((n.y * 0.5 + 0.5) * 0.7 + (n.x * 0.5 + 0.5) * 0.3, 0.0, 1.0);
     vec4 audioSample = texture2D(uAudioHistory, vec2(freqU, historyRow));
-    float spectralAmp = audioSample.r;
+    float spectralAmp = clamp(audioSample.r, 0.0, 10.0);
 
     // 2. Physical 3D Spherical Wave Propagation: (A/r) * exp(-alpha*r) * cos(kr - wt)
     float waveK = 3.14159 * (1.5 + freqU * 6.0);
@@ -62,10 +62,12 @@ void main() {
         float speed = uShockwaves[i].z;
         if (birth > 0.0) {
             float dt = uTime - birth;
-            float frontR = speed * dt;
-            float distFromFront = abs(baseR - frontR);
-            float pulse = exp(-distFromFront * 3.5) * exp(-dt * 2.0) * strength;
-            shockDisp += pulse * sin(distFromFront * 12.0 - dt * 15.0);
+            if (dt >= 0.0 && dt < 4.0) {
+                float frontR = speed * dt;
+                float distFromFront = abs(baseR - frontR);
+                float pulse = exp(-distFromFront * 3.5) * exp(-dt * 2.0) * strength;
+                shockDisp += pulse * sin(distFromFront * 12.0 - dt * 15.0);
+            }
         }
     }
 
@@ -80,9 +82,11 @@ void main() {
     buildOrthonormalBasis(n, b1, b2);
     float slopeU = -radialDisp * waveK * 0.45;
     float slopeV = cymaticsDisp * 0.35;
-    vec3 perturbedNormal = normalize(n - b1 * slopeU - b2 * slopeV);
+    vec3 unnormNormal = n - b1 * slopeU - b2 * slopeV;
+    vec3 perturbedNormal = length(unnormNormal) > 1e-5 ? normalize(unnormNormal) : n;
 
-    vViewNormal = normalize(normalMatrix * perturbedNormal);
+    vec3 transNormal = normalMatrix * perturbedNormal;
+    vViewNormal = length(transNormal) > 1e-5 ? normalize(transNormal) : vec3(0.0, 0.0, 1.0);
     vec4 mvPosition = modelViewMatrix * vec4(displacedPos, 1.0);
     vViewPosition = -mvPosition.xyz;
     vWorldPos = (modelMatrix * vec4(displacedPos, 1.0)).xyz;
@@ -111,30 +115,36 @@ varying float vIntensity;
 varying vec3 vWorldPos;
 
 void main() {
-    vec3 N = normalize(vViewNormal);
-    vec3 V = normalize(vViewPosition);
+    vec3 N = length(vViewNormal) > 1e-5 ? normalize(vViewNormal) : vec3(0.0, 0.0, 1.0);
+    vec3 V = length(vViewPosition) > 1e-5 ? normalize(vViewPosition) : vec3(0.0, 0.0, 1.0);
 
     // Propagating wave crest excitation (dynamic acoustic energy)
     float waveCrest = smoothstep(0.02, 0.22, abs(vDisplacement) * 2.0);
 
     // Physical Fresnel limb-brightening: glancing edges glow as acoustic crests
-    float NdotV = max(dot(N, V), 0.0);
-    float rimFresnel = pow(1.0 - NdotV, 2.6);
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
+    float rimFresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), 2.6);
 
-    // Dynamic OKLab cosine palette color based on radial distance and displacement
+    // Dynamic Cosine palette color based on radial distance and displacement
     float colorT = vRadius * 0.12 - uTime * 0.08 + vDisplacement * 0.5;
-    vec3 palColor = oklabCosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
+    vec3 palColor = cosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
     // Core glowing wave crests with Apple radiant glow shoulder
     vec3 crestColor = mix(palColor, uCoreGlow, clamp(vDisplacement * 1.5, 0.0, 1.0));
-    vec3 finalRgb = appleRadiantGlow(crestColor, vIntensity * 0.35 + waveCrest * 0.25, 0.15);
-    finalRgb = mix(finalRgb, uAccent, rimFresnel * 0.7);
+    vec3 finalRgb = appleRadiantGlow(crestColor, clamp(vIntensity * 0.35 + waveCrest * 0.25, 0.0, 5.0), 0.15);
+    finalRgb = mix(finalRgb, uAccent, clamp(rimFresnel * 0.7, 0.0, 1.0));
 
     // Ethereal translucent shell: limb-brightened at glancing angles, clear through the core
     float innerFade = smoothstep(0.6, 2.0, vRadius);
     float alpha = clamp(0.12 + rimFresnel * 0.65 + waveCrest * 0.45, 0.0, 0.85);
     alpha *= exp(-0.035 * vRadius) * innerFade;
 
-    gl_FragColor = vec4(finalRgb, alpha);
+    // Safety guard against NaN / Inf escaping into the HDR postprocessing bloom buffer
+    if (isnan(finalRgb.r) || isnan(finalRgb.g) || isnan(finalRgb.b) || isnan(alpha) ||
+        isinf(finalRgb.r) || isinf(finalRgb.g) || isinf(finalRgb.b) || isinf(alpha)) {
+        discard;
+    }
+
+    gl_FragColor = vec4(clamp(finalRgb, 0.0, 10.0), clamp(alpha, 0.0, 1.0));
 }
 `;

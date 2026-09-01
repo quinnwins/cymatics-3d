@@ -25,7 +25,7 @@ void main() {
 
     vec4 worldPos = modelMatrix * vec4(position, 1.0);
     vWorldPosition = worldPos.xyz;
-    vWorldNormal = normalize(normalMatrix * normal);
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
 
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
@@ -95,11 +95,11 @@ void main() {
     calciumColor = mix(uOrganelleMaskColor, calciumColor, nucleusMask);
 
     float nDotV = clamp(dot(N, V), 0.0, 1.0);
-    float rimGlow = pow(1.0 - nDotV, 2.8) * fluorescenceRatio * 1.5;
+    float rimGlow = pow(clamp(1.0 - nDotV, 0.0, 1.0), 2.8) * fluorescenceRatio * 1.5;
 
     vec3 finalRgb = calciumColor * (0.8 + fluorescenceRatio * 2.2) + rimGlow * uFluo4PeakColor;
     float alpha = clamp(0.55 + fluorescenceRatio * 0.4 + rimGlow * 0.3, 0.0, 0.98);
 
-    gl_FragColor = vec4(finalRgb, alpha);
+    gl_FragColor = vec4(clamp(finalRgb, 0.0, 10.0), alpha);
 }
 `;

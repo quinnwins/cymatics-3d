@@ -121,11 +121,11 @@ export class TherapyLabControls {
         </div>
       </div>
 
-      <!-- 7 Experiment Modalities Grid (Clean, fully visible, zero scrollbar) -->
+      <!-- 8 Experiment Modalities Grid (Clean, balanced 4x2 grid, zero scrollbar) -->
       <div class="flex flex-col gap-1.5">
         <div class="flex items-center justify-between">
           <span class="text-[10px] font-semibold text-slate-300">Therapy Modalities:</span>
-          <span class="text-[9px] font-mono text-cyan-400">7 Active Methods</span>
+          <span class="text-[9px] font-mono text-cyan-400">8 Active Methods</span>
         </div>
         <div class="grid grid-cols-2 gap-1.5" id="experiment-tabs-grid">
           <button data-experiment="phase-cancel" class="tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
@@ -143,6 +143,14 @@ export class TherapyLabControls {
           }">
             <div class="truncate">Resonance Burst</div>
             <div class="text-[9px] font-mono opacity-70">Targeted Lysis</div>
+          </button>
+          <button data-experiment="histotripsy" class="tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+            this.currentExperiment === 'histotripsy'
+              ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm ring-1 ring-cyan-400/50 border-cyan-400'
+              : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/50'
+          }">
+            <div class="truncate">Shockwave Burst</div>
+            <div class="text-[9px] font-mono opacity-70">Histotripsy Cavitation</div>
           </button>
           <button data-experiment="time-reversal" class="tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
             this.currentExperiment === 'time-reversal'
@@ -176,18 +184,13 @@ export class TherapyLabControls {
             <div class="truncate">Cell Ion Channels</div>
             <div class="text-[9px] font-mono opacity-70">PIEZO1 Ca²⁺ Flux</div>
           </button>
-          <button data-experiment="immune-swarm" class="tab-exp-btn col-span-2 text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-between ${
+          <button data-experiment="immune-swarm" class="tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
             this.currentExperiment === 'immune-swarm'
               ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm ring-1 ring-cyan-400/50 border-cyan-400'
               : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/50'
           }">
-            <div>
-              <div class="truncate">Immune Response</div>
-              <div class="text-[9px] font-mono opacity-70">Acousto-Immunotherapy</div>
-            </div>
-            <span class="px-2 py-0.5 rounded-full text-[9px] font-mono ${
-              this.currentExperiment === 'immune-swarm' ? 'bg-slate-900/40 text-slate-950 font-bold' : 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30'
-            }">T-Cell Swarm</span>
+            <div class="truncate">Immune Swarm</div>
+            <div class="text-[9px] font-mono opacity-70">T-Cell Swarm</div>
           </button>
         </div>
       </div>
@@ -365,7 +368,12 @@ export class TherapyLabControls {
   private getHeroButtonHtml(): string {
     if (this.currentExperiment === 'oncotripsy') {
       return `<button id="btn-hero-action" data-action="oncotripsy" class="px-2.5 py-1.5 rounded-xl font-semibold text-xs bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 active:scale-95 transition-all flex items-center gap-1 cursor-pointer">
-                <span>Resonance Burst</span>
+                <span>Trigger Burst</span>
+              </button>`;
+    }
+    if (this.currentExperiment === 'histotripsy') {
+      return `<button id="btn-hero-action" data-action="histotripsy" class="px-2.5 py-1.5 rounded-xl font-semibold text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 active:scale-95 transition-all flex items-center gap-1 cursor-pointer">
+                <span>Shockwave Cavitation</span>
               </button>`;
     }
     if (this.currentExperiment === 'sonodynamic-sdt') {
@@ -408,6 +416,9 @@ export class TherapyLabControls {
       const action = heroBtn.getAttribute('data-action');
       if (action === 'oncotripsy') {
         this.visualizer.acousticTherapyLab.triggerOncotripsyBurst();
+        this.syncAudioEngine();
+      } else if (action === 'histotripsy') {
+        this.visualizer.acousticTherapyLab.triggerHistotripsyBurst();
         this.syncAudioEngine();
       } else if (action === 'sonodynamic-sdt') {
         this.visualizer.acousticTherapyLab.triggerSonodynamicFlash();

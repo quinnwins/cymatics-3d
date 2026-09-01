@@ -72,7 +72,7 @@ void main() {
 
     // 1. Dielectric Schlick Fresnel Reflectance
     float F0 = 0.042; // Borosilicate glass F0 in air
-    float fresnel = F0 + (1.0 - F0) * pow(1.0 - NdotV, uFresnelPower);
+    float fresnel = F0 + (1.0 - F0) * pow(clamp(1.0 - NdotV, 0.0, 1.0), uFresnelPower);
 
     // 2. Chromatic Dispersion Refraction Vectors
     float etaG = 1.0 / uRefractiveIndex;
@@ -120,6 +120,26 @@ void main() {
         gridLine = (smoothstep(0.04, 0.0, latGrid) + smoothstep(0.04, 0.0, lonGrid)) * 0.35;
     }
 
+    // 3b. Crisp 2D Chladni Resonator Sand Mandalas on Base Plate
+    if (vLocalPosition.y < -0.90) {
+        vec2 p = vLocalPosition.xz;
+        float r = length(p);
+        float theta = atan(p.y, p.x);
+        
+        // Mode frequencies driven by acoustic telemetry
+        float nMode = max(1.0, uBandEnergies.x * 3.0 + uBandEnergies.y * 2.0 + 2.0);
+        float mMode = max(1.0, uBandEnergies.z * 3.0 + 3.0);
+
+        // Multi-order Chladni plate nodal curves
+        float chladni1 = cos(nMode * PI * p.x) * cos(mMode * PI * p.y) - cos(mMode * PI * p.x) * cos(nMode * PI * p.y);
+        float chladniBessel = evalBesselJ(mMode, nMode * PI * r * 1.4) * cos(mMode * theta);
+        float chladniMix = mix(chladni1, chladniBessel, float(uChamberType != 0));
+
+        float dP = abs(chladniMix) / (fwidth(chladniMix) * 1.6 + 0.002);
+        float sandMandalas = (1.0 - clamp(dP, 0.0, 1.0)) * smoothstep(1.05, 0.0, r);
+        gridLine += sandMandalas * 2.2;
+    }
+
     // 4. Acoustic Resonance Internal Luminescence
     float bassPulse = uBandEnergies.x * 1.6 + uBandEnergies.y * 1.0;
     vec3 glassTint = mix(uChamberColor * 0.25, uAccentColor, fresnel * 0.85);
@@ -140,14 +160,14 @@ void main() {
     finalRgb += specularGlint;
     finalRgb += uAccentColor * (gridLine * (1.2 + bassPulse * 0.8));
 
-    // Dynamic Opacity with Front/Back Transmission
+    // Dynamic Opacity with Front/Back Transmission (Ultra-transparent optical enclosure)
     float alpha = clamp(
-        (gl_FrontFacing ? uGlassOpacity : uGlassOpacity * 0.6) +
-        fresnel * 0.75 +
-        gridLine * 0.5 +
-        (spec1 + spec2) * 0.8,
+        (gl_FrontFacing ? uGlassOpacity : uGlassOpacity * 0.4) +
+        fresnel * 0.06 +
+        gridLine * 0.06 +
+        (spec1 + spec2) * 0.15,
         0.0,
-        0.92
+        0.18
     );
 
     gl_FragColor = vec4(finalRgb, alpha);
@@ -186,26 +206,27 @@ varying vec3 vLocalPosition;
 varying float vProgress;
 
 void main() {
-    vec3 N = normalize(vWorldNormal);
-    vec3 V = normalize(vViewPosition);
+    vec3 N = length(vWorldNormal) > 1e-5 ? normalize(vWorldNormal) : vec3(0.0, 1.0, 0.0);
+    vec3 V = length(vViewPosition) > 1e-5 ? normalize(vViewPosition) : vec3(0.0, 0.0, 1.0);
 
-    float NdotV = max(dot(N, V), 0.0);
-    float fresnel = pow(1.0 - NdotV, 2.5);
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
+    float fresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), 2.5);
 
-    // Pulsing Traveling Energy Wave along edge struts
-    float pulse = sin(vProgress * 24.0 - uTime * 6.0) * 0.5 + 0.5;
-    float audioBoost = uBandEnergies.x * 2.0 + uBandEnergies.y * 1.2;
+    // Subtle Traveling Energy Wave along edge struts
+    float pulse = sin(vProgress * 12.0 - uTime * 4.0) * 0.5 + 0.5;
+    float audioBoost = uBandEnergies.x * 0.6 + uBandEnergies.y * 0.4;
 
-    vec3 edgeColor = mix(uColor, uAccent, pulse * 0.7);
-    edgeColor *= (1.0 + audioBoost + fresnel * 2.0) * uEdgeGlow;
+    vec3 edgeColor = mix(uColor, uAccent, pulse * 0.5);
+    edgeColor *= (0.8 + audioBoost + fresnel * 0.8) * uEdgeGlow;
 
     // Specular shine
     vec3 H = normalize(normalize(vec3(1.0, 2.0, 1.5)) + V);
-    float spec = pow(max(dot(N, H), 0.0), 32.0);
-    edgeColor += vec3(spec * 1.5);
+    float spec = pow(clamp(dot(N, H), 0.0, 1.0), 32.0);
+    edgeColor += vec3(spec * 0.8);
 
-    float alpha = clamp(0.65 + fresnel * 0.35 + audioBoost * 0.2, 0.0, 1.0);
-    gl_FragColor = vec4(edgeColor, alpha);
+    // Ultra-minimal datum frame opacity (~0.08-0.18)
+    float alpha = clamp(0.08 + fresnel * 0.12 + audioBoost * 0.06, 0.0, 0.35);
+    gl_FragColor = vec4(clamp(edgeColor, 0.0, 10.0), alpha);
 }
 `;
 
@@ -246,10 +267,10 @@ export class ChamberEnclosure {
 
     this.chamberType = config?.chamberType ?? 'cube';
     this.size = config?.size ?? 3.2;
-    this.glassOpacity = config?.glassOpacity ?? 0.22;
+    this.glassOpacity = config?.glassOpacity ?? 0.01;
     this.refractiveIndex = config?.refractiveIndex ?? 1.52;
-    this.dispersionStrength = config?.dispersionStrength ?? 0.025;
-    this.edgeGlowIntensity = config?.edgeGlowIntensity ?? 1.4;
+    this.dispersionStrength = config?.dispersionStrength ?? 0.015;
+    this.edgeGlowIntensity = config?.edgeGlowIntensity ?? 0.8;
 
     // 1. Initialize Glass Material
     this.glassMaterial = new THREE.ShaderMaterial({
@@ -317,8 +338,8 @@ export class ChamberEnclosure {
     this.cubeGlassMesh = new THREE.Mesh(cubeGeo, this.glassMaterial);
     this.chamberGroup.add(this.cubeGlassMesh);
 
-    // 12 Beveled Crystal Edge Struts
-    const strutRadius = 0.035;
+    // 12 Beveled Crystal Edge Struts (Ultra-sleek wireframe datum frame)
+    const strutRadius = 0.010;
     const strutGeo = new THREE.CylinderGeometry(strutRadius, strutRadius, full, 8);
 
     const makeStrut = (pos: THREE.Vector3, rot: THREE.Euler): THREE.Mesh => {
@@ -346,8 +367,8 @@ export class ChamberEnclosure {
     this.cubeFrameMeshGroup.add(makeStrut(new THREE.Vector3(half, -half, 0), new THREE.Euler(Math.PI / 2, 0, 0)));
     this.cubeFrameMeshGroup.add(makeStrut(new THREE.Vector3(-half, -half, 0), new THREE.Euler(Math.PI / 2, 0, 0)));
 
-    // 8 Corner Reinforcement Nodes
-    const cornerGeo = new THREE.OctahedronGeometry(0.08, 0);
+    // 8 Corner Reinforcement Micro-Nodes
+    const cornerGeo = new THREE.OctahedronGeometry(0.028, 0);
     const signs = [-1, 1];
     signs.forEach(sx => {
       signs.forEach(sy => {
@@ -373,7 +394,7 @@ export class ChamberEnclosure {
 
     // Top & Bottom Crystal Rings
     const ringRadius = radius;
-    const ringTube = 0.035;
+    const ringTube = 0.010;
     const ringGeo = new THREE.TorusGeometry(ringRadius, ringTube, 8, 48);
 
     const topRing = new THREE.Mesh(ringGeo, this.strutMaterial);
@@ -407,32 +428,12 @@ export class ChamberEnclosure {
     this.sphereGlassMesh = new THREE.Mesh(sphereGeo, this.glassMaterial);
     this.chamberGroup.add(this.sphereGlassMesh);
 
-    // 3 Orthogonal Gimbal Rings (XY, YZ, ZX)
-    const ringTube = 0.035;
-    const ringGeo = new THREE.TorusGeometry(radius, ringTube, 8, 64);
-
-    const ringXY = new THREE.Mesh(ringGeo, this.strutMaterial);
-    const ringYZ = new THREE.Mesh(ringGeo, this.strutMaterial);
-    ringYZ.rotation.y = Math.PI / 2;
+    // Ultra-subtle minimal equator ring
+    const ringTube = 0.006;
+    const ringGeo = new THREE.TorusGeometry(radius, ringTube, 6, 48);
     const ringZX = new THREE.Mesh(ringGeo, this.strutMaterial);
     ringZX.rotation.x = Math.PI / 2;
-
-    this.sphereFrameMeshGroup.add(ringXY);
-    this.sphereFrameMeshGroup.add(ringYZ);
     this.sphereFrameMeshGroup.add(ringZX);
-
-    // Polar Acoustic Transducer Caps
-    const capGeo = new THREE.TorusGeometry(radius * 0.35, ringTube * 1.2, 8, 32);
-    const topCap = new THREE.Mesh(capGeo, this.strutMaterial);
-    topCap.position.y = radius * 0.92;
-    topCap.rotation.x = Math.PI / 2;
-
-    const btmCap = new THREE.Mesh(capGeo, this.strutMaterial);
-    btmCap.position.y = -radius * 0.92;
-    btmCap.rotation.x = Math.PI / 2;
-
-    this.sphereFrameMeshGroup.add(topCap);
-    this.sphereFrameMeshGroup.add(btmCap);
 
     this.frameGroup.add(this.sphereFrameMeshGroup);
   }

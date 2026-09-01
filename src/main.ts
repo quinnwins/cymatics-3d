@@ -92,17 +92,24 @@ class App {
     this.musicLibraryCard = new MusicLibraryCard(this.audioEngine, () => {
       this.audioControlsBar.render();
     });
-    this.frequencyLabControls = new FrequencyLabControls(this.audioEngine, mode => this.switchMode(mode));
+    this.frequencyLabControls = new FrequencyLabControls(this.audioEngine, this.visualizer, mode => this.switchMode(mode));
     this.modalSweeperControls = new ModalSweeperControls(
       this.audioEngine,
       this.visualizer,
       state => {
         this.visualizer.volumetricChladni.setModes(state.n, state.m, state.l);
         this.visualizer.volumetricChladni.setChamberType(state.geometry === 'cube' ? 0 : state.geometry === 'cylinder' ? 1 : 2);
+        this.visualizer.cymaticsMesh.setModes(state.n, state.m, state.l);
+        this.visualizer.cymaticsMesh.setAutoModal(state.audioCoupled);
+        this.visualizer.cymaticsMesh.setChamberType(state.geometry);
+        this.visualizer.cymaticsMesh.setFrequency(state.calculatedEigenfrequency);
         this.visualizer.gpuAcousticParticles.setModalNumbers(state.n, state.m, state.l);
         this.visualizer.gpuAcousticParticles.setChamberGeometry(state.geometry);
         this.visualizer.gpuAcousticParticles.setChladniMode(state.trappingMode === 'nodes' ? 'normal' : 'inverse');
         this.visualizer.chamberEnclosure.setChamberType(state.geometry);
+        if (this.currentMode === 'modal' && this.audioEngine.synthesizer?.getIsPlaying()) {
+          this.audioEngine.synthesizer.setFrequency(state.calculatedEigenfrequency);
+        }
       },
       mode => this.switchMode(mode)
     );
@@ -192,6 +199,26 @@ class App {
   }
 
   private exportClinicalDossier(): void {
+    if (this.currentMode === 'voice') {
+      const vocalReport = this.audioEngine.voiceBiometrics?.update();
+      if (!vocalReport) return;
+
+      const isLiveMic = this.audioEngine.voiceBiometrics?.getIsLiveMic() ?? false;
+      const profile = this.audioEngine.voiceBiometrics?.getActiveProfile();
+      const dossier = AcousticDataExporter.generateVocalDossier(vocalReport, isLiveMic, profile?.name);
+      const markdown = AcousticDataExporter.generateVocalMarkdownReport(dossier);
+      const csv = AcousticDataExporter.generateVocalCSV(dossier);
+
+      AcousticDataExporter.triggerDownload(`CLINICAL_VOCAL_DOSSIER_${dossier.dossierId}.md`, markdown, 'text/markdown');
+      AcousticDataExporter.triggerDownload(`CLINICAL_VOCAL_DOSSIER_${dossier.dossierId}.json`, JSON.stringify(dossier, null, 2), 'application/json');
+      AcousticDataExporter.triggerDownload(`CLINICAL_VOCAL_DOSSIER_${dossier.dossierId}.csv`, csv, 'text/csv');
+
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(markdown).catch(() => {});
+      }
+      return;
+    }
+
     const chamberState = this.modalSweeperControls.getState();
     const vocalReport = this.audioEngine.voiceBiometrics?.update();
     const biophysTelemetry = this.visualizer.nobelDiscoveryLab.getTelemetry();
@@ -211,7 +238,7 @@ class App {
       },
       {
         gorkovPotentialPeak: 0.25,
-        activeParticles: 262144,
+        activeParticles: this.visualizer.gpuAcousticParticles.getParticleCount(),
         trappingMode: chamberState.trappingMode === 'nodes' ? 'nodes' : 'antinodes',
       },
       vocalReport,
@@ -245,6 +272,8 @@ class App {
     if (mode !== 'voice') {
       this.voiceTelemetryHUD.setVisible(false);
       this.audioEngine.stopPersonalizedSoundMedicine();
+      this.audioEngine.stopVoiceBiometrics();
+      this.audioEngine.stopMicrophone();
       this.visualizer.vocalBiometricsLab.setTherapyActive(false);
     }
     if (mode !== 'nobel') {
@@ -255,7 +284,7 @@ class App {
       this.visualizer.setStyle('hybrid');
       this.audioEngine.playDemoTrack('cosmic-odyssey');
     } else if (mode === 'frequency') {
-      this.visualizer.setStyle('hybrid');
+      this.visualizer.setStyle('cymatics');
       this.audioEngine.playFrequency(432);
     } else if (mode === 'modal') {
       this.visualizer.setStyle('cymatics');
@@ -298,7 +327,7 @@ class App {
 
     this.renderSidebars();
     if (this.physicsDrawer) {
-      this.physicsDrawer.render();
+      this.physicsDrawer.setMode(mode);
     }
     this.audioControlsBar.render();
   }

@@ -35,7 +35,7 @@ void main() {
     float travelTime = baseR / max(uPropagationSpeed, 0.001);
     float historyRow = fract(uHistoryHead - travelTime * 0.15);
     vec4 audioSample = texture2D(uAudioHistory, vec2(aParticleFreq, historyRow));
-    float localAmp = audioSample.r;
+    float localAmp = clamp(audioSample.r, 0.0, 10.0);
 
     // 2. Physical Spherical Wave Propagation
     float waveK = 3.14159 * (1.2 + aParticleFreq * 7.0);
@@ -59,10 +59,12 @@ void main() {
         float speed = uShockwaves[i].z;
         if (birth > 0.0) {
             float dt = uTime - birth;
-            float frontR = speed * dt;
-            float distFromFront = abs(baseR - frontR);
-            float pulse = exp(-distFromFront * 4.0) * exp(-dt * 2.0) * strength;
-            shockDisp += pulse * sin(distFromFront * 14.0 - dt * 18.0);
+            if (dt >= 0.0 && dt < 4.0) {
+                float frontR = speed * dt;
+                float distFromFront = abs(baseR - frontR);
+                float pulse = exp(-distFromFront * 4.0) * exp(-dt * 2.0) * strength;
+                shockDisp += pulse * sin(distFromFront * 14.0 - dt * 18.0);
+            }
         }
     }
 
@@ -75,29 +77,31 @@ void main() {
     vec3 palColor = cosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
     // Intensity boost on transient or heavy sub-bass
-    float intensity = clamp(localAmp * 1.8 + abs(totalDisp) * 0.6 + shockDisp * 1.2, 0.0, 2.5);
+    float intensity = clamp(localAmp * 1.8 + abs(totalDisp) * 0.6 + shockDisp * 1.2, 0.0, 3.0);
     vIntensity = intensity;
 
-    vec3 finalColor = palColor * (0.55 + 0.65 * intensity);
-    finalColor += uCoreGlow * (uBandEnergies.x * 0.5);
-    finalColor += uAccent * (shockDisp * 0.6);
+    vec3 finalColor = palColor * (0.80 + 0.40 * intensity);
+    finalColor += uCoreGlow * (uBandEnergies.x * 0.6);
+    finalColor += uAccent * (shockDisp * 0.8);
 
-    vColor = vec4(finalColor, 1.0);
+    vColor = vec4(finalColor, 0.90 + 0.10 * intensity);
 
     vec4 mvPosition = modelViewMatrix * vec4(displacedPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
 
     // Soft camera near-plane depth fade to prevent harsh clipping
-    float zDist = -mvPosition.z;
-    vDepthFade = smoothstep(0.4, 1.2, zDist);
+    float zDist = max(0.1, -mvPosition.z);
+    vDepthFade = smoothstep(0.3, 1.2, zDist);
 
-    // Point size with distance attenuation and crisp holographic density
-    gl_PointSize = clamp((0.9 + 1.2 * intensity + shockDisp * 1.8) * uParticleScale * (85.0 / max(zDist, 0.1)), 1.0, 16.0);
+    // Point size with calibrated distance attenuation (fine acoustic nebula points)
+    gl_PointSize = clamp((0.9 + 1.1 * intensity + shockDisp * 1.5) * uParticleScale * (75.0 / max(zDist, 0.15)), 1.0, 12.0);
 }
 `;
 
 export const PARTICLE_FRAGMENT_SHADER = `
 precision highp float;
+
+uniform vec3 uAccent;
 
 varying vec4 vColor;
 varying float vIntensity;
@@ -108,35 +112,19 @@ void main() {
     float r2 = dot(pCoord, pCoord);
     if (r2 > 1.0) discard;
 
-    // 1. Exact Spherical Normal Reconstruction
-    float zNorm = sqrt(max(0.0, 1.0 - r2));
-    vec3 impostorNormal = vec3(pCoord.x, -pCoord.y, zNorm);
+    // Soft Gaussian Core with subtle Airy edge falloff
+    float coreGaussian = exp(-r2 * 4.5);
+    float edgeSoft = 1.0 - smoothstep(0.6, 1.0, clamp(sqrt(max(0.0, r2)), 0.0, 1.0));
 
-    // 2. View-Space Directional Lighting & Microfacet Specular
-    vec3 lightDir = normalize(vec3(0.5, 0.8, 1.0));
-    float NdotL = max(dot(impostorNormal, lightDir), 0.0);
-    float spec = pow(max(dot(impostorNormal, normalize(lightDir + vec3(0.0, 0.0, 1.0))), 0.0), 28.0);
+    vec3 finalRgb = vColor.rgb * (1.0 + vIntensity * 0.4);
+    float finalAlpha = clamp(vColor.a * coreGaussian * edgeSoft * vDepthFade, 0.0, 1.0);
 
-    // 3. Multi-Wavelength Chromatic Airy Fringe Dispersion
-    float rR = sqrt(r2) * 1.03;
-    float rG = sqrt(r2);
-    float rB = sqrt(r2) * 0.97;
+    if (isnan(finalRgb.r) || isnan(finalRgb.g) || isnan(finalRgb.b) || isnan(finalAlpha) ||
+        isinf(finalRgb.r) || isinf(finalRgb.g) || isinf(finalRgb.b) || isinf(finalAlpha)) {
+        discard;
+    }
 
-    vec3 chromaticAlpha = vec3(
-        exp(-rR * rR * 9.0),
-        exp(-rG * rG * 10.0),
-        exp(-rB * rB * 11.5)
-    );
-
-    float coreGaussian = exp(-r2 * 12.0);
-    float edgeAA = 1.0 - smoothstep(0.82, 1.0, sqrt(r2));
-
-    vec3 baseRgb = vColor.rgb * (0.65 + 0.75 * NdotL);
-    vec3 finalRgb = baseRgb * chromaticAlpha + vec3(spec * 1.2 * vIntensity);
-    float alphaScale = 0.12 + 0.55 * vIntensity;
-    float finalAlpha = clamp(coreGaussian * edgeAA * vDepthFade * alphaScale, 0.0, 1.0);
-
-    gl_FragColor = vec4(finalRgb, finalAlpha);
+    gl_FragColor = vec4(clamp(finalRgb, 0.0, 10.0), clamp(finalAlpha, 0.0, 1.0));
 }
 `;
 

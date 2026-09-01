@@ -93,6 +93,18 @@ export class OncotripsyPhysics {
       dampingRatioZeta: 0.104,
       colorHex: 0xff0099,
     },
+    'hep-g2': {
+      id: 'hep-g2',
+      name: 'Hepatocellular Carcinoma (HepG2)',
+      organ: 'Liver Parenchyma',
+      youngsModulusKPa: 0.68,
+      corticalTensionMNm: 0.07,
+      resonantFreqHz: 142.0,
+      strainFailureThreshold: 0.25,
+      qualityFactorQ: 5.8,
+      dampingRatioZeta: 0.086,
+      colorHex: 0x10b981,
+    },
     'saos-2': {
       id: 'saos-2',
       name: 'Osteosarcoma (SaOS-2)',

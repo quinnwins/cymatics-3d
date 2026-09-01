@@ -31,6 +31,7 @@ import { CytotoxicTCellSwarm } from './CytotoxicTCellSwarm';
 export type TherapyExperiment =
   | 'phase-cancel'
   | 'oncotripsy'
+  | 'histotripsy'
   | 'time-reversal'
   | 'vortex-torsion'
   | 'sonodynamic-sdt'
@@ -346,6 +347,9 @@ export class AcousticTherapyLab {
     } else if (exp === 'oncotripsy') {
       this.waveSurfaceMesh.visible = true;
       this.triggerOncotripsyBurst();
+    } else if (exp === 'histotripsy') {
+      this.waveSurfaceMesh.visible = true;
+      this.triggerHistotripsyBurst();
     } else if (exp === 'time-reversal') {
       this.beamGroup.visible = true;
       this.state.isTimeReversalActive = true;
@@ -363,6 +367,35 @@ export class AcousticTherapyLab {
         this.state.viewMode === 'spheroid-cluster' ? new THREE.Vector3(0, 0.4, 0) : new THREE.Vector3(-1.8, 0.4, 0),
       ]);
     }
+  }
+
+  public triggerHistotripsyBurst(): void {
+    this.isLysisActive = true;
+    this.lysisProgress = 0.0;
+
+    const isSpheroid = this.state.viewMode === 'spheroid-cluster';
+    const originX = isSpheroid ? 0.0 : -1.8;
+
+    const posAttr = this.debrisGeom.getAttribute('position') as THREE.BufferAttribute;
+    const posArray = posAttr.array as Float32Array;
+
+    for (let i = 0; i < this.debrisCount; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(Math.random() * 2 - 1);
+      const speed = 4.5 + Math.random() * 12.0; // High-velocity microjet cavitation debris
+
+      this.debrisVelocities[i * 3 + 0] = Math.sin(phi) * Math.cos(theta) * speed;
+      this.debrisVelocities[i * 3 + 1] = Math.sin(phi) * Math.sin(theta) * speed;
+      this.debrisVelocities[i * 3 + 2] = Math.cos(phi) * speed;
+
+      posArray[i * 3 + 0] = originX + (Math.random() - 0.5) * (isSpheroid ? 1.6 : 0.8);
+      posArray[i * 3 + 1] = 0.4 + (Math.random() - 0.5) * (isSpheroid ? 1.6 : 0.8);
+      posArray[i * 3 + 2] = (Math.random() - 0.5) * (isSpheroid ? 1.6 : 0.8);
+    }
+    posAttr.needsUpdate = true;
+
+    // Trigger secondary immune chemotaxis
+    this.tCellSwarm.setDampSources([new THREE.Vector3(originX, 0.4, 0)]);
   }
 
   public triggerSonodynamicFlash(): void {

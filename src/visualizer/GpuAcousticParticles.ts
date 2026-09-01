@@ -54,17 +54,6 @@ vec3 hash33(vec3 p) {
     return fract((p.xxy + p.yxx) * p.zyx) * 2.0 - 1.0;
 }
 
-// Continuous Bessel J_m(u)
-float evalBesselJ(float m, float u) {
-    float sum = 0.0;
-    const int N = 12;
-    for (int i = 0; i < N; i++) {
-        float tau = PI * (float(i) + 0.5) / float(N);
-        sum += cos(m * tau - u * sin(tau));
-    }
-    return sum / float(N);
-}
-
 // 3D Cartesian Acoustic Cavity Pressure and Exact Analytical Gradient
 void evalCartesianPressureAndGradient(
     vec3 p, 
@@ -142,23 +131,70 @@ void evalCylindricalPressureAndGradient(
     gradP = vec3(gradXY, gradZ);
 }
 
+// 3D Spherical Resonator Acoustic Pressure Field with Dynamic Modal Numbers (n, m, l)
+float evalSphericalModalPressure(
+    vec3 p, 
+    vec3 nml, 
+    vec4 bands, 
+    vec2 highs, 
+    float wavenumber, 
+    float time
+) {
+    float r = length(p);
+    if (r < 1e-4) return 0.0;
+    vec3 n = p / r;
+
+    float nMode = max(1.0, nml.x);
+    float mMode = max(1.0, nml.y);
+    float lMode = max(1.0, nml.z);
+
+    // Evaluate Real Spherical Harmonics
+    vec4 sh01 = evalSH_L0_L1(n);
+    float sh2[5]; evalSH_L2(n, sh2);
+    float sh3[7]; evalSH_L3(n, sh3);
+
+    // Compute radial Spherical Bessel standing wave harmonics scaled by modal frequencies
+    float u = wavenumber * r;
+    float j0 = sphericalBessel_j0(u * (nMode * 0.45));
+    float j1 = sphericalBessel_j1(u * (mMode * 0.45));
+    float j2 = sphericalBessel_j2(u * (lMode * 0.40));
+    float j3 = sphericalBessel_j3(u * ((nMode + mMode) * 0.30));
+
+    float subBass = bands.x;
+    float bass = bands.y;
+    float lowMid = bands.z;
+    float mid = bands.w;
+
+    // Dynamic standing wave multi-pole interference
+    float mode0 = (0.7 + subBass * 2.2) * j0 * sh01.x * 2.5;
+    float mode1 = (0.6 + bass * 1.8) * j1 * (sh01.y * sin(time * 2.8) + sh01.w * cos(time * 2.4));
+    float mode2 = (0.5 + lowMid * 1.6) * j2 * (sh2[0] * cos(mMode * n.x * 2.0) + sh2[2] * 0.8 + sh2[4]);
+    float mode3 = (0.4 + mid * 1.4) * j3 * (sh3[0] + sh3[3] * sin(lMode * n.z * 2.0) + sh3[6]);
+
+    // High frequency 3D modal ripple
+    float chladni = (cos(n.x * nMode * 3.14159) * cos(n.y * mMode * 3.14159) * cos(n.z * lMode * 3.14159)) * (0.35 + highs.x * 0.8);
+
+    return (mode0 + mode1 + mode2 + mode3 + chladni) * (1.0 / (1.0 + 0.12 * r));
+}
+
 // 3D Spherical Resonator Acoustic Pressure and Finite-Difference Gradient
 void evalSphericalPressureAndGradient(
     vec3 p, 
+    vec3 nml,
     float wavenumber, 
     out float pressure, 
     out vec3 gradP
 ) {
-    pressure = evaluateCymaticsDisplacement(p, uBandEnergies, uHighEnergies, wavenumber, uTime);
+    pressure = evalSphericalModalPressure(p, nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
     
     // Central finite differences for exact gradient
     float eps = 0.008;
-    float px = evaluateCymaticsDisplacement(p + vec3(eps, 0.0, 0.0), uBandEnergies, uHighEnergies, wavenumber, uTime);
-    float mx = evaluateCymaticsDisplacement(p - vec3(eps, 0.0, 0.0), uBandEnergies, uHighEnergies, wavenumber, uTime);
-    float py = evaluateCymaticsDisplacement(p + vec3(0.0, eps, 0.0), uBandEnergies, uHighEnergies, wavenumber, uTime);
-    float my = evaluateCymaticsDisplacement(p - vec3(0.0, eps, 0.0), uBandEnergies, uHighEnergies, wavenumber, uTime);
-    float pz = evaluateCymaticsDisplacement(p + vec3(0.0, 0.0, eps), uBandEnergies, uHighEnergies, wavenumber, uTime);
-    float mz = evaluateCymaticsDisplacement(p - vec3(0.0, 0.0, eps), uBandEnergies, uHighEnergies, wavenumber, uTime);
+    float px = evalSphericalModalPressure(p + vec3(eps, 0.0, 0.0), nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
+    float mx = evalSphericalModalPressure(p - vec3(eps, 0.0, 0.0), nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
+    float py = evalSphericalModalPressure(p + vec3(0.0, eps, 0.0), nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
+    float my = evalSphericalModalPressure(p - vec3(0.0, eps, 0.0), nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
+    float pz = evalSphericalModalPressure(p + vec3(0.0, 0.0, eps), nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
+    float mz = evalSphericalModalPressure(p - vec3(0.0, 0.0, eps), nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
 
     gradP = vec3(px - mx, py - my, pz - mz) / (2.0 * eps);
 }
@@ -186,27 +222,32 @@ void main() {
         // Spherical Mode
         float k = (2.0 * PI * max(uFundamentalFreq, 100.0)) / 343.0;
         k = clamp(k * 0.15, 1.2, 4.5);
-        evalSphericalPressureAndGradient(pos, k, pressure, gradP);
+        evalSphericalPressureAndGradient(pos, uModalNumbers, k, pressure, gradP);
     }
 
-    // 1. Gor'kov Acoustic Radiation Force Field
-    // Normal Chladni (mode 0): F = -p * ∇p (drives particles to p = 0 nodal membranes)
-    // Inverse Chladni (mode 1): F = +p * ∇p (drives particles to antinode centers)
+    // 1. Gor'kov Acoustic Radiation Force Field (F = -∇U)
+    // Primary pressure term: -∇<p^2> = -p * ∇p (drives particles to p = 0 nodal planes)
+    // Secondary acoustic radiation trapping potential: confines particles into crisp nodal beads
     vec3 F_gorkov = vec3(0.0);
     float audioAmp = 0.5 + uBandEnergies.x * 2.2 + uBandEnergies.y * 1.5;
     
     if (uMode == 0) {
-        F_gorkov = -pressure * gradP * (uGorkovStrength * audioAmp);
+        // Normal Chladni: Trapping at pressure nodes (Gor'kov potential minima)
+        vec3 gorkovGrad = pressure * gradP;
+        F_gorkov = -gorkovGrad * (uGorkovStrength * audioAmp);
     } else {
-        F_gorkov = +pressure * gradP * (uGorkovStrength * audioAmp);
+        // Inverse Chladni: Trapping at antinode centers
+        vec3 gorkovGrad = pressure * gradP;
+        F_gorkov = +gorkovGrad * (uGorkovStrength * audioAmp);
     }
 
     // 2. Viscous Stokes Drag Force
     vec3 F_drag = -vel * uStokesDrag;
 
-    // 3. Acoustic Streaming & Micro-Turbulence (Brownian Jitter)
+    // 3. Acoustic Streaming & Micro-Turbulence (Brownian Jitter on Beats)
     vec3 noiseDir = hash33(pos * 4.0 + vec3(uTime * 0.5, uTime * 0.3, uTime * 0.7));
-    vec3 F_streaming = noiseDir * (uBrownianMotion * (0.2 + uHighEnergies.x * 0.8));
+    float beatAgitation = uBandEnergies.x * 1.8 + uBandEnergies.y * 1.2 + uHighEnergies.x * 0.8;
+    vec3 F_streaming = noiseDir * (uBrownianMotion * (0.25 + beatAgitation));
 
     // 4. Acoustic Transient Shockwaves
     vec3 F_shock = vec3(0.0);
@@ -378,7 +419,7 @@ void main() {
 `;
 
 // ----------------------------------------------------------------------------
-// Particle Volumetric Point Rendering Shaders (3D Ray-Sphere Impostor)
+// Particle Volumetric Point Rendering Shaders (Fine Luminous Acoustic Tracer Dust)
 // ----------------------------------------------------------------------------
 const PARTICLE_RENDER_VERTEX_SHADER = `
 ${CYMATICS_CORE_GLSL}
@@ -415,33 +456,33 @@ void main() {
     float speed = length(vel);
     vSpeed = speed;
 
-    // Kinetic & Acoustic Excitation Energy
-    float excitation = clamp(speed * 0.35 + acousticPressure * 1.8 + uBandEnergies.x * 2.0, 0.0, 4.0);
+    // Coherent Acoustic Kinetic Energy (0 = quiet nodal plane, high = active flow)
+    float excitation = clamp(speed * 0.25 + acousticPressure * 1.2 + uBandEnergies.x * 1.5, 0.0, 3.0);
     vIntensity = excitation;
 
-    // Inigo Quilez Cosine Palette Color Interpolation with Doppler Shift
-    float colorPhase = aParticleSeed + length(pos) * 0.12 + speed * 0.25 - uTime * 0.04;
-    vec3 palColor = cosinePalette(colorPhase, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
+    // Smooth, coherent scientific colormap (no random rainbow confetti seeds)
+    float colorPhase = length(pos) * 0.15 + speed * 0.12 - uTime * 0.03;
+    vec3 palColor = oklabCosinePalette(colorPhase, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
-    // Composite glowing particle color
-    vec3 finalColor = palColor * (0.45 + 0.95 * excitation);
-    finalColor += uCoreGlow * (excitation * 0.85);
-    finalColor += uAccent * (clamp(speed * 0.3, 0.0, 1.5));
+    // Subtle luminescent tracer dust styling
+    vec3 finalColor = palColor * (0.85 + 0.35 * excitation);
+    finalColor += uCoreGlow * (excitation * 0.40);
+    finalColor += uAccent * (clamp(speed * 0.20, 0.0, 0.8));
 
-    // Particle alpha: subtle ambient dust, glowing on acoustic resonance
-    float alpha = clamp(0.14 + excitation * 0.60, 0.0, 0.98);
+    // Semi-translucent base opacity for refined tracer dust (prevents blowout on overlapping nodes)
+    float alpha = clamp(0.24 + excitation * 0.22, 0.10, 0.60);
     vColor = vec4(finalColor, alpha);
 
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
 
     // Soft camera near-plane depth fade to prevent clipping
-    float zDist = -mvPosition.z;
-    vDepthFade = smoothstep(0.4, 1.2, zDist);
+    float zDist = max(0.1, -mvPosition.z);
+    vDepthFade = smoothstep(0.3, 1.2, zDist);
 
-    // Point size with physical distance attenuation & kinetic flare
-    float pSize = (1.8 + excitation * 2.8 + speed * 0.6) * uParticleScale * (140.0 / max(zDist, 0.1));
-    gl_PointSize = clamp(pSize, 1.5, 48.0);
+    // Fine, calibrated point size for 262k acoustic dust particles
+    float pSize = (0.70 + excitation * 0.40) * uParticleScale * (38.0 / max(zDist, 0.25));
+    gl_PointSize = clamp(pSize, 1.0, 4.2);
 }
 `;
 
@@ -458,32 +499,12 @@ void main() {
     float r2 = dot(pCoord, pCoord);
     if (r2 > 1.0) discard;
 
-    // 1. Exact Spherical Normal Reconstruction
-    float zNorm = sqrt(1.0 - r2);
-    vec3 impostorNormal = vec3(pCoord.x, -pCoord.y, zNorm);
+    // Soft Gaussian core for elegant acoustic particle tracer glow
+    float coreGaussian = exp(-r2 * 4.5);
+    float edgeSoft = 1.0 - smoothstep(0.65, 1.0, sqrt(r2));
 
-    // 2. Directional Lighting on Spherical Micro-Mote
-    vec3 lightDir = normalize(vec3(0.5, 0.8, 1.0));
-    float NdotL = max(dot(impostorNormal, lightDir), 0.0);
-    float spec = pow(max(dot(impostorNormal, normalize(lightDir + vec3(0.0, 0.0, 1.0))), 0.0), 32.0);
-
-    // 3. Multi-Wavelength Chromatic Airy Fringe Separation
-    float rR = sqrt(r2) * 1.03;
-    float rG = sqrt(r2);
-    float rB = sqrt(r2) * 0.97;
-
-    vec3 chromaticAlpha = vec3(
-        exp(-rR * rR * 10.0),
-        exp(-rG * rG * 11.5),
-        exp(-rB * rB * 13.0)
-    );
-
-    float coreGaussian = exp(-r2 * 14.0);
-    float edgeAA = smoothstep(1.0, 0.80, sqrt(r2));
-
-    vec3 baseRgb = vColor.rgb * (0.60 + 0.80 * NdotL);
-    vec3 finalRgb = baseRgb * chromaticAlpha + vec3(spec * 1.4 * vIntensity);
-    float finalAlpha = clamp(coreGaussian * vColor.a * edgeAA * vDepthFade, 0.0, 1.0);
+    vec3 finalRgb = vColor.rgb * (0.95 + vIntensity * 0.30);
+    float finalAlpha = clamp(vColor.a * coreGaussian * edgeSoft * vDepthFade, 0.0, 1.0);
 
     gl_FragColor = vec4(finalRgb, finalAlpha);
 }
@@ -623,7 +644,7 @@ export class GpuAcousticParticles {
       },
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
     });
 
     this.pointsMesh = new THREE.Points(particleGeometry, this.renderMaterial);
@@ -658,33 +679,40 @@ export class GpuAcousticParticles {
     this.nextVelTarget = this.velTargetB;
   }
 
+  private activeParticleCount = 131072;
+
   private buildParticleGeometry(): THREE.BufferGeometry {
     const geo = new THREE.BufferGeometry();
     const positions = new Float32Array(this.particleCount * 3);
     const particleUvs = new Float32Array(this.particleCount * 2);
     const particleSeeds = new Float32Array(this.particleCount);
 
+    // Stratified index permutation (stride coprime to 262144) for uniform spatial distribution at any draw range
+    const stride = 1031;
     let idx = 0;
-    for (let y = 0; y < this.simResolution; y++) {
-      for (let x = 0; x < this.simResolution; x++) {
-        const u = (x + 0.5) / this.simResolution;
-        const v = (y + 0.5) / this.simResolution;
+    for (let i = 0; i < this.particleCount; i++) {
+      const permuted = (i * stride) % this.particleCount;
+      const x = permuted % this.simResolution;
+      const y = Math.floor(permuted / this.simResolution);
 
-        particleUvs[idx * 2 + 0] = u;
-        particleUvs[idx * 2 + 1] = v;
-        particleSeeds[idx] = Math.random();
+      const u = (x + 0.5) / this.simResolution;
+      const v = (y + 0.5) / this.simResolution;
 
-        positions[idx * 3 + 0] = 0;
-        positions[idx * 3 + 1] = 0;
-        positions[idx * 3 + 2] = 0;
+      particleUvs[idx * 2 + 0] = u;
+      particleUvs[idx * 2 + 1] = v;
+      particleSeeds[idx] = Math.random();
 
-        idx++;
-      }
+      positions[idx * 3 + 0] = 0;
+      positions[idx * 3 + 1] = 0;
+      positions[idx * 3 + 2] = 0;
+
+      idx++;
     }
 
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geo.setAttribute('aParticleUv', new THREE.BufferAttribute(particleUvs, 2));
     geo.setAttribute('aParticleSeed', new THREE.BufferAttribute(particleSeeds, 1));
+    geo.setDrawRange(0, this.activeParticleCount);
 
     return geo;
   }
@@ -781,6 +809,22 @@ export class GpuAcousticParticles {
     this.renderMaterial.uniforms.uParticleScale.value = scale;
   }
 
+  public setParticleDensity(count: number): void {
+    const clamped = Math.max(1024, Math.min(this.particleCount, Math.round(count)));
+    this.activeParticleCount = clamped;
+    if (this.pointsMesh && this.pointsMesh.geometry) {
+      this.pointsMesh.geometry.setDrawRange(0, clamped);
+    }
+  }
+
+  public setParticleCount(count: number): void {
+    this.setParticleDensity(count);
+  }
+
+  public getParticleCount(): number {
+    return this.activeParticleCount;
+  }
+
   public setPalette(palette: PalettePreset): void {
     const u = this.renderMaterial.uniforms;
     u.uPaletteA.value.copy(palette.a);
@@ -813,6 +857,7 @@ export class GpuAcousticParticles {
     velU.uVelTexture.value = this.currentVelTarget.texture;
     velU.uDeltaTime.value = clampedDt;
     velU.uTime.value = time;
+    velU.uModalNumbers.value.copy(this.modalNumbers);
     velU.uBandEnergies.value.copy(bands);
     velU.uHighEnergies.value.copy(highs);
     velU.uFundamentalFreq.value = fundamentalHz;
