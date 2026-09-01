@@ -1,8 +1,13 @@
-import { VisualizerEngine, CameraMode } from '../visualizer/VisualizerEngine';
+import { VisualizerEngine, VisualStyle, CameraMode } from '../visualizer/VisualizerEngine';
+import { ColorPalettes } from '../visualizer/ColorPalettes';
 
 export class PhysicsDrawer {
   private element: HTMLElement;
-  private isOpen = false;
+  private isOpen = true;
+  private isVisualsOpen = true;
+  private isCameraOpen = true;
+  private isPhysicsOpen = true;
+  private currentPaletteId: string = 'cosmic-nebula';
 
   constructor(private visualizer: VisualizerEngine) {
     this.element = document.createElement('div');
@@ -25,114 +30,186 @@ export class PhysicsDrawer {
     return this.isOpen;
   }
 
+  public syncState(): void {
+    this.render();
+  }
+
   private preventEventBleeding(): void {
     this.element.addEventListener('wheel', e => e.stopPropagation(), { passive: false });
     this.element.addEventListener('pointerdown', e => e.stopPropagation());
   }
 
-  private render(): void {
+  public render(): void {
+    const palettes = Object.values(ColorPalettes.PALETTES);
+    const activeStyle = this.visualizer.getStyle();
+
     this.element.innerHTML = `
-      <!-- Accordion Header -->
+      <!-- Main Accordion Header -->
       <button id="btn-toggle-accordion-physics" class="w-full flex items-center justify-between cursor-pointer group text-left">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold text-slate-200 tracking-wide">Physics & Camera</span>
+          <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50"></span>
+          <span class="text-xs font-bold text-slate-200 tracking-wide">Physics & Visuals</span>
         </div>
         <span class="text-xs text-slate-400 group-hover:text-white transition-transform font-mono">
           ${this.isOpen ? '▲' : '▼'}
         </span>
       </button>
 
-      <!-- Collapsible Body -->
-      <div id="physics-body" class="${this.isOpen ? 'flex' : 'hidden'} flex-col gap-3 text-xs pt-2 border-t border-white/10">
+      <!-- Main Collapsible Body (Nested Structure) -->
+      <div id="physics-body" class="${this.isOpen ? 'flex' : 'hidden'} flex-col gap-2.5 text-xs pt-2 border-t border-white/10">
         
-        <!-- Wave Propagation Speed (c) -->
-        <div class="flex flex-col gap-1">
-          <div class="flex justify-between text-slate-300">
-            <span>Wave Speed</span>
-            <span id="val-wave-speed" class="font-mono text-cyan-400">${this.visualizer.waveSpeed.toFixed(1)}</span>
+        <!-- Nested Group 1: Visual Style & Color Theme -->
+        <div class="flex flex-col bg-slate-900/60 rounded-xl border border-white/5 overflow-hidden transition-all">
+          <button id="btn-toggle-nested-visuals" class="w-full px-2.5 py-1.5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors text-left">
+            <span class="text-[11px] font-semibold text-slate-300">Visuals & Theme</span>
+            <span class="text-[10px] text-slate-400 font-mono">${this.isVisualsOpen ? '▲' : '▼'}</span>
+          </button>
+
+          <div id="nested-visuals-body" class="${this.isVisualsOpen ? 'flex' : 'hidden'} flex-col gap-2 p-2.5 pt-1 border-t border-white/5">
+            <!-- Visual Render Style -->
+            <div class="flex flex-col gap-1">
+              <span class="text-[10px] text-slate-400 font-medium">Render Style:</span>
+              <div class="grid grid-cols-3 gap-1">
+                ${[
+                  { id: 'hybrid', label: 'Cosmos' },
+                  { id: 'wavefront', label: 'Waves' },
+                  { id: 'cymatics', label: 'Cymatics' },
+                  { id: 'particles', label: 'Dust' },
+                  { id: 'ribbon', label: 'Ribbon' },
+                ]
+                  .map(
+                    s => `
+                  <button data-style="${s.id}" class="btn-style glass-btn py-1.5 px-1.5 rounded-lg text-[11px] font-medium transition-all text-center cursor-pointer ${
+                      activeStyle === s.id ? 'glass-btn-active font-bold shadow-sm ring-1 ring-cyan-400/30' : 'text-gray-300 hover:text-white'
+                    }">
+                    ${s.label}
+                  </button>
+                `
+                  )
+                  .join('')}
+              </div>
+            </div>
+
+            <!-- Color Theme Picker -->
+            <div class="flex flex-col gap-1 pt-1 border-t border-white/5">
+              <span class="text-[10px] text-slate-400 font-medium">Color Palette:</span>
+              <select id="theme-selector" class="h-8 px-2.5 py-1 rounded-lg text-xs font-semibold text-gray-200 bg-slate-950 border border-white/10 hover:border-cyan-400/50 shadow-sm outline-none cursor-pointer w-full">
+                ${palettes
+                  .map(
+                    p => `
+                  <option value="${p.id}" class="bg-slate-900 text-gray-100" ${p.id === this.currentPaletteId ? 'selected' : ''}>${p.name}</option>
+                `
+                  )
+                  .join('')}
+              </select>
+            </div>
           </div>
-          <input
-            type="range"
-            id="slider-wave-speed"
-            min="1.0"
-            max="12.0"
-            step="0.2"
-            value="${this.visualizer.waveSpeed}"
-            class="w-full cursor-pointer"
-          />
         </div>
 
-        <!-- Medium Wave Damping (alpha) -->
-        <div class="flex flex-col gap-1">
-          <div class="flex justify-between text-slate-300">
-            <span>Sound Absorption</span>
-            <span id="val-wave-damping" class="font-mono text-cyan-400">${this.visualizer.waveDamping.toFixed(2)}</span>
+        <!-- Nested Group 2: Camera Viewport -->
+        <div class="flex flex-col bg-slate-900/60 rounded-xl border border-white/5 overflow-hidden transition-all">
+          <button id="btn-toggle-nested-camera" class="w-full px-2.5 py-1.5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors text-left">
+            <span class="text-[11px] font-semibold text-slate-300">Camera Viewport</span>
+            <span class="text-[10px] text-slate-400 font-mono">${this.isCameraOpen ? '▲' : '▼'}</span>
+          </button>
+
+          <div id="nested-camera-body" class="${this.isCameraOpen ? 'flex' : 'hidden'} flex-col gap-1.5 p-2.5 pt-1 border-t border-white/5">
+            <div class="grid grid-cols-2 gap-1.5">
+              ${[
+                { id: 'autocam', label: 'Cinematic' },
+                { id: 'orbit', label: 'Free Orbit' },
+                { id: 'emitter-lock', label: 'Focus Center' },
+                { id: 'top-down', label: 'Top-Down' },
+              ]
+                .map(
+                  c => `
+                <button data-camera="${c.id}" class="btn-cam-mode glass-btn py-1.5 px-2 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                    this.visualizer.getCameraMode() === c.id ? 'glass-btn-active font-bold' : 'text-slate-400 hover:text-white'
+                  }">
+                  ${c.label}
+                </button>
+              `
+                )
+                .join('')}
+            </div>
           </div>
-          <input
-            type="range"
-            id="slider-wave-damping"
-            min="0.02"
-            max="0.35"
-            step="0.01"
-            value="${this.visualizer.waveDamping}"
-            class="w-full cursor-pointer"
-          />
         </div>
 
-        <!-- Bloom & Glow Intensity -->
-        <div class="flex flex-col gap-1">
-          <div class="flex justify-between text-slate-300">
-            <span>Glow Brightness</span>
-            <span id="val-bloom" class="font-mono text-cyan-400">${this.visualizer.bloomStrength.toFixed(1)}</span>
-          </div>
-          <input
-            type="range"
-            id="slider-bloom"
-            min="0.2"
-            max="3.0"
-            step="0.1"
-            value="${this.visualizer.bloomStrength}"
-            class="w-full cursor-pointer"
-          />
-        </div>
+        <!-- Nested Group 3: Acoustic & Optical Physics -->
+        <div class="flex flex-col bg-slate-900/60 rounded-xl border border-white/5 overflow-hidden transition-all">
+          <button id="btn-toggle-nested-physics" class="w-full px-2.5 py-1.5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors text-left">
+            <span class="text-[11px] font-semibold text-slate-300">Physics & Optics</span>
+            <span class="text-[10px] text-slate-400 font-mono">${this.isPhysicsOpen ? '▲' : '▼'}</span>
+          </button>
 
-        <!-- Particle Size Scale -->
-        <div class="flex flex-col gap-1">
-          <div class="flex justify-between text-slate-300">
-            <span>Particle Size</span>
-            <span id="val-particle-scale" class="font-mono text-cyan-400">${this.visualizer.particleScale.toFixed(1)}×</span>
-          </div>
-          <input
-            type="range"
-            id="slider-particle-scale"
-            min="0.5"
-            max="2.5"
-            step="0.1"
-            value="${this.visualizer.particleScale}"
-            class="w-full cursor-pointer"
-          />
-        </div>
+          <div id="nested-physics-body" class="${this.isPhysicsOpen ? 'flex' : 'hidden'} flex-col gap-2.5 p-2.5 pt-1 border-t border-white/5">
+            <!-- Wave Propagation Speed (c) -->
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between text-slate-300">
+                <span class="text-[10px]">Wave Speed</span>
+                <span id="val-wave-speed" class="font-mono text-cyan-400">${this.visualizer.waveSpeed.toFixed(1)}</span>
+              </div>
+              <input
+                type="range"
+                id="slider-wave-speed"
+                min="1.0"
+                max="12.0"
+                step="0.2"
+                value="${this.visualizer.waveSpeed}"
+                class="w-full cursor-pointer"
+              />
+            </div>
 
-        <!-- Camera Perspective Mode -->
-        <div class="flex flex-col gap-1.5 pt-1 border-t border-white/10">
-          <span class="text-slate-300 font-semibold text-[11px]">Camera View:</span>
-          <div class="grid grid-cols-2 gap-1.5">
-            ${[
-              { id: 'autocam', label: 'Cinematic' },
-              { id: 'orbit', label: 'Free Orbit' },
-              { id: 'emitter-lock', label: 'Focus Center' },
-              { id: 'top-down', label: 'Top-Down View' },
-            ]
-              .map(
-                c => `
-              <button data-camera="${c.id}" class="btn-cam-mode glass-btn py-1.5 px-2 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                  this.visualizer.getCameraMode() === c.id ? 'glass-btn-active font-bold' : 'text-slate-400 hover:text-white'
-                }">
-                ${c.label}
-              </button>
-            `
-              )
-              .join('')}
+            <!-- Medium Wave Damping (alpha) -->
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between text-slate-300">
+                <span class="text-[10px]">Sound Absorption</span>
+                <span id="val-wave-damping" class="font-mono text-cyan-400">${this.visualizer.waveDamping.toFixed(2)}</span>
+              </div>
+              <input
+                type="range"
+                id="slider-wave-damping"
+                min="0.02"
+                max="0.35"
+                step="0.01"
+                value="${this.visualizer.waveDamping}"
+                class="w-full cursor-pointer"
+              />
+            </div>
+
+            <!-- Bloom & Glow Intensity -->
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between text-slate-300">
+                <span class="text-[10px]">Glow Brightness</span>
+                <span id="val-bloom" class="font-mono text-cyan-400">${this.visualizer.bloomStrength.toFixed(1)}</span>
+              </div>
+              <input
+                type="range"
+                id="slider-bloom"
+                min="0.2"
+                max="3.0"
+                step="0.1"
+                value="${this.visualizer.bloomStrength}"
+                class="w-full cursor-pointer"
+              />
+            </div>
+
+            <!-- Particle Size Scale -->
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between text-slate-300">
+                <span class="text-[10px]">Particle Size</span>
+                <span id="val-particle-scale" class="font-mono text-cyan-400">${this.visualizer.particleScale.toFixed(1)}×</span>
+              </div>
+              <input
+                type="range"
+                id="slider-particle-scale"
+                min="0.5"
+                max="2.5"
+                step="0.1"
+                value="${this.visualizer.particleScale}"
+                class="w-full cursor-pointer"
+              />
+            </div>
           </div>
         </div>
 
@@ -143,10 +220,45 @@ export class PhysicsDrawer {
   }
 
   private attachEvents(): void {
-    // Accordion Toggle
+    // Outer Accordion Toggle
     this.element.querySelector('#btn-toggle-accordion-physics')?.addEventListener('click', () => {
       this.isOpen = !this.isOpen;
       this.render();
+    });
+
+    // Nested Accordion Toggles
+    this.element.querySelector('#btn-toggle-nested-visuals')?.addEventListener('click', () => {
+      this.isVisualsOpen = !this.isVisualsOpen;
+      this.render();
+    });
+
+    this.element.querySelector('#btn-toggle-nested-camera')?.addEventListener('click', () => {
+      this.isCameraOpen = !this.isCameraOpen;
+      this.render();
+    });
+
+    this.element.querySelector('#btn-toggle-nested-physics')?.addEventListener('click', () => {
+      this.isPhysicsOpen = !this.isPhysicsOpen;
+      this.render();
+    });
+
+    // Style buttons
+    this.element.querySelectorAll('.btn-style').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const target = e.currentTarget as HTMLElement;
+        const style = target.getAttribute('data-style') as VisualStyle;
+        if (style) {
+          this.visualizer.setStyle(style);
+          this.render();
+        }
+      });
+    });
+
+    // Theme selector
+    this.element.querySelector('#theme-selector')?.addEventListener('change', e => {
+      const select = e.target as HTMLSelectElement;
+      this.currentPaletteId = select.value;
+      this.visualizer.setPalette(select.value);
     });
 
     // Wave Speed
@@ -207,5 +319,21 @@ export class PhysicsDrawer {
       this.isOpen = !this.isOpen;
       this.render();
     });
+
+    window.addEventListener('camera-mode-changed', ((e: CustomEvent<{ mode: CameraMode }>) => {
+      const currentMode = e.detail?.mode || this.visualizer.getCameraMode();
+      this.element.querySelectorAll('.btn-cam-mode').forEach(btn => {
+        const btnMode = btn.getAttribute('data-camera');
+        if (btnMode === currentMode) {
+          btn.classList.add('glass-btn-active', 'font-bold');
+          btn.classList.remove('text-slate-400');
+        } else {
+          btn.classList.remove('glass-btn-active', 'font-bold');
+          btn.classList.add('text-slate-400');
+        }
+      });
+    }) as EventListener);
   }
 }
+
+

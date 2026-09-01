@@ -289,7 +289,21 @@ export class AcousticTherapyLab {
     this.group.add(this.lysisGroup);
   }
 
+  public resetSimulation(): void {
+    this.isLysisActive = false;
+    this.lysisProgress = 0.0;
+    this.cancerCell.setRuptureProgress(0.0);
+    if (this.shockwaveMesh && this.shockwaveMesh.material) {
+      (this.shockwaveMesh.material as THREE.MeshBasicMaterial).opacity = 0.0;
+      this.shockwaveMesh.scale.setScalar(0.1);
+    }
+    if (this.debrisPoints && this.debrisPoints.material) {
+      (this.debrisPoints.material as THREE.PointsMaterial).opacity = 0.0;
+    }
+  }
+
   public setTumorProfile(profileId: string): void {
+    this.resetSimulation();
     this.state.tumorProfileId = profileId;
     const tumor = OncotripsyPhysics.CLINICAL_PROFILES[profileId] || OncotripsyPhysics.CLINICAL_PROFILES['mda-mb-231'];
 
@@ -316,6 +330,7 @@ export class AcousticTherapyLab {
   }
 
   public setExperiment(exp: TherapyExperiment): void {
+    this.resetSimulation();
     this.currentExperiment = exp;
 
     // Reset visibility of special layers
@@ -330,6 +345,7 @@ export class AcousticTherapyLab {
       this.waveSurfaceMesh.visible = true;
     } else if (exp === 'oncotripsy') {
       this.waveSurfaceMesh.visible = true;
+      this.triggerOncotripsyBurst();
     } else if (exp === 'time-reversal') {
       this.beamGroup.visible = true;
       this.state.isTimeReversalActive = true;
@@ -343,6 +359,9 @@ export class AcousticTherapyLab {
       this.triggerPiezo1CalciumWave();
     } else if (exp === 'immune-swarm') {
       this.tCellSwarm.group.visible = true;
+      this.tCellSwarm.setDampSources([
+        this.state.viewMode === 'spheroid-cluster' ? new THREE.Vector3(0, 0.4, 0) : new THREE.Vector3(-1.8, 0.4, 0),
+      ]);
     }
   }
 

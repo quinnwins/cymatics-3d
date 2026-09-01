@@ -142,7 +142,7 @@ input[type="range"]::-moz-range-thumb {
   background: rgba(255, 255, 255, 0.25);
 }
 
-/* Canvas container */
+/* Canvas container & interactive 3D navigation affordances */
 #canvas-container {
   position: absolute;
   top: 0;
@@ -151,6 +151,17 @@ input[type="range"]::-moz-range-thumb {
   height: 100vh;
   z-index: 0;
   outline: none;
+}
+
+#canvas-container canvas {
+  cursor: grab;
+  touch-action: none;
+}
+
+#canvas-container canvas:active,
+#canvas-container.is-grabbing canvas,
+body.is-grabbing {
+  cursor: grabbing !important;
 }
 
 /* Desktop Workstation Sidebar Panel Styles */

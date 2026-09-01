@@ -10,8 +10,8 @@
  *     • (3,2,2) Honeycomb Membrane Matrix
  *     • (4,3,2) Complex Architectural Cage
  *     • (5,4,3) Ultra High-Order Resonant Crystal
- * - Chamber Geometry Selector (📦 Cube / 🧪 Cylinder / 🔮 Sphere).
- * - Trapping Mode Switcher (⚪ Normal Nodes / ⚫ Inverse Antinodes) for acoustic levitation.
+ * - Chamber Geometry Selector (Cube / Cylinder / Sphere).
+ * - Trapping Mode Switcher (Normal Nodes / Inverse Antinodes) for acoustic levitation.
  * - Live Audio Resonance Coupling toggle (links real-time FFT spectrum to harmonic weights).
  * - Theoretical Eigenfrequency Calculator (f_{n,m,ℓ}) with 1-click Synth Audition.
  */
@@ -267,12 +267,12 @@ export class ModalSweeperControls {
 
     this.element.innerHTML = `
       <!-- Acoustic Studio Hub Switcher -->
-      <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-black/40 border border-white/10 text-xs mb-1">
+      <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border border-white/10 text-xs mb-1">
         <button id="hub-btn-modal" class="flex-1 py-1 px-1.5 rounded-xl font-bold text-center transition-all cursor-pointer glass-btn-active text-cyan-300 shadow-sm ring-1 ring-cyan-500/30">
-          💎 3D Cymatics
+          3D Cymatics
         </button>
         <button id="hub-btn-freq" class="flex-1 py-1 px-1.5 rounded-xl font-semibold text-center transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-white/5">
-          ⚡ Tone Lab
+          Tone Lab
         </button>
       </div>
 

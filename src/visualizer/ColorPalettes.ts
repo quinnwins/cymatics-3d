@@ -19,13 +19,13 @@ export class ColorPalettes {
   public static readonly PALETTES: Record<string, PalettePreset> = {
     'cosmic-nebula': {
       id: 'cosmic-nebula',
-      name: '🌌 Celestial Indigo',
+      name: 'Celestial Indigo',
       a: new THREE.Vector3(0.50, 0.50, 0.50),
       b: new THREE.Vector3(0.50, 0.50, 0.50),
       c: new THREE.Vector3(1.00, 1.00, 1.00),
       d: new THREE.Vector3(0.00, 0.33, 0.67),
-      coreGlow: new THREE.Color('#5E5CE6'), // Apple Indigo
-      accent: new THREE.Color('#00F0FF'),   // Electric Cyan Specular
+      coreGlow: new THREE.Color('#5E5CE6'),
+      accent: new THREE.Color('#00F0FF'),
       coreIntensity: 4.8,
       accentIntensity: 3.4,
       dispersion: 0.038,
@@ -33,13 +33,13 @@ export class ColorPalettes {
     },
     'siri-luminescence': {
       id: 'siri-luminescence',
-      name: '✨ Siri Luminescence',
+      name: 'Luminescence',
       a: new THREE.Vector3(0.80, 0.50, 0.60),
       b: new THREE.Vector3(0.30, 0.40, 0.30),
       c: new THREE.Vector3(1.50, 1.00, 1.00),
       d: new THREE.Vector3(0.00, 0.25, 0.50),
-      coreGlow: new THREE.Color('#FF375F'), // Apple Rose Magenta
-      accent: new THREE.Color('#00F5D4'),   // Siri Mint Cyan
+      coreGlow: new THREE.Color('#FF375F'),
+      accent: new THREE.Color('#00F5D4'),
       coreIntensity: 5.4,
       accentIntensity: 3.8,
       dispersion: 0.048,
@@ -47,13 +47,13 @@ export class ColorPalettes {
     },
     'solar-flare': {
       id: 'solar-flare',
-      name: '🔥 Solar Amber',
+      name: 'Solar Amber',
       a: new THREE.Vector3(0.50, 0.50, 0.50),
       b: new THREE.Vector3(0.50, 0.50, 0.50),
       c: new THREE.Vector3(2.00, 1.00, 0.00),
       d: new THREE.Vector3(0.50, 0.20, 0.25),
-      coreGlow: new THREE.Color('#FF9F0A'), // Apple Amber
-      accent: new THREE.Color('#FF453A'),   // Apple Coral
+      coreGlow: new THREE.Color('#FF9F0A'),
+      accent: new THREE.Color('#FF453A'),
       coreIntensity: 6.2,
       accentIntensity: 4.2,
       dispersion: 0.045,
@@ -61,13 +61,13 @@ export class ColorPalettes {
     },
     'bioluminescent': {
       id: 'bioluminescent',
-      name: '🌿 Boreal Emerald',
+      name: 'Boreal Emerald',
       a: new THREE.Vector3(0.50, 0.50, 0.50),
       b: new THREE.Vector3(0.50, 0.50, 0.50),
       c: new THREE.Vector3(1.00, 1.00, 0.50),
       d: new THREE.Vector3(0.80, 0.90, 0.30),
-      coreGlow: new THREE.Color('#30D158'), // Apple Mint
-      accent: new THREE.Color('#64D2FF'),   // Sky Blue
+      coreGlow: new THREE.Color('#30D158'),
+      accent: new THREE.Color('#64D2FF'),
       coreIntensity: 4.6,
       accentIntensity: 3.2,
       dispersion: 0.035,
@@ -75,13 +75,13 @@ export class ColorPalettes {
     },
     'prismatic-crystal': {
       id: 'prismatic-crystal',
-      name: '💎 Pearlescent Quartz',
+      name: 'Pearlescent Quartz',
       a: new THREE.Vector3(0.60, 0.60, 0.65),
       b: new THREE.Vector3(0.40, 0.40, 0.35),
       c: new THREE.Vector3(1.00, 1.00, 1.00),
       d: new THREE.Vector3(0.20, 0.30, 0.70),
-      coreGlow: new THREE.Color('#FFFFFF'), // Pure Specular
-      accent: new THREE.Color('#C084FC'),   // Opal Lavender
+      coreGlow: new THREE.Color('#FFFFFF'),
+      accent: new THREE.Color('#C084FC'),
       coreIntensity: 7.0,
       accentIntensity: 3.6,
       dispersion: 0.065,
@@ -89,13 +89,13 @@ export class ColorPalettes {
     },
     'quantum-void': {
       id: 'quantum-void',
-      name: '🌌 Abyssal Void',
+      name: 'Abyssal Void',
       a: new THREE.Vector3(0.25, 0.30, 0.50),
       b: new THREE.Vector3(0.60, 0.40, 0.60),
       c: new THREE.Vector3(1.00, 1.50, 2.00),
       d: new THREE.Vector3(0.10, 0.40, 0.70),
-      coreGlow: new THREE.Color('#AF52DE'), // Deep Violet
-      accent: new THREE.Color('#5AC8FA'),   // Electric Aqua
+      coreGlow: new THREE.Color('#AF52DE'),
+      accent: new THREE.Color('#5AC8FA'),
       coreIntensity: 5.6,
       accentIntensity: 3.8,
       dispersion: 0.055,

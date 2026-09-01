@@ -101,12 +101,34 @@ export class VisualizerEngine {
     this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
     this.camera.position.set(0, 3.5, 9.5);
 
-    // 4. Orbit Controls
+    // 4. Orbit Controls (Interactive Grabbing, Rotation, Panning, and Zooming)
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
-    this.controls.maxDistance = 40;
-    this.controls.minDistance = 1.5;
+    this.controls.maxDistance = 50;
+    this.controls.minDistance = 1.2;
+    this.controls.enablePan = true;
+    this.controls.screenSpacePanning = true;
+    this.controls.rotateSpeed = 0.85;
+    this.controls.zoomSpeed = 1.0;
+    this.controls.panSpeed = 0.85;
+
+    // Transition seamlessly from automatic cinematic camera to user orbit on grab
+    this.controls.addEventListener('start', () => {
+      this.container.classList.add('is-grabbing');
+      if (this.cameraMode === 'autocam') {
+        this.cameraMode = 'orbit';
+        const isVolumetric = ['cymatics', 'bio-acoustics', 'therapy-lab', 'voice-biometrics', 'nobel-lab'].includes(this.currentStyle);
+        const targetY = isVolumetric ? 0.45 : 0.0;
+        this.controls.target.set(0, targetY, 0);
+        this.controls.update();
+        window.dispatchEvent(new CustomEvent('camera-mode-changed', { detail: { mode: 'orbit' } }));
+      }
+    });
+
+    this.controls.addEventListener('end', () => {
+      this.container.classList.remove('is-grabbing');
+    });
 
     // 5. History Ring-Buffer Texture
     this.historyTexture = new HistoryTexture();
@@ -273,15 +295,24 @@ export class VisualizerEngine {
 
   public setCameraMode(mode: CameraMode): void {
     this.cameraMode = mode;
+    const isVolumetric = ['cymatics', 'bio-acoustics', 'therapy-lab', 'voice-biometrics', 'nobel-lab'].includes(this.currentStyle);
+    const targetY = isVolumetric ? 0.45 : 0.0;
+
     if (mode === 'top-down') {
       this.camera.position.set(0, 15, 0.001);
-      this.camera.lookAt(0, 0, 0);
-      this.controls.target.set(0, 0, 0);
+      this.camera.lookAt(0, targetY, 0);
+      this.controls.target.set(0, targetY, 0);
+      this.controls.update();
     } else if (mode === 'emitter-lock') {
-      this.camera.position.set(0, 0.5, 2.5);
-      this.camera.lookAt(0, 0, 0);
-      this.controls.target.set(0, 0, 0);
+      this.camera.position.set(0, targetY + 0.5, 2.5);
+      this.camera.lookAt(0, targetY, 0);
+      this.controls.target.set(0, targetY, 0);
+      this.controls.update();
+    } else if (mode === 'orbit') {
+      this.controls.target.set(0, targetY, 0);
+      this.controls.update();
     }
+    window.dispatchEvent(new CustomEvent('camera-mode-changed', { detail: { mode } }));
   }
 
   public getCameraMode(): CameraMode {
@@ -406,6 +437,7 @@ export class VisualizerEngine {
         lissZ + this.recoilOffset.z
       );
       this.camera.lookAt(0, targetY, 0);
+      this.controls.target.set(0, targetY, 0);
     } else {
       this.controls.update();
     }
