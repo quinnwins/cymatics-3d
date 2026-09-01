@@ -14,7 +14,7 @@ export class CentralEmitter {
     this.group = new THREE.Group();
 
     // 1. Solid glowing core at origin (0, 0, 0)
-    const coreGeo = new THREE.SphereGeometry(0.18, 32, 32);
+    const coreGeo = new THREE.SphereGeometry(0.35, 32, 32);
     this.coreMaterial = new THREE.MeshBasicMaterial({
       color: initialPalette.coreGlow,
       wireframe: false,
@@ -22,8 +22,8 @@ export class CentralEmitter {
     this.coreMesh = new THREE.Mesh(coreGeo, this.coreMaterial);
     this.group.add(this.coreMesh);
 
-    // 2. Halo atmospheric glow
-    const glowGeo = new THREE.SphereGeometry(0.38, 32, 32);
+    // 2. Halo atmospheric glow with radiant shoulder
+    const glowGeo = new THREE.SphereGeometry(0.75, 32, 32);
     this.glowMaterial = new THREE.ShaderMaterial({
       vertexShader: `
         varying vec3 vNormal;
@@ -41,8 +41,11 @@ export class CentralEmitter {
         varying vec3 vNormal;
         varying vec3 vViewPosition;
         void main() {
-          float fresnel = pow(1.0 - max(dot(vNormal, normalize(vViewPosition)), 0.0), 2.0);
-          gl_FragColor = vec4(uColor * (0.8 + uIntensity * 1.2), fresnel * 0.4);
+          float NdotV = max(dot(vNormal, normalize(vViewPosition)), 0.0);
+          float fresnel = pow(1.0 - NdotV, 3.0);
+          vec3 radiant = uColor * (1.2 + uIntensity * 2.5);
+          float hotCore = exp(-NdotV * 3.5) * 0.4;
+          gl_FragColor = vec4(radiant + vec3(hotCore), fresnel * 0.92);
         }
       `,
       uniforms: {
@@ -58,12 +61,12 @@ export class CentralEmitter {
     this.group.add(this.glowMesh);
 
     // 3. Equatorial birth emitter ring
-    const ringGeo = new THREE.RingGeometry(0.24, 0.29, 64);
+    const ringGeo = new THREE.RingGeometry(0.4, 0.48, 64);
     this.ringMaterial = new THREE.MeshBasicMaterial({
       color: initialPalette.accent,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.8,
       blending: THREE.AdditiveBlending,
     });
     this.ringMesh = new THREE.Mesh(ringGeo, this.ringMaterial);

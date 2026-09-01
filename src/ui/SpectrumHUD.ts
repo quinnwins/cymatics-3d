@@ -6,10 +6,18 @@ export class SpectrumHUD {
   private element: HTMLElement;
   private animFrameId: number | null = null;
 
+  // Cached DOM elements
+  private noteEl: HTMLElement | null = null;
+  private hzEl: HTMLElement | null = null;
+  private fpsEl: HTMLElement | null = null;
+  private waveEl: HTMLElement | null = null;
+  private meterEls: HTMLElement[] = [];
+
   constructor(private audioEngine: AudioEngine, private visualizer: VisualizerEngine) {
     this.element = document.createElement('div');
-    this.element.className = 'glass-panel p-3.5 rounded-2xl flex flex-col gap-2.5 shadow-xl w-64 md:w-72 border-white/10';
+    this.element.className = 'glass-panel p-3.5 rounded-2xl flex flex-col gap-2.5 shadow-xl w-64 md:w-72 select-none';
     this.render();
+    this.cacheElements();
     this.startUpdateLoop();
   }
 
@@ -22,51 +30,69 @@ export class SpectrumHUD {
       <!-- Top: Live Pitch & Note Header -->
       <div class="flex items-center justify-between border-b border-white/10 pb-2">
         <div class="flex items-center gap-2">
-          <div class="w-2.5 h-2.5 rounded-full bg-accent-cyan animate-pulse"></div>
-          <span class="text-xs font-semibold text-gray-300 uppercase tracking-wider">Acoustic Spectrum</span>
+          <div class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(0,242,254,0.8)]"></div>
+          <span class="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">Spectrum Telemetry</span>
         </div>
-        <div class="flex items-center gap-1.5 font-mono text-xs">
-          <span id="hud-note" class="font-bold text-accent-cyan">---</span>
-          <span id="hud-hz" class="text-gray-400">0 Hz</span>
+        <div class="flex items-baseline gap-1.5 font-mono text-xs">
+          <span id="hud-note" class="font-bold text-cyan-400 tabular-nums min-w-[24px] text-right">---</span>
+          <span id="hud-hz" class="text-gray-400 text-[11px] tabular-nums min-w-[45px] text-right">0 Hz</span>
         </div>
       </div>
 
-      <!-- 6-Band Perceptual Equalizer Meters -->
-      <div class="flex flex-col gap-1.5 py-1">
-        <div class="grid grid-cols-6 gap-1.5 items-end h-16 px-1 bg-black/20 rounded-xl p-1.5 border border-white/5">
-          ${[
-            { id: 'meter-sub', label: 'Sub' },
-            { id: 'meter-bass', label: 'Bass' },
-            { id: 'meter-lmid', label: 'L-Mid' },
-            { id: 'meter-mid', label: 'Mid' },
-            { id: 'meter-hmid', label: 'H-Mid' },
-            { id: 'meter-high', label: 'High' },
-          ]
-            .map(
-              m => `
-            <div class="flex flex-col items-center gap-1 h-full justify-end">
-              <div class="w-full bg-white/10 rounded-full h-full relative overflow-hidden flex flex-col justify-end">
-                <div id="${m.id}" class="w-full bg-gradient-to-t from-accent-cyan to-accent-magenta rounded-full transition-all duration-75" style="height: 0%"></div>
-              </div>
-              <span class="text-[9px] text-gray-400 font-mono">${m.label}</span>
+      <!-- 6-Band Perceptual Equalizer Wells -->
+      <div class="grid grid-cols-6 gap-2 items-end h-16 px-2 py-1.5 bg-black/40 rounded-2xl border border-white/5 shadow-inner">
+        ${[
+          { id: 'meter-sub', label: 'Sub' },
+          { id: 'meter-bass', label: 'Bass' },
+          { id: 'meter-lmid', label: 'L-Mid' },
+          { id: 'meter-mid', label: 'Mid' },
+          { id: 'meter-hmid', label: 'H-Mid' },
+          { id: 'meter-high', label: 'High' },
+        ]
+          .map(
+            m => `
+          <div class="flex flex-col items-center gap-1 h-full justify-end min-h-0">
+            <div class="w-full bg-white/10 rounded-full flex-1 min-h-0 relative overflow-hidden flex flex-col justify-end p-0.5">
+              <div id="${m.id}" class="w-full bg-gradient-to-t from-cyan-400 via-indigo-400 to-fuchsia-400 rounded-full shadow-[0_0_8px_rgba(0,242,254,0.4)] transition-[height] duration-75 ease-out" style="height: 0%"></div>
             </div>
-          `
-            )
-            .join('')}
-        </div>
+            <span class="text-[9px] text-gray-400 font-mono tracking-tight shrink-0">${m.label}</span>
+          </div>
+        `
+          )
+          .join('')}
       </div>
 
       <!-- Footer: Telemetry & Wavelength -->
-      <div class="flex items-center justify-between text-[11px] text-gray-400 border-t border-white/10 pt-2 font-mono">
+      <div class="flex items-center justify-between text-[10px] text-gray-400 border-t border-white/10 pt-2 font-mono">
         <div class="flex items-center gap-1.5">
-          <span class="text-accent-emerald">●</span>
-          <span id="hud-fps">60 FPS</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block shadow-[0_0_6px_rgba(48,209,88,0.8)]"></span>
+          <span id="hud-fps" class="tabular-nums">60 FPS</span>
         </div>
-        <div id="hud-wavelength" class="text-right truncate max-w-[130px]">
-          λ: 0.79 m
+        <div id="hud-wavelength" class="text-right truncate max-w-[130px] tabular-nums text-gray-300">
+          λ: ---
         </div>
       </div>
     `;
+  }
+
+  private cacheElements(): void {
+    this.noteEl = this.element.querySelector('#hud-note');
+    this.hzEl = this.element.querySelector('#hud-hz');
+    this.fpsEl = this.element.querySelector('#hud-fps');
+    this.waveEl = this.element.querySelector('#hud-wavelength');
+
+    const meterIds = [
+      '#meter-sub',
+      '#meter-bass',
+      '#meter-lmid',
+      '#meter-mid',
+      '#meter-hmid',
+      '#meter-high',
+    ];
+
+    this.meterEls = meterIds
+      .map(id => this.element.querySelector(id) as HTMLElement)
+      .filter(Boolean);
   }
 
   private startUpdateLoop(): void {
@@ -76,51 +102,46 @@ export class SpectrumHUD {
       const noteInfo = WavePhysics.frequencyToNote(fundamentalHz);
 
       // Update Note & Hz
-      const noteEl = this.element.querySelector('#hud-note');
-      const hzEl = this.element.querySelector('#hud-hz');
-      const fpsEl = this.element.querySelector('#hud-fps');
-      const waveEl = this.element.querySelector('#hud-wavelength');
-
-      if (noteEl && hzEl) {
+      if (this.noteEl && this.hzEl) {
         if (fundamentalHz > 15) {
-          noteEl.textContent = noteInfo.name;
-          hzEl.textContent = `${Math.round(fundamentalHz)} Hz`;
+          this.noteEl.textContent = noteInfo.name;
+          this.hzEl.textContent = `${Math.round(fundamentalHz)} Hz`;
         } else {
-          noteEl.textContent = '---';
-          hzEl.textContent = '0 Hz';
+          this.noteEl.textContent = '---';
+          this.hzEl.textContent = '0 Hz';
         }
       }
 
-      if (fpsEl) {
-        fpsEl.textContent = `${this.visualizer.fps} FPS`;
+      if (this.fpsEl) {
+        this.fpsEl.textContent = `${this.visualizer.fps} FPS`;
       }
 
-      if (waveEl) {
+      if (this.waveEl) {
         if (fundamentalHz > 15) {
           const lambdaM = 343 / fundamentalHz;
-          waveEl.textContent = lambdaM > 1 ? `λ: ${lambdaM.toFixed(2)}m` : `λ: ${(lambdaM * 100).toFixed(1)}cm`;
+          this.waveEl.textContent = lambdaM >= 1 ? `λ: ${lambdaM.toFixed(2)} m` : `λ: ${(lambdaM * 100).toFixed(1)} cm`;
         } else {
-          waveEl.textContent = 'λ: ---';
+          this.waveEl.textContent = 'λ: ---';
         }
       }
 
       // Update 6 Band Meters
-      const bandMapping: [string, number][] = [
-        ['#meter-sub', bands.subBass],
-        ['#meter-bass', bands.bass],
-        ['#meter-lmid', bands.lowMid],
-        ['#meter-mid', bands.mid],
-        ['#meter-hmid', bands.highMid],
-        ['#meter-high', bands.high],
+      const bandValues = [
+        bands.subBass,
+        bands.bass,
+        bands.lowMid,
+        bands.mid,
+        bands.highMid,
+        bands.high,
       ];
 
-      bandMapping.forEach(([sel, val]) => {
-        const el = this.element.querySelector(sel) as HTMLElement;
+      for (let i = 0; i < this.meterEls.length; i++) {
+        const el = this.meterEls[i];
         if (el) {
-          const heightPct = Math.min(100, Math.round(val * 90));
+          const heightPct = Math.min(100, Math.max(0, Math.round(bandValues[i] * 100)));
           el.style.height = `${heightPct}%`;
         }
-      });
+      }
 
       this.animFrameId = requestAnimationFrame(update);
     };
@@ -131,6 +152,8 @@ export class SpectrumHUD {
   public destroy(): void {
     if (this.animFrameId !== null) {
       cancelAnimationFrame(this.animFrameId);
+      this.animFrameId = null;
     }
   }
 }
+

@@ -1,13 +1,16 @@
 /**
- * Master Audio Engine
- * Coordinates Web Audio Context, AnalyserNode, Tone Synthesizer, Demo Tracks, Mic Stream, and File Player.
+ * Master Unified Audio Engine
+ * Coordinates Web Audio Context, AnalyserNode, Tone Synthesizer, Demo Tracks, Mic Stream, File Player, Voice Biometrics, and Sound Medicine.
  */
 
 import { FrequencySynthesizer } from './FrequencySynthesizer';
 import { SpectralAnalyzer, AudioBands, ShockwaveEvent } from './SpectralAnalyzer';
 import { DemoAudioGenerator } from './DemoAudioGenerator';
+import { VoiceBiometricAnalyzer } from './VoiceBiometricAnalyzer';
+import { SoundMedicineSynthesizer } from './SoundMedicineSynthesizer';
+import { VocalBiomarkerReport } from '../math/VoiceBiometricsPhysics';
 
-export type AudioInputMode = 'frequency-lab' | 'demo-track' | 'file-upload' | 'microphone';
+export type AudioInputMode = 'frequency-lab' | 'demo-track' | 'file-upload' | 'microphone' | 'sound-medicine';
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -17,6 +20,8 @@ export class AudioEngine {
   public synthesizer: FrequencySynthesizer | null = null;
   public analyzer: SpectralAnalyzer | null = null;
   public demoGenerator: DemoAudioGenerator | null = null;
+  public voiceBiometrics: VoiceBiometricAnalyzer | null = null;
+  public soundMedicine: SoundMedicineSynthesizer | null = null;
 
   // File audio element
   private audioElement: HTMLAudioElement;
@@ -64,6 +69,8 @@ export class AudioEngine {
       this.synthesizer = new FrequencySynthesizer(this.ctx, this.masterGain);
       this.analyzer = new SpectralAnalyzer(this.analyserNode, this.ctx.sampleRate);
       this.demoGenerator = new DemoAudioGenerator(this.ctx, this.masterGain);
+      this.voiceBiometrics = new VoiceBiometricAnalyzer(this.ctx);
+      this.soundMedicine = new SoundMedicineSynthesizer(this.ctx, this.masterGain);
 
       this.isInitialized = true;
     } catch (err) {
@@ -77,6 +84,7 @@ export class AudioEngine {
     // Stop previous sources
     this.synthesizer?.stop();
     this.demoGenerator?.stop();
+    this.soundMedicine?.stop();
     this.audioElement.pause();
     this.stopMicrophone();
 
@@ -110,6 +118,23 @@ export class AudioEngine {
 
   public async startFrequencyTone(freq: number): Promise<void> {
     await this.playFrequency(freq);
+  }
+
+  public async setTherapyAudioState(
+    freqHz: number,
+    phaseDeg: number,
+    power: number,
+    isAntiPhase: boolean,
+    isHeterodyne: boolean
+  ): Promise<void> {
+    await this.initialize();
+    this.setMode('frequency-lab');
+    if (this.synthesizer) {
+      if (!this.synthesizer.getIsPlaying()) {
+        this.synthesizer.start(this.masterVolume);
+      }
+      this.synthesizer.setTherapyAudioState(freqHz, phaseDeg, power, isAntiPhase, isHeterodyne);
+    }
   }
 
   public stopFrequency(): void {
@@ -233,6 +258,19 @@ export class AudioEngine {
 
   public getIsMuted(): boolean {
     return this.isMuted;
+  }
+
+  // --- Personalized Sound Medicine Playback ---
+  public async playPersonalizedSoundMedicine(
+    prescription: VocalBiomarkerReport['soundMedicinePrescription']
+  ): Promise<void> {
+    await this.initialize();
+    this.setMode('sound-medicine');
+    this.soundMedicine?.playPrescription(prescription, this.masterVolume);
+  }
+
+  public stopPersonalizedSoundMedicine(): void {
+    this.soundMedicine?.stop();
   }
 
   // --- Per-Frame Update Hook ---

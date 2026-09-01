@@ -192,25 +192,15 @@ export class FrequencyLabControls {
       this.render();
     });
 
-    // Master Slider - Smooth direct DOM update without tearing innerHTML
+    // Master Slider
     const slider = this.element.querySelector('#freq-master-slider') as HTMLInputElement;
-    const numInput = this.element.querySelector('#freq-number-input') as HTMLInputElement;
-    const noteBadge = this.element.querySelector('#freq-note-badge') as HTMLElement;
-
     slider?.addEventListener('input', () => {
       const hz = this.sliderToHz(parseFloat(slider.value));
-      this.currentFreq = Math.max(1, Math.min(20000, hz));
-      if (numInput) numInput.value = hz.toFixed(1);
-      if (noteBadge) {
-        const note = WavePhysics.frequencyToNote(hz);
-        noteBadge.textContent = `${note.name} (${note.cents >= 0 ? '+' : ''}${note.cents}c)`;
-      }
-      if (this.audioEngine.synthesizer) {
-        this.audioEngine.synthesizer.setFrequency(this.currentFreq);
-      }
+      this.setFrequency(hz);
     });
 
     // Number Box
+    const numInput = this.element.querySelector('#freq-number-input') as HTMLInputElement;
     numInput?.addEventListener('change', () => {
       const hz = parseFloat(numInput.value);
       if (!isNaN(hz)) {
@@ -244,7 +234,7 @@ export class FrequencyLabControls {
     this.element.querySelectorAll('.harmonic-slider').forEach(hSlider => {
       hSlider.addEventListener('input', e => {
         const target = e.target as HTMLInputElement;
-        const h = parseInt(target.getAttribute('data-harmonic') || '1');
+        const h = parseInt(target.getAttribute('data-harmonic') || '1', 10);
         const weight = parseFloat(target.value);
         this.audioEngine.synthesizer?.setHarmonicWeight(h, weight);
       });

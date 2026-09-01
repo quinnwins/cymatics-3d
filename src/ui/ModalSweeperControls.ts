@@ -509,36 +509,27 @@ export class ModalSweeperControls {
   }
 
   private attachEvents(): void {
-    // 1. Sliders (n, m, l) - Smooth drag without DOM tearing
+    // 1. Sliders (n, m, l)
     const sliderN = this.element.querySelector('#slider-mode-n') as HTMLInputElement;
     const sliderM = this.element.querySelector('#slider-mode-m') as HTMLInputElement;
     const sliderL = this.element.querySelector('#slider-mode-l') as HTMLInputElement;
-    const badgeN = this.element.querySelector('#badge-mode-n') as HTMLElement;
-    const badgeM = this.element.querySelector('#badge-mode-m') as HTMLElement;
-    const badgeL = this.element.querySelector('#badge-mode-l') as HTMLElement;
-    const badgeCurrent = this.element.querySelector('#badge-mode-current') as HTMLElement;
-
-    const updateModeBadges = () => {
-      if (badgeN) badgeN.textContent = String(this.state.n);
-      if (badgeM) badgeM.textContent = String(this.state.m);
-      if (badgeL) badgeL.textContent = String(this.state.l);
-      if (badgeCurrent) badgeCurrent.textContent = `(${this.state.n}, ${this.state.m}, ${this.state.l})`;
-      this.notifyStateChange();
-    };
 
     sliderN?.addEventListener('input', () => {
       this.state.n = parseInt(sliderN.value, 10);
-      updateModeBadges();
+      this.notifyStateChange();
+      this.render();
     });
 
     sliderM?.addEventListener('input', () => {
       this.state.m = parseInt(sliderM.value, 10);
-      updateModeBadges();
+      this.notifyStateChange();
+      this.render();
     });
 
     sliderL?.addEventListener('input', () => {
       this.state.l = parseInt(sliderL.value, 10);
-      updateModeBadges();
+      this.notifyStateChange();
+      this.render();
     });
 
     // 2. Stepper Buttons (+ / -)

@@ -24,6 +24,7 @@ attribute float aShellRadius;
 
 varying vec4 vColor;
 varying float vIntensity;
+varying float vDepthFade;
 
 void main() {
     vec3 basePos = position;
@@ -73,24 +74,25 @@ void main() {
     float colorT = aParticleFreq + baseR * 0.08 - uTime * 0.05 + totalDisp * 0.2;
     vec3 palColor = cosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
-    // Acoustic Wavefront Excitation: Particles ignite when wave energy passes through them
-    float excitation = clamp(localAmp * 2.8 + abs(totalDisp) * 1.6 + shockDisp * 2.5, 0.0, 3.0);
-    vIntensity = excitation;
+    // Intensity boost on transient or heavy sub-bass
+    float intensity = clamp(localAmp * 2.5 + abs(totalDisp) * 0.8 + shockDisp * 1.5, 0.0, 3.5);
+    vIntensity = intensity;
 
-    vec3 finalColor = palColor * (0.2 + 0.9 * excitation);
-    finalColor += uCoreGlow * (uBandEnergies.x * excitation * 0.8);
-    finalColor += uAccent * (shockDisp * 1.5);
+    vec3 finalColor = palColor * (0.6 + 1.2 * intensity);
+    finalColor += uCoreGlow * (uBandEnergies.x * 1.5);
+    finalColor += uAccent * shockDisp;
 
-    // Particle alpha: subtle ambient dust, glowing on acoustic wave passage
-    float pAlpha = clamp(0.04 + excitation * 0.65, 0.0, 0.9);
-    vColor = vec4(finalColor, pAlpha);
+    vColor = vec4(finalColor, 1.0);
 
     vec4 mvPosition = modelViewMatrix * vec4(displacedPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
 
-    // Point size with distance attenuation & clamping
-    float pSize = (1.0 + 2.5 * excitation + shockDisp * 4.0) * uParticleScale * (100.0 / -mvPosition.z);
-    gl_PointSize = clamp(pSize, 1.0, 28.0);
+    // Soft camera near-plane depth fade to prevent harsh clipping
+    float zDist = -mvPosition.z;
+    vDepthFade = smoothstep(0.4, 1.2, zDist);
+
+    // Point size with distance attenuation
+    gl_PointSize = clamp((2.5 + 6.0 * intensity + shockDisp * 8.0) * uParticleScale * (220.0 / max(zDist, 0.1)), 1.5, 64.0);
 }
 `;
 
@@ -99,17 +101,41 @@ precision highp float;
 
 varying vec4 vColor;
 varying float vIntensity;
+varying float vDepthFade;
 
 void main() {
-    // Render smooth anti-aliased Gaussian circular particle
-    vec2 coord = gl_PointCoord - vec2(0.5);
-    float distSq = dot(coord, coord);
-    if (distSq > 0.25) discard;
+    vec2 pCoord = gl_PointCoord * 2.0 - 1.0;
+    float r2 = dot(pCoord, pCoord);
+    if (r2 > 1.0) discard;
 
-    float alpha = exp(-distSq * 18.0) * vColor.a;
-    float core = smoothstep(0.03, 0.0, distSq) * vIntensity;
+    // 1. Exact Spherical Normal Reconstruction
+    float zNorm = sqrt(1.0 - r2);
+    vec3 impostorNormal = vec3(pCoord.x, -pCoord.y, zNorm);
 
-    vec3 finalRgb = vColor.rgb + vec3(1.0) * (core * 0.5);
-    gl_FragColor = vec4(finalRgb, alpha);
+    // 2. View-Space Directional Lighting & Microfacet Specular
+    vec3 lightDir = normalize(vec3(0.5, 0.8, 1.0));
+    float NdotL = max(dot(impostorNormal, lightDir), 0.0);
+    float spec = pow(max(dot(impostorNormal, normalize(lightDir + vec3(0.0, 0.0, 1.0))), 0.0), 28.0);
+
+    // 3. Multi-Wavelength Chromatic Airy Fringe Dispersion
+    float rR = sqrt(r2) * 1.03;
+    float rG = sqrt(r2);
+    float rB = sqrt(r2) * 0.97;
+
+    vec3 chromaticAlpha = vec3(
+        exp(-rR * rR * 9.0),
+        exp(-rG * rG * 10.0),
+        exp(-rB * rB * 11.5)
+    );
+
+    float coreGaussian = exp(-r2 * 12.0);
+    float edgeAA = smoothstep(1.0, 0.82, sqrt(r2));
+
+    vec3 baseRgb = vColor.rgb * (0.65 + 0.75 * NdotL);
+    vec3 finalRgb = baseRgb * chromaticAlpha + vec3(spec * 1.2 * vIntensity);
+    float finalAlpha = clamp(coreGaussian * edgeAA * vDepthFade, 0.0, 1.0);
+
+    gl_FragColor = vec4(finalRgb, finalAlpha);
 }
 `;
+
