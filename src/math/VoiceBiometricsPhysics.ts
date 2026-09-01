@@ -574,32 +574,32 @@ export class VoiceBiometricsPhysics {
     const hallmarks: string[] = [];
 
     if (report.jitterPercent < 0.6 && report.shimmerPercent < 2.5 && report.hnrDb > 20.0) {
-      hallmarks.push('✨ Pristine Harmonic Resonance (Optimal Vocal Fold Adduction)');
+      hallmarks.push('Pristine Harmonic Resonance (Optimal Vocal Fold Adduction)');
       return { hallmarks, healthStatus: 'pristine' };
     }
 
     if (report.tremorDepthPercent > 12.0) {
-      hallmarks.push('🌊 4–7 Hz Involuntary Neurological Vocal Tremor (Parkinsonian / Essential)');
+      hallmarks.push('4–7 Hz Involuntary Neurological Vocal Tremor (Parkinsonian / Essential)');
       if (report.fcr > 1.22) {
-        hallmarks.push('🎯 Significant Vowel Space Formant Centralization (Articulatory Undershoot)');
+        hallmarks.push('Significant Vowel Space Formant Centralization (Articulatory Undershoot)');
       }
       return { hallmarks, healthStatus: 'neurological-tremor' };
     }
 
     if (report.jitterPercent > 2.2 || report.shimmerPercent > 6.0 || report.hnrDb < 10.0) {
-      hallmarks.push('💨 Glottal Aspiration Turbulence & Tissue Mass Asymmetry (Vocal Nodules / Polyp)');
+      hallmarks.push('Glottal Aspiration Turbulence & Tissue Mass Asymmetry (Vocal Nodules / Polyp)');
       if (report.cppDb < 7.0) {
-        hallmarks.push('⚠️ Severe Loss of Cepstral Periodicity (Glottic Gap Leakage)');
+        hallmarks.push('Severe Loss of Cepstral Periodicity (Glottic Gap Leakage)');
       }
       return { hallmarks, healthStatus: 'pathological-dysphonia' };
     }
 
     if (report.jitterPercent > 1.2 || report.shimmerPercent > 3.8) {
-      hallmarks.push('⚡ Hyperfunctional Laryngeal Muscle Tension & Acoustic Fatigue');
+      hallmarks.push('Hyperfunctional Laryngeal Muscle Tension & Acoustic Fatigue');
       return { hallmarks, healthStatus: 'mild-strain' };
     }
 
-    hallmarks.push('🫁 Mild Respiratory Phonation Instability');
+    hallmarks.push('Mild Respiratory Phonation Instability');
     return { hallmarks, healthStatus: 'respiratory-fatigue' };
   }
 
@@ -620,7 +620,7 @@ export class VoiceBiometricsPhysics {
           binauralBeatHz: 10.0, // Alpha 10 Hz
           harmonicOvertones: [baseF0, baseF0 * 1.618, baseF0 * 2.0, baseF0 * 3.0],
           isochronicPulseRateHz: 5.0,
-          prescriptionTitle: '💎 432 Hz Solfeggio Golden-Ratio Resonance Radiance',
+          prescriptionTitle: '432 Hz Harmonic Calibration & Golden Ratio Resonance',
         };
       case 'neurological-tremor':
         return {
@@ -628,7 +628,7 @@ export class VoiceBiometricsPhysics {
           binauralBeatHz: 6.0, // Theta 6 Hz for tremor stabilization
           harmonicOvertones: [baseF0, baseF0 * 1.5, baseF0 * 2.0, baseF0 * 2.5],
           isochronicPulseRateHz: 6.0,
-          prescriptionTitle: '🌊 6 Hz Theta Neuromodulatory Tremor Balance',
+          prescriptionTitle: '6 Hz Theta Neuromodulatory Tremor Balance',
         };
       case 'pathological-dysphonia':
         return {
@@ -636,7 +636,7 @@ export class VoiceBiometricsPhysics {
           binauralBeatHz: 8.0,
           harmonicOvertones: [110.0, 220.0, 330.0, 440.0],
           isochronicPulseRateHz: 4.0,
-          prescriptionTitle: '💨 110 Hz Inertance Loading & Anti-Turbulence Wave',
+          prescriptionTitle: '110 Hz Inertance Loading & Anti-Turbulence Wave',
         };
       case 'mild-strain':
         return {
@@ -644,7 +644,7 @@ export class VoiceBiometricsPhysics {
           binauralBeatHz: 10.0, // Alpha relaxation
           harmonicOvertones: [216.0, 432.0, 648.0],
           isochronicPulseRateHz: 5.0,
-          prescriptionTitle: '⚡ 10 Hz Alpha Laryngeal De-Constriction Bath',
+          prescriptionTitle: '10 Hz Alpha Laryngeal Relaxation Wave',
         };
       case 'respiratory-fatigue':
       default:
@@ -653,7 +653,7 @@ export class VoiceBiometricsPhysics {
           binauralBeatHz: 7.83, // Schumann resonance
           harmonicOvertones: [528.0, 528.0 * 1.618, 1056.0],
           isochronicPulseRateHz: 3.5,
-          prescriptionTitle: '🫁 528 Hz Cellular DNA Repair & Diaphragmatic Entrainment',
+          prescriptionTitle: '528 Hz Cellular Restorative Resonance',
         };
     }
   }

@@ -5,7 +5,7 @@
  * Implements:
  * 1. Live Microphone Toggle & Audio VU meter.
  * 2. 7 Clinical Human Voice Presets (Bel Canto, Grounded Chest, Vocal Strain, Nodules, Parkinson's, Pulmonary, Edema).
- * 3. One-Touch "💊 Synthesize Personalized Sound Medicine" trigger.
+ * 3. One-Touch "Synthesize Custom Balancing Tone" trigger.
  * 4. Active Sound Medicine Prescription Card with real-time bio-resonance synthesis.
  */
 

@@ -55,15 +55,15 @@ export class BioAcousticControls {
 
     this.container.innerHTML = `
       <!-- Biophysics Studio Hub Switcher -->
-      <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-black/40 border border-white/10 text-xs">
+      <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border border-white/10 text-xs">
         <button id="hub-btn-bio" class="flex-1 py-1 px-1.5 rounded-xl font-bold text-center transition-all cursor-pointer glass-btn-active text-emerald-300 shadow-sm ring-1 ring-emerald-500/30">
-          🧬 Cell Mechanics
+          Cell Mechanics
         </button>
         <button id="hub-btn-therapy" class="flex-1 py-1 px-1.5 rounded-xl font-semibold text-center transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-white/5">
-          🎯 Cancer Lab
+          Cancer Lab
         </button>
         <button id="hub-btn-nobel" class="flex-1 py-1 px-1.5 rounded-xl font-semibold text-center transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-white/5">
-          🏆 Nobel Lab
+          Nobel Lab
         </button>
       </div>
 

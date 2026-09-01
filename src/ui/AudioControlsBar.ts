@@ -1,6 +1,6 @@
 /**
  * AudioControlsBar.ts
- * SoundForm 3D - Music Space Audio Controls Bar
+ * SoundForm 3D - Music Space Audio Controls Bar & Master Transport Dock
  */
 
 import { AudioEngine } from '../audio/AudioEngine';
@@ -11,7 +11,11 @@ export class AudioControlsBar {
   private hasInitGlobalListeners = false;
   private unsubscribe?: () => void;
 
-  constructor(private audioEngine: AudioEngine) {
+  constructor(
+    private audioEngine: AudioEngine,
+    private onScreenshot?: () => void,
+    private onExport?: () => void
+  ) {
     this.element = document.createElement('div');
     this.element.className = 'w-full flex flex-col items-center gap-3';
     this.initGlobalListeners();
@@ -56,10 +60,10 @@ export class AudioControlsBar {
     const isMicActive = this.audioEngine.isMicrophoneActive();
 
     this.element.innerHTML = `
-      <div class="glass-panel px-4 py-2 rounded-2xl flex flex-wrap items-center justify-between gap-3 md:gap-4 shadow-xl border border-white/10 max-w-2xl w-full mx-auto select-none">
+      <div class="glass-panel px-4 py-2 rounded-2xl flex flex-wrap items-center justify-between gap-2.5 md:gap-3 shadow-xl border border-white/10 max-w-3xl w-full mx-auto select-none">
         
         <!-- Left: Play/Pause & Track Selector -->
-        <div class="flex items-center gap-2.5 flex-1 min-w-[200px]">
+        <div class="flex items-center gap-2.5 flex-1 min-w-[180px]">
           <!-- Play / Pause Button -->
           <button id="btn-play-pause" title="${isPlaying ? 'Pause audio' : 'Play audio'}" class="w-9 h-9 rounded-xl ${
             isPlaying
@@ -84,7 +88,7 @@ export class AudioControlsBar {
                       <span class="w-2 h-2 rounded-full bg-rose-400"></span>
                       <span>Microphone Active</span>
                     </div>`
-                  : `<select id="track-select" class="bg-slate-900 text-gray-200 text-xs font-medium rounded-xl px-2.5 py-1 border border-white/10 outline-none focus:border-cyan-400 cursor-pointer hover:bg-slate-800 transition-colors w-full max-w-[200px]">
+                  : `<select id="track-select" class="bg-slate-900 text-gray-200 text-xs font-medium rounded-xl px-2.5 py-1 border border-white/10 outline-none focus:border-cyan-400 cursor-pointer hover:bg-slate-800 transition-colors w-full max-w-[190px]">
                       ${tracks
                         .map(
                           t => `
@@ -100,8 +104,8 @@ export class AudioControlsBar {
           </div>
         </div>
 
-        <!-- Right: Input Options & Volume Controls -->
-        <div class="flex items-center gap-2 shrink-0">
+        <!-- Right: Input Options, Utility Actions & Volume Controls -->
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
           
           <!-- File Upload Button -->
           <label class="btn-icon p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium" title="Upload audio file (MP3, WAV, FLAC)">
@@ -119,6 +123,31 @@ export class AudioControlsBar {
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
             <span class="hidden sm:inline text-[11px]">Mic</span>
           </button>
+
+          <!-- Separator between Inputs and Utilities -->
+          <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block"></div>
+
+          <!-- Screenshot Button -->
+          <button id="btn-screenshot" class="btn-screenshot btn-icon p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium" title="Save screenshot (PNG)">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <span class="hidden md:inline text-[11px]">Snapshot</span>
+          </button>
+
+          <!-- Export Data Button -->
+          <button id="btn-export-dossier" class="btn-icon p-2 rounded-xl bg-white/5 hover:bg-white/10 text-cyan-300 hover:text-cyan-200 border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium" title="Export simulation data (JSON/Markdown)">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span class="hidden md:inline text-[11px]">Export</span>
+          </button>
+
+          <!-- Separator before Volume -->
+          <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block"></div>
 
           <!-- Volume Controls -->
           <div class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1.5 rounded-xl border border-white/5">
@@ -139,7 +168,7 @@ export class AudioControlsBar {
               max="1" 
               step="0.01" 
               value="${this.audioEngine.getMasterVolume()}"
-              class="w-14 sm:w-20" 
+              class="w-12 sm:w-16 md:w-20" 
             />
           </div>
         </div>
@@ -184,6 +213,22 @@ export class AudioControlsBar {
       }
     });
 
+    // Screenshot button
+    this.element.querySelectorAll('.btn-screenshot').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (this.onScreenshot) {
+          this.onScreenshot();
+        }
+      });
+    });
+
+    // Export button
+    this.element.querySelector('#btn-export-dossier')?.addEventListener('click', () => {
+      if (this.onExport) {
+        this.onExport();
+      }
+    });
+
     // Mute button
     this.element.querySelector('#btn-mute')?.addEventListener('click', () => {
       this.audioEngine.toggleMute();
@@ -196,3 +241,4 @@ export class AudioControlsBar {
     });
   }
 }
+

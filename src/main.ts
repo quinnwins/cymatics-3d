@@ -42,8 +42,8 @@ class App {
   private rightSidebarRoot: HTMLElement;
   private bottomTransportRoot: HTMLElement;
   private centerPromptRoot: HTMLElement;
-  private isLeftSidebarOpen = true;
-  private isRightSidebarOpen = true;
+  private isLeftSidebarOpen = typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
+  private isRightSidebarOpen = typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
   private hasInteracted = false;
 
   constructor() {
@@ -51,6 +51,13 @@ class App {
     this.rightSidebarRoot = document.getElementById('right-sidebar-root') as HTMLElement;
     this.bottomTransportRoot = document.getElementById('bottom-transport-root') as HTMLElement;
     this.centerPromptRoot = document.getElementById('center-prompt-root') as HTMLElement;
+
+    if (!this.isLeftSidebarOpen) {
+      this.leftSidebarRoot.classList.add('sidebar-collapsed');
+    }
+    if (!this.isRightSidebarOpen) {
+      this.rightSidebarRoot.classList.add('sidebar-collapsed');
+    }
 
     const canvasContainer = document.getElementById('canvas-container') as HTMLElement;
 
@@ -77,7 +84,11 @@ class App {
     );
 
     // 3. Initialize UI Components
-    this.audioControlsBar = new AudioControlsBar(this.audioEngine);
+    this.audioControlsBar = new AudioControlsBar(
+      this.audioEngine,
+      () => this.captureScreenshot(),
+      () => this.exportClinicalDossier()
+    );
     this.musicLibraryCard = new MusicLibraryCard(this.audioEngine, () => {
       this.audioControlsBar.render();
     });
@@ -156,8 +167,8 @@ class App {
     this.switchMode('modal');
     this.header.setMode('modal');
 
-    // 6. Initial Welcome & Audio Unlock Overlay
-    this.showWelcomePrompt();
+    // 6. Seamless Audio Unlock on First User Interaction (Zero UI Overlay)
+    this.setupAudioUnlock();
   }
 
   private toggleLeftSidebar(): void {
@@ -210,6 +221,14 @@ class App {
 
     AcousticDataExporter.triggerDownload('SOUNDFORM3D_ACOUSTIC_SIMULATION.md', markdown, 'text/markdown');
     AcousticDataExporter.triggerDownload('SOUNDFORM3D_ACOUSTIC_SIMULATION.json', JSON.stringify(record, null, 2), 'application/json');
+  }
+
+  private captureScreenshot(): void {
+    const dataUrl = this.visualizer.captureScreenshot();
+    const link = document.createElement('a');
+    link.download = `soundform-3d-${Date.now()}.png`;
+    link.href = dataUrl;
+    link.click();
   }
 
   private switchMode(mode: EngineMode, fromTour = false): void {
@@ -278,6 +297,9 @@ class App {
     }
 
     this.renderSidebars();
+    if (this.physicsDrawer) {
+      this.physicsDrawer.render();
+    }
     this.audioControlsBar.render();
   }
 
@@ -315,28 +337,7 @@ class App {
     this.rightSidebarRoot.appendChild(this.physicsDrawer.getElement());
   }
 
-  private showWelcomePrompt(): void {
-    this.centerPromptRoot.innerHTML = `
-      <div id="welcome-card" class="glass-panel p-6 md:p-8 rounded-3xl max-w-md text-center flex flex-col items-center gap-4 cursor-pointer hover:border-cyan-400/40 transition-all shadow-2xl pointer-events-auto border border-white/10">
-        <div class="w-14 h-14 rounded-2xl bg-cyan-500 text-slate-950 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-          <svg class="w-7 h-7 ml-0.5" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-            <polygon points="6 4 20 12 6 20 6 4"/>
-          </svg>
-        </div>
-        <div class="flex flex-col gap-1">
-          <h2 class="text-xl md:text-2xl font-bold text-white tracking-tight">
-            SoundForm 3D
-          </h2>
-          <p class="text-xs text-slate-300">
-            Click anywhere to start audio and explore 3D sound waves and biophysical acoustics.
-          </p>
-        </div>
-        <div class="text-xs text-cyan-400 font-semibold mt-1">
-          Click to Start
-        </div>
-      </div>
-    `;
-
+  private setupAudioUnlock(): void {
     const unlockAudio = async () => {
       if (this.hasInteracted) return;
       this.hasInteracted = true;
@@ -348,20 +349,12 @@ class App {
         this.switchMode(this.currentMode);
       }
 
-      // Fade out welcome prompt
-      const card = document.getElementById('welcome-card');
-      if (card) {
-        card.style.opacity = '0';
-        card.style.transform = 'scale(0.9)';
-        setTimeout(() => {
-          this.centerPromptRoot.innerHTML = '';
-        }, 300);
-      }
-
       this.audioControlsBar.render();
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
     };
 
-    document.getElementById('welcome-card')?.addEventListener('click', unlockAudio);
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
     window.addEventListener('keydown', unlockAudio, { once: true });
   }
 }

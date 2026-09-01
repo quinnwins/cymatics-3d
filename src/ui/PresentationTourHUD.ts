@@ -1,12 +1,12 @@
 /**
  * PresentationTourHUD.ts
- * SoundForm 3D - Executive Keynote Presentation & Nobel Committee Guided Tour HUD
+ * SoundForm 3D - Keynote Presentation & Guided Tour HUD
  *
  * Features:
  * - Floating glass cinematic subtitle & telemetry callout banner.
  * - Step progress indicator across all 7 presentation chapters.
- * - Web Speech narration with visual subtitle fallback.
- * - Next / Pause / Exit controls for executive review.
+ * - Visual subtitle walkthrough with zero intrusive synthetic voice.
+ * - Next / Pause / Exit controls for interactive review.
  */
 
 export interface TourStep {
@@ -15,7 +15,6 @@ export interface TourStep {
   title: string;
   badge: string;
   subtitle: string;
-  narrationText: string;
   durationMs: number;
 }
 
@@ -23,7 +22,6 @@ export class PresentationTourHUD {
   public container: HTMLElement;
   private currentStepIndex = 0;
   private totalSteps = 7;
-  private isNarrationMuted = false;
 
   private onNext: () => void;
   private onPrev: () => void;
@@ -49,6 +47,13 @@ export class PresentationTourHUD {
     this.onPrev = callbacks.onPrev;
     this.onTogglePause = callbacks.onTogglePause;
     this.onExit = callbacks.onExit;
+
+    // Ensure any browser speech synthesis queue is canceled
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
+    }
   }
 
   public setVisible(visible: boolean) {
@@ -56,8 +61,10 @@ export class PresentationTourHUD {
       this.container.classList.remove('hidden');
     } else {
       this.container.classList.add('hidden');
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch {}
       }
     }
   }
@@ -104,7 +111,7 @@ export class PresentationTourHUD {
           </div>
         </div>
 
-        <!-- Middle: Subtitle & Narration -->
+        <!-- Middle: Visual Subtitle -->
         <div class="text-sm font-medium text-slate-200 leading-relaxed bg-slate-900/80 p-3 rounded-2xl border border-white/5 flex items-start gap-3">
           <div class="flex flex-col gap-1">
             <p class="text-xs md:text-sm text-slate-100">${step.subtitle}</p>
@@ -126,33 +133,11 @@ export class PresentationTourHUD {
               ${this.currentStepIndex === total - 1 ? 'Finish Tour' : 'Next Chapter'}
             </button>
           </div>
-
-          <button id="btn-tour-mute" class="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer">
-            <span>${this.isNarrationMuted ? 'Voice Muted' : 'Voice Narration On'}</span>
-          </button>
         </div>
       </div>
     `;
 
     this.attachEvents();
-    this.speak(step.narrationText);
-  }
-
-  private speak(text: string) {
-    if (this.isNarrationMuted) return;
-    if (!('speechSynthesis' in window)) return;
-
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.05;
-    utterance.pitch = 1.0;
-
-    // Pick crisp English voice if available
-    const voices = window.speechSynthesis.getVoices();
-    const englishVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Daniel')));
-    if (englishVoice) utterance.voice = englishVoice;
-
-    window.speechSynthesis.speak(utterance);
   }
 
   private attachEvents() {
@@ -162,16 +147,9 @@ export class PresentationTourHUD {
       this.isPaused = !this.isPaused;
       this.onTogglePause();
       const btn = this.container.querySelector('#btn-tour-pause');
-      if (btn) btn.textContent = this.isPaused ? '▶ Resume' : '⏸ Pause';
-      if (this.isPaused && 'speechSynthesis' in window) window.speechSynthesis.pause();
-      else if (!this.isPaused && 'speechSynthesis' in window) window.speechSynthesis.resume();
+      if (btn) btn.textContent = this.isPaused ? 'Resume' : 'Pause';
     });
     this.container.querySelector('#btn-tour-exit')?.addEventListener('click', () => this.onExit());
-    this.container.querySelector('#btn-tour-mute')?.addEventListener('click', () => {
-      this.isNarrationMuted = !this.isNarrationMuted;
-      if (this.isNarrationMuted && 'speechSynthesis' in window) window.speechSynthesis.cancel();
-      const btn = this.container.querySelector('#btn-tour-mute');
-      if (btn) btn.textContent = this.isNarrationMuted ? '🔇 Voice Muted' : '🔊 Voice Narration On';
-    });
   }
 }
+

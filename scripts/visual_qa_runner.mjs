@@ -65,11 +65,11 @@ export async function runVisualQA(iteration = 1) {
     buildProc.on('close', code => code === 0 ? resolve() : reject(new Error('Build failed')));
   });
 
-  const port = 5195;
   const distDir = path.resolve(process.cwd(), 'dist');
-  console.log(`🚀 Starting in-process static HTTP server on port ${port}...`);
-  const server = await createStaticServer(distDir, port);
-  const serverUrl = `http://127.0.0.1:${port}`;
+  console.log(`🚀 Starting in-process static HTTP server...`);
+  const server = await createStaticServer(distDir, 0);
+  const actualPort = server.address().port;
+  const serverUrl = `http://127.0.0.1:${actualPort}`;
   console.log('✅ Server ready at:', serverUrl);
 
   const browser = await chromium.launch({
@@ -112,11 +112,8 @@ export async function runVisualQA(iteration = 1) {
     page4K.on('pageerror', err => errors.push(`[4K PageError]: ${err.message}`));
 
     await page4K.goto(serverUrl, { waitUntil: 'networkidle' });
-    await page4K.waitForSelector('#welcome-card', { timeout: 10000 });
-    await captureState(page4K, '01_welcome_screen_4k.png', '4K Welcome Screen with Glowing Emitter Card');
-
-    await page4K.click('#welcome-card');
     await page4K.waitForTimeout(600);
+    await captureState(page4K, '01_welcome_screen_4k.png', '4K Desktop Viewport');
     await captureState(page4K, '02_cymatics_lab_4k_fundamental.png', '4K 3D Cymatics Lab with (1,1,1) Fundamental Standing Wave');
     await context4K.close();
 
@@ -133,7 +130,6 @@ export async function runVisualQA(iteration = 1) {
     page.on('pageerror', err => errors.push(`[1080p PageError]: ${err.message}`));
 
     await page.goto(serverUrl, { waitUntil: 'networkidle' });
-    await page.click('#welcome-card');
     await page.waitForTimeout(600);
 
     // Mode 1: 3D Cymatics Lab
@@ -374,7 +370,6 @@ export async function runVisualQA(iteration = 1) {
     });
     const pageTablet = await contextTablet.newPage();
     await pageTablet.goto(serverUrl, { waitUntil: 'networkidle' });
-    await pageTablet.click('#welcome-card');
     await pageTablet.waitForTimeout(600);
     await captureState(pageTablet, '34_tablet_viewport_1024x768.png', 'Tablet Landscape Responsive Layout');
     await contextTablet.close();
@@ -391,7 +386,6 @@ export async function runVisualQA(iteration = 1) {
     });
     const pageMobile = await contextMobile.newPage();
     await pageMobile.goto(serverUrl, { waitUntil: 'networkidle' });
-    await pageMobile.click('#welcome-card');
     await pageMobile.waitForTimeout(600);
     await captureState(pageMobile, '35_mobile_viewport_390x844.png', 'Mobile Portrait Responsive Layout with Touch Controls');
     await contextMobile.close();

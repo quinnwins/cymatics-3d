@@ -27,7 +27,6 @@ export class PresentationTourEngine {
       title: '3D Wave Propagation & Music Space',
       badge: 'WAVE PHYSICS',
       subtitle: 'Sound waves radiate outward as concentric spheres, mapped in real time to the music frequency spectrum.',
-      narrationText: 'Welcome to SoundForm 3D. Here we observe sound waves radiating outward as three-dimensional spherical wavefronts, driven in real time by the audio frequency spectrum.',
       durationMs: 14000,
     },
     {
@@ -36,7 +35,6 @@ export class PresentationTourEngine {
       title: '3D Standing Waves & Cymatics',
       badge: 'STANDING WAVES',
       subtitle: 'Standing sound waves create quiet pressure nodes where particles naturally gather and hover.',
-      narrationText: 'Demonstrating 3D standing waves. Acoustic resonance creates quiet pressure nodes where suspended particles gather and hover in stable geometric patterns.',
       durationMs: 14000,
     },
     {
@@ -45,7 +43,6 @@ export class PresentationTourEngine {
       title: 'Cell Mechanics & Sorting',
       badge: 'BIOPHYSICS',
       subtitle: 'Sound frequencies separate different cell types based on their natural elasticity and physical properties.',
-      narrationText: 'Sound waves can gently sort cells by their mechanical stiffness, separating soft cancer cells from firmer healthy tissue without chemical tags.',
       durationMs: 14000,
     },
     {
@@ -54,7 +51,6 @@ export class PresentationTourEngine {
       title: 'Targeted Ultrasound & Wave Cancellation',
       badge: 'TARGETED THERAPY',
       subtitle: 'Resonant frequencies target tumor membranes while 180° phase cancellation protects surrounding healthy tissue.',
-      narrationText: 'Targeted ultrasound therapy. Resonant acoustic pulses stress tumor membranes while 180-degree phase cancellation shields surrounding healthy tissue.',
       durationMs: 16000,
     },
     {
@@ -63,7 +59,6 @@ export class PresentationTourEngine {
       title: 'Voice Analysis & Acoustic Balancing',
       badge: 'VOICE LAB',
       subtitle: 'Precision pitch and vocal stability analysis generate tailored harmonic balancing tones.',
-      narrationText: 'Real-time vocal analysis. Measuring pitch, stability, and vocal formants to generate tailored harmonic balancing tones.',
       durationMs: 14000,
     },
     {
@@ -72,7 +67,6 @@ export class PresentationTourEngine {
       title: 'Sound Waves & Gene Activation',
       badge: 'GENE REGULATION',
       subtitle: 'Gentle sound pressure stretches the cell nucleus, opening pores to activate tumor-fighting defense genes.',
-      narrationText: 'Sound waves and cellular mechanics. Gentle acoustic pressure stretches the cell nucleus, opening pores to activate natural tumor-fighting defense genes.',
       durationMs: 16000,
     },
     {
@@ -81,7 +75,6 @@ export class PresentationTourEngine {
       title: 'Resonant Disruption & Tissue Health',
       badge: 'TISSUE HEALTH',
       subtitle: 'Resonant frequencies break down viral shells and clear aging cells while preserving healthy tissue.',
-      narrationText: 'Resonant disruption. Target frequencies stress viral outer coatings and clear aging cells while protecting healthy tissue.',
       durationMs: 16000,
     },
   ];
