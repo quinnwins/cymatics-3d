@@ -30,7 +30,7 @@ void main() {
     vRadius = r;
 
     // Retarded-time texture sample along the acoustic spiral propagation path
-    float travelTime = r / uPropagationSpeed;
+    float travelTime = r / max(uPropagationSpeed, 0.001);
     float historyRow = fract(uHistoryHead - travelTime * 0.15);
     vec4 audioSample = texture2D(uAudioHistory, vec2(u, historyRow));
     float spectralAmp = audioSample.r;

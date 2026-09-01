@@ -25,7 +25,7 @@ export class VocalTractTubeMesh {
       this.targetRadii[i] = 0.8;
     }
 
-    const geometry = new THREE.CylinderGeometry(1.0, 1.0, 1.0, 48, 96, false);
+    const geometry = new THREE.CylinderGeometry(1.0, 1.0, 1.0, 48, 96, true);
     geometry.rotateX(Math.PI / 2);
 
     this.tubeMaterial = new THREE.ShaderMaterial({

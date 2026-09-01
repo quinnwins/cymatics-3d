@@ -36,17 +36,17 @@ export class SpectrumHUD {
       <!-- Top: Live Pitch & Note Header -->
       <div class="flex items-center justify-between border-b border-white/10 pb-2">
         <div class="flex items-center gap-2">
-          <div class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(0,242,254,0.8)]"></div>
-          <span class="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">Spectrum Telemetry</span>
+          <div class="w-2 h-2 rounded-full bg-cyan-400"></div>
+          <span class="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">Audio Spectrum</span>
         </div>
         <div class="flex items-baseline gap-1.5 font-mono text-xs">
           <span id="hud-note" class="font-bold text-cyan-400 tabular-nums min-w-[24px] text-right">---</span>
-          <span id="hud-hz" class="text-gray-400 text-[11px] tabular-nums min-w-[45px] text-right">0 Hz</span>
+          <span id="hud-hz" class="text-slate-400 text-[11px] tabular-nums min-w-[45px] text-right">0 Hz</span>
         </div>
       </div>
 
       <!-- 6-Band Perceptual Equalizer Wells -->
-      <div class="grid grid-cols-6 gap-2 items-end h-16 px-2 py-1.5 bg-black/40 rounded-2xl border border-white/5 shadow-inner">
+      <div class="grid grid-cols-6 gap-2 items-end h-16 px-2 py-1.5 bg-slate-900/60 rounded-2xl border border-white/5 shadow-inner">
         ${[
           { id: 'meter-sub', label: 'Sub' },
           { id: 'meter-bass', label: 'Bass' },
@@ -58,10 +58,10 @@ export class SpectrumHUD {
           .map(
             m => `
           <div class="flex flex-col items-center gap-1 h-full justify-end min-h-0">
-            <div class="w-full bg-white/10 rounded-full flex-1 min-h-0 relative overflow-hidden flex flex-col justify-end p-0.5">
-              <div id="${m.id}" class="eq-meter-bar w-full h-full bg-gradient-to-t from-cyan-400 via-indigo-400 to-fuchsia-400 rounded-full shadow-[0_0_8px_rgba(0,242,254,0.4)]"></div>
+            <div class="w-full bg-slate-800 rounded-full flex-1 min-h-0 relative overflow-hidden flex flex-col justify-end p-0.5">
+              <div id="${m.id}" class="eq-meter-bar w-full h-full bg-cyan-400 rounded-full"></div>
             </div>
-            <span class="text-[9px] text-gray-400 font-mono tracking-tight shrink-0">${m.label}</span>
+            <span class="text-[9px] text-slate-400 font-mono tracking-tight shrink-0">${m.label}</span>
           </div>
         `
           )
@@ -69,12 +69,12 @@ export class SpectrumHUD {
       </div>
 
       <!-- Footer: Telemetry & Wavelength -->
-      <div class="flex items-center justify-between text-[10px] text-gray-400 border-t border-white/10 pt-2 font-mono">
+      <div class="flex items-center justify-between text-[10px] text-slate-400 border-t border-white/10 pt-2 font-mono">
         <div class="flex items-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block shadow-[0_0_6px_rgba(48,209,88,0.8)]"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
           <span id="hud-fps" class="tabular-nums">60 FPS</span>
         </div>
-        <div id="hud-wavelength" class="text-right truncate max-w-[130px] tabular-nums text-gray-300">
+        <div id="hud-wavelength" class="text-right truncate max-w-[130px] tabular-nums text-slate-300">
           λ: ---
         </div>
       </div>
@@ -144,8 +144,10 @@ export class SpectrumHUD {
       for (let i = 0; i < this.meterEls.length; i++) {
         const el = this.meterEls[i];
         if (el) {
-          const scale = Math.min(1, Math.max(0.04, bandValues[i]));
+          const raw = bandValues[i];
+          const scale = Number.isFinite(raw) ? Math.min(1, Math.max(0.04, raw)) : 0.04;
           el.style.transform = `scaleY(${scale})`;
+          el.style.transformOrigin = 'bottom';
         }
       }
 

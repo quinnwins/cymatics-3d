@@ -14,23 +14,23 @@ import {
 export class FormantSpaceManifold {
   public group: THREE.Group;
   private particleCount = 15000;
-  private instancedMesh: THREE.InstancedMesh;
+  private pointsCloud: THREE.Points;
   private healthyHullMesh: THREE.Mesh;
   private pathologicalHullMesh: THREE.Mesh;
   private trajectoryLine: THREE.Line;
   private trajectoryPositions: Float32Array;
-  private trajectoryIndex = 0;
   private maxTrajectoryPoints = 256;
+  private pointsInitialized = false;
 
   constructor() {
     this.group = new THREE.Group();
 
-    // 1. Instanced Formant Point Sprites
-    const quadGeom = new THREE.PlaneGeometry(0.12, 0.12);
+    // 1. Point Cloud Formant Sprites
     const formantAttr = new Float32Array(this.particleCount * 3);
     const cppAttr = new Float32Array(this.particleCount);
     const jitterAttr = new Float32Array(this.particleCount);
     const clusterAttr = new Float32Array(this.particleCount);
+    const dummyPos = new Float32Array(this.particleCount * 3);
 
     const clusters = [
       { f: [0.15, 0.85, 0.75], cpp: 16.5, jitter: 0.02, id: 0 }, // /i/
@@ -51,12 +51,12 @@ export class FormantSpaceManifold {
       clusterAttr[i] = c.id;
     }
 
-    const instancedGeom = new THREE.InstancedBufferGeometry();
-    instancedGeom.copy(quadGeom as any);
-    instancedGeom.setAttribute('aInstanceFormant', new THREE.InstancedBufferAttribute(formantAttr, 3));
-    instancedGeom.setAttribute('aInstanceCPP', new THREE.InstancedBufferAttribute(cppAttr, 1));
-    instancedGeom.setAttribute('aInstanceJitter', new THREE.InstancedBufferAttribute(jitterAttr, 1));
-    instancedGeom.setAttribute('aInstanceCluster', new THREE.InstancedBufferAttribute(clusterAttr, 1));
+    const pointsGeom = new THREE.BufferGeometry();
+    pointsGeom.setAttribute('position', new THREE.BufferAttribute(dummyPos, 3));
+    pointsGeom.setAttribute('aInstanceFormant', new THREE.BufferAttribute(formantAttr, 3));
+    pointsGeom.setAttribute('aInstanceCPP', new THREE.BufferAttribute(cppAttr, 1));
+    pointsGeom.setAttribute('aInstanceJitter', new THREE.BufferAttribute(jitterAttr, 1));
+    pointsGeom.setAttribute('aInstanceCluster', new THREE.BufferAttribute(clusterAttr, 1));
 
     const cloudMaterial = new THREE.ShaderMaterial({
       vertexShader: FORMANT_CLOUD_VERTEX_SHADER,
@@ -71,8 +71,8 @@ export class FormantSpaceManifold {
       depthWrite: false,
     });
 
-    this.instancedMesh = new THREE.InstancedMesh(instancedGeom, cloudMaterial, this.particleCount);
-    this.group.add(this.instancedMesh);
+    this.pointsCloud = new THREE.Points(pointsGeom, cloudMaterial);
+    this.group.add(this.pointsCloud);
 
     // 2. Healthy Vowel Triangle Tetrahedron Wireframe Hull
     const healthyHullGeom = new THREE.ConeGeometry(3.2, 4.2, 3, 1);
@@ -128,7 +128,7 @@ export class FormantSpaceManifold {
     const isPathological = fcr > 1.20 ? 1.0 : 0.0;
     const centralizationNorm = Math.max(0.0, Math.min(1.0, (fcr - 0.9) / 0.45));
 
-    const cloudMat = this.instancedMesh.material as THREE.ShaderMaterial;
+    const cloudMat = this.pointsCloud.material as THREE.ShaderMaterial;
     cloudMat.uniforms.uTime.value = time;
     cloudMat.uniforms.uCentralization.value = centralizationNorm;
     cloudMat.uniforms.uTherapyStabilize.value = therapyCoherence;
@@ -143,24 +143,35 @@ export class FormantSpaceManifold {
     pathMat.uniforms.uPulsingWarning.value = isPathological;
     this.pathologicalHullMesh.visible = isPathological > 0.5;
 
-    // Update real-time trajectory coordinate
-    const normX = ((Math.min(1100, Math.max(200, f1)) - 200) / 900 - 0.5) * 5.0;
-    const normY = ((Math.min(2800, Math.max(800, f2)) - 800) / 2000 - 0.5) * 5.0;
-    const normZ = ((Math.min(3600, Math.max(2000, f3)) - 2000) / 1600 - 0.5) * 5.0;
+    // Update real-time trajectory coordinate (scaled to match cloud 5.5 multiplier)
+    const normX = ((Math.min(1100, Math.max(200, f1)) - 200) / 900 - 0.5) * 5.5;
+    const normY = ((Math.min(2800, Math.max(800, f2)) - 800) / 2000 - 0.5) * 5.5;
+    const normZ = ((Math.min(3600, Math.max(2000, f3)) - 2000) / 1600 - 0.5) * 5.5;
 
-    const idx = this.trajectoryIndex % this.maxTrajectoryPoints;
-    this.trajectoryPositions[idx * 3 + 0] = normX;
-    this.trajectoryPositions[idx * 3 + 1] = normY;
-    this.trajectoryPositions[idx * 3 + 2] = normZ;
-    this.trajectoryIndex++;
+    if (!this.pointsInitialized) {
+      this.pointsInitialized = true;
+      for (let i = 0; i < this.maxTrajectoryPoints; i++) {
+        this.trajectoryPositions[i * 3 + 0] = normX;
+        this.trajectoryPositions[i * 3 + 1] = normY;
+        this.trajectoryPositions[i * 3 + 2] = normZ;
+      }
+    } else {
+      // Shift FIFO buffer smoothly
+      for (let i = (this.maxTrajectoryPoints - 1) * 3; i >= 3; i--) {
+        this.trajectoryPositions[i] = this.trajectoryPositions[i - 3];
+      }
+      this.trajectoryPositions[0] = normX;
+      this.trajectoryPositions[1] = normY;
+      this.trajectoryPositions[2] = normZ;
+    }
 
     this.trajectoryLine.geometry.attributes.position.needsUpdate = true;
     this.group.rotation.y = time * 0.08;
   }
 
   public dispose(): void {
-    this.instancedMesh.geometry.dispose();
-    (this.instancedMesh.material as THREE.Material).dispose();
+    this.pointsCloud.geometry.dispose();
+    (this.pointsCloud.material as THREE.Material).dispose();
     this.healthyHullMesh.geometry.dispose();
     (this.healthyHullMesh.material as THREE.Material).dispose();
     this.pathologicalHullMesh.geometry.dispose();

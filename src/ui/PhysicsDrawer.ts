@@ -35,10 +35,9 @@ export class PhysicsDrawer {
       <!-- Accordion Header -->
       <button id="btn-toggle-accordion-physics" class="w-full flex items-center justify-between cursor-pointer group text-left">
         <div class="flex items-center gap-2">
-          <span class="text-xs">⚙️</span>
-          <span class="text-xs font-bold text-accent-cyan tracking-wide">Physics & Camera Deck</span>
+          <span class="text-xs font-bold text-slate-200 tracking-wide">Physics & Camera</span>
         </div>
-        <span class="text-xs text-gray-400 group-hover:text-white transition-transform font-mono">
+        <span class="text-xs text-slate-400 group-hover:text-white transition-transform font-mono">
           ${this.isOpen ? '▲' : '▼'}
         </span>
       </button>
@@ -48,9 +47,9 @@ export class PhysicsDrawer {
         
         <!-- Wave Propagation Speed (c) -->
         <div class="flex flex-col gap-1">
-          <div class="flex justify-between text-gray-300">
-            <span>Wave Speed (c)</span>
-            <span id="val-wave-speed" class="font-mono text-accent-cyan">${this.visualizer.waveSpeed.toFixed(1)}</span>
+          <div class="flex justify-between text-slate-300">
+            <span>Wave Speed</span>
+            <span id="val-wave-speed" class="font-mono text-cyan-400">${this.visualizer.waveSpeed.toFixed(1)}</span>
           </div>
           <input
             type="range"
@@ -59,15 +58,15 @@ export class PhysicsDrawer {
             max="12.0"
             step="0.2"
             value="${this.visualizer.waveSpeed}"
-            class="w-full cursor-pointer h-1.5 accent-accent-cyan"
+            class="w-full cursor-pointer"
           />
         </div>
 
         <!-- Medium Wave Damping (alpha) -->
         <div class="flex flex-col gap-1">
-          <div class="flex justify-between text-gray-300">
-            <span>Medium Absorption (α)</span>
-            <span id="val-wave-damping" class="font-mono text-accent-cyan">${this.visualizer.waveDamping.toFixed(2)}</span>
+          <div class="flex justify-between text-slate-300">
+            <span>Sound Absorption</span>
+            <span id="val-wave-damping" class="font-mono text-cyan-400">${this.visualizer.waveDamping.toFixed(2)}</span>
           </div>
           <input
             type="range"
@@ -76,15 +75,15 @@ export class PhysicsDrawer {
             max="0.35"
             step="0.01"
             value="${this.visualizer.waveDamping}"
-            class="w-full cursor-pointer h-1.5 accent-accent-cyan"
+            class="w-full cursor-pointer"
           />
         </div>
 
         <!-- Bloom & Glow Intensity -->
         <div class="flex flex-col gap-1">
-          <div class="flex justify-between text-gray-300">
-            <span>Bloom & Glow</span>
-            <span id="val-bloom" class="font-mono text-accent-cyan">${this.visualizer.bloomStrength.toFixed(1)}</span>
+          <div class="flex justify-between text-slate-300">
+            <span>Glow Brightness</span>
+            <span id="val-bloom" class="font-mono text-cyan-400">${this.visualizer.bloomStrength.toFixed(1)}</span>
           </div>
           <input
             type="range"
@@ -93,15 +92,15 @@ export class PhysicsDrawer {
             max="3.0"
             step="0.1"
             value="${this.visualizer.bloomStrength}"
-            class="w-full cursor-pointer h-1.5 accent-accent-cyan"
+            class="w-full cursor-pointer"
           />
         </div>
 
         <!-- Particle Size Scale -->
         <div class="flex flex-col gap-1">
-          <div class="flex justify-between text-gray-300">
-            <span>Particle Scale</span>
-            <span id="val-particle-scale" class="font-mono text-accent-cyan">${this.visualizer.particleScale.toFixed(1)}×</span>
+          <div class="flex justify-between text-slate-300">
+            <span>Particle Size</span>
+            <span id="val-particle-scale" class="font-mono text-cyan-400">${this.visualizer.particleScale.toFixed(1)}×</span>
           </div>
           <input
             type="range"
@@ -110,24 +109,24 @@ export class PhysicsDrawer {
             max="2.5"
             step="0.1"
             value="${this.visualizer.particleScale}"
-            class="w-full cursor-pointer h-1.5 accent-accent-cyan"
+            class="w-full cursor-pointer"
           />
         </div>
 
         <!-- Camera Perspective Mode -->
         <div class="flex flex-col gap-1.5 pt-1 border-t border-white/10">
-          <span class="text-gray-300 font-semibold text-[11px]">Camera View:</span>
+          <span class="text-slate-300 font-semibold text-[11px]">Camera View:</span>
           <div class="grid grid-cols-2 gap-1.5">
             ${[
-              { id: 'autocam', label: '🎬 Cinematic' },
-              { id: 'orbit', label: '🖐️ Free Orbit' },
-              { id: 'emitter-lock', label: '🎯 Origin Lock' },
-              { id: 'top-down', label: '📐 Planar Cut' },
+              { id: 'autocam', label: 'Cinematic' },
+              { id: 'orbit', label: 'Free Orbit' },
+              { id: 'emitter-lock', label: 'Focus Center' },
+              { id: 'top-down', label: 'Top-Down View' },
             ]
               .map(
                 c => `
-              <button data-camera="${c.id}" class="btn-cam-mode glass-btn py-1.5 px-2 rounded-lg text-[11px] font-medium transition-all ${
-                  this.visualizer.getCameraMode() === c.id ? 'glass-btn-active font-bold' : 'text-gray-400 hover:text-white'
+              <button data-camera="${c.id}" class="btn-cam-mode glass-btn py-1.5 px-2 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                  this.visualizer.getCameraMode() === c.id ? 'glass-btn-active font-bold' : 'text-slate-400 hover:text-white'
                 }">
                 ${c.label}
               </button>

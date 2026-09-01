@@ -1,6 +1,4 @@
-/**
- * 3D Chladni Nodal Physics, Standing Wave Equations & Gor'kov Acoustic Radiation Potential
- */
+import { BesselFunctions } from './BesselFunctions';
 
 export type ChamberGeometryType = 'rectangular' | 'cylindrical' | 'spherical';
 
@@ -103,14 +101,27 @@ export class ChladniPhysics {
     n: number
   ): number {
     const r = Math.sqrt(x * x + y * y + z * z);
-    if (r < 0.001) return 1.0;
-
     const kr = n * Math.PI * r;
-    // Spherical Bessel j_l(kr)
-    const jl = Math.sin(kr - (l * Math.PI) / 2) / Math.max(0.01, kr);
+
+    let jl: number;
+    if (l === 0) {
+      jl = BesselFunctions.j0(kr);
+    } else if (l === 1) {
+      jl = BesselFunctions.j1(kr);
+    } else if (l === 2) {
+      jl = BesselFunctions.j2(kr);
+    } else if (l === 3) {
+      jl = BesselFunctions.j3(kr);
+    } else {
+      jl = kr < 0.001 ? 0.0 : Math.sin(kr - (l * Math.PI) / 2) / kr;
+    }
+
+    if (r < 1e-6) {
+      return l === 0 ? 1.0 : 0.0;
+    }
 
     // Spherical harmonic angular component
-    const cosTheta = y / r;
+    const cosTheta = Math.max(-1, Math.min(1, y / r));
     const phi = Math.atan2(z, x);
     const legendre = Math.pow(Math.abs(cosTheta), Math.max(0.1, l - m + 1));
     const azimuthal = Math.cos(m * phi);

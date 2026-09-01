@@ -24,64 +24,64 @@ export class PresentationTourEngine {
     {
       id: 'music-space',
       chapterNumber: 1,
-      title: '3D Acoustic Spacetime & Wave Propagation',
-      badge: 'PHYSICS FOUNDATION',
-      subtitle: 'Acoustic energy radiates as spherical wavefront shells through 3D spacetime with real-time multi-band psychoacoustic decomposition.',
-      narrationText: 'Welcome to SoundForm 3D. Here we observe acoustic wave energy radiating as non-dispersive spherical shells through three-dimensional spacetime, driven by real-time psychoacoustic spectral decomposition.',
+      title: '3D Wave Propagation & Music Space',
+      badge: 'WAVE PHYSICS',
+      subtitle: 'Sound waves radiate outward as concentric spheres, mapped in real time to the music frequency spectrum.',
+      narrationText: 'Welcome to SoundForm 3D. Here we observe sound waves radiating outward as three-dimensional spherical wavefronts, driven in real time by the audio frequency spectrum.',
       durationMs: 14000,
     },
     {
       id: 'cymatics-lab',
       chapterNumber: 2,
-      title: 'Volumetric Chladni Eigenmodes & Gor\'kov Trapping',
-      badge: 'ACOUSTIC LEVITATION',
-      subtitle: '3D standing Helmholtz wavefields trap microscopic particles along pressure nodal planes with zero acoustic dissipation.',
-      narrationText: 'Demonstrating 3D volumetric Chladni eigenmodes. Standing acoustic waves trap suspended cellular matter at precise nodal lines under Gor\'kov acoustic radiation potentials.',
+      title: '3D Standing Waves & Cymatics',
+      badge: 'STANDING WAVES',
+      subtitle: 'Standing sound waves create quiet pressure nodes where particles naturally gather and hover.',
+      narrationText: 'Demonstrating 3D standing waves. Acoustic resonance creates quiet pressure nodes where suspended particles gather and hover in stable geometric patterns.',
       durationMs: 14000,
     },
     {
       id: 'bio-acoustics',
       chapterNumber: 3,
-      title: 'Cellular Mechanobiology & Elastography Sorting',
+      title: 'Cell Mechanics & Sorting',
       badge: 'BIOPHYSICS',
-      subtitle: 'Label-free acoustophoresis sorts malignant cells from normal stroma based on liquid-core cortical tension and Young\'s modulus stiffness gaps.',
-      narrationText: 'Mechanical impedance contrast enables label-free single-cell sorting. High-stiffness normal cells and softened malignant cancer cells separate passively in acoustic pressure gradients.',
+      subtitle: 'Sound frequencies separate different cell types based on their natural elasticity and physical properties.',
+      narrationText: 'Sound waves can gently sort cells by their mechanical stiffness, separating soft cancer cells from firmer healthy tissue without chemical tags.',
       durationMs: 14000,
     },
     {
       id: 'cancer-therapy',
       chapterNumber: 4,
-      title: 'Targeted Oncotripsy & Anti-Phase Destructive Shielding',
-      badge: 'ONCOLOGY BREAKTHROUGH',
-      subtitle: 'Resonant 11th-harmonic oncotripsy ruptures tumor membranes while 180° anti-phase destructive interference shields adjacent healthy stroma.',
-      narrationText: 'Frontier Oncotripsy. Exploiting structural fatigue at 118 Hertz. Anti-phase wave interference shields adjacent healthy tissue with greater than 99 percent viability while delivering lethal mechanical strain to malignant spheroids.',
+      title: 'Targeted Ultrasound & Wave Cancellation',
+      badge: 'TARGETED THERAPY',
+      subtitle: 'Resonant frequencies target tumor membranes while 180° phase cancellation protects surrounding healthy tissue.',
+      narrationText: 'Targeted ultrasound therapy. Resonant acoustic pulses stress tumor membranes while 180-degree phase cancellation shields surrounding healthy tissue.',
       durationMs: 16000,
     },
     {
       id: 'voice-biometrics',
       chapterNumber: 5,
-      title: 'Vocal Holography & Personalized Sound Medicine',
-      badge: 'PRECISION MEDICINE',
-      subtitle: 'Sub-sample YIN pitch, LPC-16 vocal tract tube reconstruction, and instant synthesis of patient-specific restorative harmonic medicine.',
-      narrationText: 'Real-time acoustic vocal biomarker extraction. Neural jitter, shimmer, and vocal tract area dispersion synthesize a patient-specific restorative harmonic prescription.',
+      title: 'Voice Analysis & Acoustic Balancing',
+      badge: 'VOICE LAB',
+      subtitle: 'Precision pitch and vocal stability analysis generate tailored harmonic balancing tones.',
+      narrationText: 'Real-time vocal analysis. Measuring pitch, stability, and vocal formants to generate tailored harmonic balancing tones.',
       durationMs: 14000,
     },
     {
       id: 'nobel-mechanogenomics',
       chapterNumber: 6,
-      title: 'Acoustic Mechanogenomics & p53 Tumor Defense',
-      badge: 'NOBEL FRONTIER',
-      subtitle: 'Acoustic stress transmitted via LINC complexes dilates nuclear pores from 9 nm to 42 nm, uncoiling chromatin to trigger p53 gene transcription.',
-      narrationText: 'Nobel Frontier Mechanogenomics. Acoustic stress transmitted via cytoskeletal LINC complexes dilates nuclear pores, uncoiling dense heterochromatin and directly triggering tumor-suppressor p53 gene transcription.',
+      title: 'Sound Waves & Gene Activation',
+      badge: 'GENE REGULATION',
+      subtitle: 'Gentle sound pressure stretches the cell nucleus, opening pores to activate tumor-fighting defense genes.',
+      narrationText: 'Sound waves and cellular mechanics. Gentle acoustic pressure stretches the cell nucleus, opening pores to activate natural tumor-fighting defense genes.',
       durationMs: 16000,
     },
     {
       id: 'nobel-viral-senolytic',
       chapterNumber: 7,
-      title: 'Virucidal Lamb Shatter & Senolytic Rejuvenation',
-      badge: 'CURING DISEASE',
-      subtitle: 'Lamb quadrupolar resonance shatters viral capsids with >600:1 selectivity while selective shockwaves clear SASP-secreting senescent zombie cells.',
-      narrationText: 'Final demonstration: Lamb quadrupolar vibrational resonance shatters icosahedral viral capsids with 620-to-1 somatic safety selectivity, concluding our executive demonstration.',
+      title: 'Resonant Disruption & Tissue Health',
+      badge: 'TISSUE HEALTH',
+      subtitle: 'Resonant frequencies break down viral shells and clear aging cells while preserving healthy tissue.',
+      narrationText: 'Resonant disruption. Target frequencies stress viral outer coatings and clear aging cells while protecting healthy tissue.',
       durationMs: 16000,
     },
   ];
@@ -106,6 +106,10 @@ export class PresentationTourEngine {
     this.isPaused = false;
     if (this.timerHandle) clearTimeout(this.timerHandle);
     this.hud.setVisible(false);
+  }
+
+  public getIsRunning(): boolean {
+    return this.isRunning;
   }
 
   public nextStep() {

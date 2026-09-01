@@ -96,7 +96,10 @@ export class VoiceBiometricAnalyzer {
     return this.isLiveMicActive;
   }
 
+  private lastUpdateTimestamp = 0;
+
   public update(): VocalBiomarkerReport {
+    const now = performance.now();
     if (this.isLiveMicActive && this.analyserNode) {
       this.analyserNode.getFloatTimeDomainData(this.timeDomainBuffer as any);
 
@@ -110,18 +113,22 @@ export class VoiceBiometricAnalyzer {
       if (rms > 0.008) {
         // Perform YIN Pitch Extraction
         const pitchData = VoiceBiometricsPhysics.extractPitchYIN(this.timeDomainBuffer, this.ctx.sampleRate);
-        if (pitchData.f0 > 60 && pitchData.confidence > 0.5) {
-          this.historyPeriods.push(pitchData.periodSamples);
-          this.historyAmplitudes.push(rms);
-          if (this.historyPeriods.length > this.maxHistoryFrames) {
-            this.historyPeriods.shift();
-            this.historyAmplitudes.shift();
+        const isNewFrame = (now - this.lastUpdateTimestamp) > 25; // Throttle history accumulation to ~40 Hz
+        if (isNewFrame) {
+          this.lastUpdateTimestamp = now;
+          if (pitchData.f0 > 60 && pitchData.confidence > 0.5) {
+            this.historyPeriods.push(pitchData.periodSamples);
+            this.historyAmplitudes.push(rms);
+            if (this.historyPeriods.length > this.maxHistoryFrames) {
+              this.historyPeriods.shift();
+              this.historyAmplitudes.shift();
+            }
           }
         }
 
         const pert = VoiceBiometricsPhysics.calculatePerturbationMetrics(this.historyPeriods, this.historyAmplitudes);
         const hnr = VoiceBiometricsPhysics.calculateHNR(this.timeDomainBuffer, pitchData.periodSamples);
-        const cpp = VoiceBiometricsPhysics.calculateCPP(this.timeDomainBuffer);
+        const cpp = VoiceBiometricsPhysics.calculateCPP(this.timeDomainBuffer, this.ctx.sampleRate);
         const lpc = VoiceBiometricsPhysics.calculateLpcAreaFunction(this.timeDomainBuffer, 16);
 
         const diagnosis = VoiceBiometricsPhysics.diagnosePathologies({
@@ -159,6 +166,14 @@ export class VoiceBiometricAnalyzer {
           diagnosticHallmarks: diagnosis.hallmarks,
           healthStatus: diagnosis.healthStatus,
           soundMedicinePrescription: rx,
+        };
+      } else {
+        // Microphone silence decay
+        this.cachedReport = {
+          ...this.cachedReport,
+          f0Hz: 0,
+          pitchConfidence: 0,
+          diagnosticHallmarks: ['Microphone active — awaiting vocal phonation...'],
         };
       }
     }

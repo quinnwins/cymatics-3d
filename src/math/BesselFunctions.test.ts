@@ -20,9 +20,10 @@ describe('BesselFunctions', () => {
     expect(BesselFunctions.j1(1.0)).toBeCloseTo(0.301168, 5);
   });
 
-  it('evaluates higher order j2 and j3 smoothly', () => {
+  it('evaluates higher order j2 and j3 smoothly in both small-argument and large-argument regimes', () => {
     expect(BesselFunctions.j2(0)).toBeCloseTo(0.0, 6);
     expect(BesselFunctions.j3(0)).toBeCloseTo(0.0, 6);
+    expect(BesselFunctions.j3(0.1)).toBeCloseTo(0.0000095185, 8);
     expect(Number.isFinite(BesselFunctions.j2(2.5))).toBe(true);
     expect(Number.isFinite(BesselFunctions.j3(3.5))).toBe(true);
   });

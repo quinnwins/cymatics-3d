@@ -1,0 +1,140 @@
+/**
+ * AcousticDataExporter.ts
+ * SoundForm 3D - Computational Acoustics & Biophysics Telemetry Exporter
+ *
+ * Generates structured JSON data and formatted technical Markdown reports
+ * capturing standing wave resonance, Gor'kov radiation forces, and vocal DSP telemetry.
+ */
+
+import { VocalBiomarkerReport } from '../math/VoiceBiometricsPhysics';
+import { NobelTelemetry } from '../math/NobelBiophysics';
+
+export interface AcousticSimulationRecord {
+  exportId: string;
+  timestampUtc: string;
+  softwareVersion: string;
+  chamberParameters: {
+    geometry: 'rectangular' | 'cylindrical' | 'spherical';
+    modalIndices: { n: number; m: number; l: number };
+    resonantFrequencyHz: number;
+    speedOfSoundMs: number;
+    mediumDensityKgM3: number;
+    acousticPower: number;
+  };
+  radiationForceField: {
+    gorkovPotentialPeak: number;
+    activeParticles: number;
+    trappingMode: 'nodes' | 'antinodes';
+  };
+  vocalAcoustics?: {
+    f0Hz: number;
+    jitterPercent: number;
+    shimmerPercent: number;
+    hnrDb: number;
+    cppDb: number;
+    formantsHz: [number, number, number, number];
+    vocalTractRadiiCm: number[];
+  };
+  biophysicalTelemetry?: NobelTelemetry;
+}
+
+export class AcousticDataExporter {
+  public static generateRecord(
+    chamber: AcousticSimulationRecord['chamberParameters'],
+    radiation: AcousticSimulationRecord['radiationForceField'],
+    vocalReport?: VocalBiomarkerReport,
+    biophysTelemetry?: NobelTelemetry
+  ): AcousticSimulationRecord {
+    const now = new Date().toISOString();
+    const id = 'SIM-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    const record: AcousticSimulationRecord = {
+      exportId: id,
+      timestampUtc: now,
+      softwareVersion: 'SoundForm 3D v3.0 (Computational Acoustics Platform)',
+      chamberParameters: chamber,
+      radiationForceField: radiation,
+      biophysicalTelemetry: biophysTelemetry,
+    };
+
+    if (vocalReport && vocalReport.f0Hz > 0) {
+      record.vocalAcoustics = {
+        f0Hz: vocalReport.f0Hz,
+        jitterPercent: vocalReport.jitterPercent,
+        shimmerPercent: vocalReport.shimmerPercent,
+        hnrDb: vocalReport.hnrDb,
+        cppDb: vocalReport.cppDb,
+        formantsHz: vocalReport.formantsHz,
+        vocalTractRadiiCm: vocalReport.vocalTractRadiiCm,
+      };
+    }
+
+    return record;
+  }
+
+  public static generateMarkdownReport(record: AcousticSimulationRecord): string {
+    return `# SoundForm 3D — Acoustic Simulation Report
+
+**Export ID:** \`${record.exportId}\`  
+**Timestamp (UTC):** \`${record.timestampUtc}\`  
+**Platform:** \`${record.softwareVersion}\`  
+
+---
+
+## 1. Acoustic Chamber Configuration
+
+| Parameter | Value | Unit / Description |
+| :--- | :--- | :--- |
+| **Chamber Geometry** | \`${record.chamberParameters.geometry.toUpperCase()}\` | Boundary condition |
+| **Modal Indices $(n, m, l)$** | \`(${record.chamberParameters.modalIndices.n}, ${record.chamberParameters.modalIndices.m}, ${record.chamberParameters.modalIndices.l})\` | Standing wave integers |
+| **Resonant Frequency $f_{n,m,l}$** | \`${record.chamberParameters.resonantFrequencyHz.toFixed(1)}\` | $\\text{Hz}$ |
+| **Speed of Sound $c$** | \`${record.chamberParameters.speedOfSoundMs}\` | $\\text{m/s}$ |
+| **Medium Density $\\rho_0$** | \`${record.chamberParameters.mediumDensityKgM3}\` | $\\text{kg/m}^3$ |
+| **Acoustic Power** | \`${(record.chamberParameters.acousticPower * 100).toFixed(0)}%\` | Relative amplitude |
+
+---
+
+## 2. Acoustic Radiation Force & Particle Trapping
+
+| Metric | Measured Value | Theoretical Significance |
+| :--- | :--- | :--- |
+| **Peak Radiation Potential $\\langle U \\rangle$** | \`${record.radiationForceField.gorkovPotentialPeak.toFixed(4)}\` | Gor'kov potential well depth |
+| **Active Particles** | \`${record.radiationForceField.activeParticles.toLocaleString()}\` | Suspended particle count |
+| **Trapping Regime** | \`${record.radiationForceField.trappingMode.toUpperCase()}\` | $\\mathbf{F} = -\\nabla U$ convergence |
+
+${
+  record.vocalAcoustics
+    ? `
+---
+
+## 3. Voice Analysis DSP Telemetry
+
+| Metric | Measured Value | Baseline Reference |
+| :--- | :--- | :--- |
+| **Fundamental Pitch ($f_0$)** | \`${record.vocalAcoustics.f0Hz.toFixed(1)} Hz\` | YIN sub-sample autocorrelation |
+| **Jitter (Pitch Stability)** | \`${record.vocalAcoustics.jitterPercent.toFixed(2)}%\` | Cycle-to-cycle pitch perturbation |
+| **Shimmer (Volume Stability)** | \`${record.vocalAcoustics.shimmerPercent.toFixed(2)}%\` | Cycle-to-cycle amplitude perturbation |
+| **Harmonics-to-Noise Ratio (HNR)** | \`${record.vocalAcoustics.hnrDb.toFixed(1)} dB\` | Autocorrelation glottal purity |
+| **Cepstral Peak Prominence (CPP)** | \`${record.vocalAcoustics.cppDb.toFixed(1)} dB\` | Cepstral periodicity strength |
+| **Formant Resonances $(F_1..F_4)$** | \`[${record.vocalAcoustics.formantsHz.map((f) => Math.round(f) + ' Hz').join(', ')}]\` | LPC-16 Levinson-Durbin poles |
+`
+    : ''
+}
+
+---
+*Generated by SoundForm 3D.*
+`;
+  }
+
+  public static triggerDownload(filename: string, text: string, mimeType: string): void {
+    const blob = new Blob([text], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+}

@@ -11,13 +11,6 @@
 export const THERAPY_WAVE_INTERFERENCE_VERTEX_SHADER = `
 precision highp float;
 
-attribute vec3 position;
-attribute vec2 uv;
-
-uniform mat4 modelMatrix;
-uniform mat4 viewMatrix;
-uniform mat4 projectionMatrix;
-
 uniform float uTime;
 uniform float uFrequency;
 uniform float uPhaseOffsetRad;      // Delta_phi (0 -> 2pi)
@@ -111,12 +104,6 @@ void main() {
 export const TIME_REVERSAL_BEAM_VERTEX_SHADER = `
 precision highp float;
 
-attribute vec3 position;
-attribute vec2 uv;
-
-uniform mat4 modelMatrix;
-uniform mat4 viewMatrix;
-uniform mat4 projectionMatrix;
 uniform float uTime;
 uniform float uBeamIntensity;
 
@@ -144,7 +131,7 @@ varying vec3 vWorldPosition;
 void main() {
     // Cone coordinate: vUv.y = 0 (base) -> 1 (focal apex at tumor)
     float travelingPhase = fract(vUv.y * 8.0 - uTime * 4.0);
-    float pulse = smoothstep(0.0, 0.2, travelingPhase) * smoothstep(0.8, 0.2, travelingPhase);
+    float pulse = smoothstep(0.0, 0.2, travelingPhase) * (1.0 - smoothstep(0.2, 0.8, travelingPhase));
 
     // Focal concentration intensification toward apex
     float focalGlow = pow(vUv.y, 2.5) * 2.5;

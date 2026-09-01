@@ -114,7 +114,7 @@ void main() {
     vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
 
-    float pSize = (uParticleBaseSize + vOxidativeActivity * 4.5) * (140.0 / -mvPosition.z);
+    float pSize = (uParticleBaseSize + vOxidativeActivity * 4.5) * (140.0 / max(-mvPosition.z, 0.001));
     gl_PointSize = clamp(pSize, 1.5, 48.0);
 }
 `;
@@ -131,7 +131,7 @@ void main() {
     if (distSq > 0.25) discard;
 
     float corona = exp(-distSq * 16.0);
-    float hotCore = smoothstep(0.06, 0.0, distSq) * (1.0 + vOxidativeActivity * 3.0);
+    float hotCore = (1.0 - smoothstep(0.0, 0.06, distSq)) * (1.0 + vOxidativeActivity * 3.0);
 
     vec3 finalRgb = vRosColor.rgb * corona + vec3(hotCore * 0.8);
     float finalAlpha = corona * vRosColor.a;

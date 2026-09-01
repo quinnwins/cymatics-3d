@@ -8,9 +8,8 @@ import { DemoAudioGenerator } from '../audio/DemoAudioGenerator';
 
 export class MusicLibraryCard {
   private element: HTMLElement;
-  private isMicActive = false;
-  private loadedFileName: string | null = null;
   private onTrackChange?: (trackId: string) => void;
+  private unsubscribe?: () => void;
 
   constructor(
     private audioEngine: AudioEngine,
@@ -21,7 +20,17 @@ export class MusicLibraryCard {
     this.onTrackChange = onTrackChange;
     this.preventEventBleeding();
     this.initDragDrop();
+    this.unsubscribe = this.audioEngine.subscribe(() => {
+      this.render();
+    });
     this.render();
+  }
+
+  public destroy(): void {
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = undefined;
+    }
   }
 
   public getElement(): HTMLElement {
@@ -41,10 +50,7 @@ export class MusicLibraryCard {
       if (e.dataTransfer?.files && e.dataTransfer.files[0]) {
         const file = e.dataTransfer.files[0];
         if (file.type.startsWith('audio/')) {
-          this.loadedFileName = file.name;
-          this.isMicActive = false;
           await this.audioEngine.loadAudioFile(file);
-          this.render();
         }
       }
     });
@@ -52,47 +58,49 @@ export class MusicLibraryCard {
 
   public render(): void {
     const tracks = DemoAudioGenerator.TRACKS;
-    const currentTrackId = this.audioEngine.demoGenerator?.getActiveTrackId() || 'cosmic-odyssey';
+    const currentTrackId = this.audioEngine.getActiveTrackId();
+    const isMicActive = this.audioEngine.isMicrophoneActive();
+    const loadedFileName = this.audioEngine.getLoadedFileName();
 
     this.element.innerHTML = `
-      <div class="glass-panel p-3.5 sm:p-4 rounded-3xl flex flex-col gap-3 shadow-2xl border border-white/10 backdrop-blur-2xl text-white select-none">
+      <div class="glass-panel p-3.5 sm:p-4 rounded-3xl flex flex-col gap-3 shadow-xl border border-white/10 text-white select-none">
         
         <!-- Header -->
         <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
           <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-accent-cyan via-accent-blue to-accent-magenta flex items-center justify-center shadow-lg shadow-accent-cyan/25 shrink-0">
-              🎵
+            <div class="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-cyan-400 font-mono text-xs font-bold shrink-0 shadow-sm">
+              AUDIO
             </div>
             <div>
               <h3 class="text-xs sm:text-sm font-bold text-white">Music Space</h3>
-              <p class="text-[10px] text-gray-400">Harmonic Audio & Cymatic Soundscapes</p>
+              <p class="text-[10px] text-gray-400">Select demo tracks or upload audio</p>
             </div>
           </div>
           <span class="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-            ${this.isMicActive ? 'MIC' : this.loadedFileName ? 'CUSTOM' : 'DEMO'}
+            ${isMicActive ? 'MIC' : loadedFileName ? 'CUSTOM' : 'DEMO'}
           </span>
         </div>
 
         <!-- Track Playlist Selection Cards -->
         <div class="flex flex-col gap-1.5">
-          <span class="text-[10px] font-semibold text-gray-300">Acoustic Soundscapes:</span>
+          <span class="text-[10px] font-semibold text-slate-300">Demo Tracks:</span>
           <div class="flex flex-col gap-1.5">
             ${tracks.map(t => {
-              const isSelected = !this.isMicActive && !this.loadedFileName && t.id === currentTrackId;
+              const isSelected = !isMicActive && !loadedFileName && t.id === currentTrackId;
               return `
                 <button
                   data-track="${t.id}"
-                  class="btn-track-card glass-panel p-2.5 rounded-2xl flex flex-col gap-0.5 text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${
+                  class="btn-track-card p-2.5 rounded-2xl flex flex-col gap-0.5 text-left transition-all cursor-pointer ${
                     isSelected
-                      ? 'glass-panel-accent border-accent-cyan/60 shadow-md shadow-accent-cyan/20 ring-1 ring-accent-cyan'
-                      : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'
+                      ? 'bg-slate-800/90 border border-cyan-400/50 shadow-sm ring-1 ring-cyan-400/30'
+                      : 'bg-slate-900/60 border border-white/5 hover:bg-slate-800/60 hover:border-white/15'
                   }"
                 >
                   <div class="flex items-center justify-between w-full">
-                    <span class="font-bold text-xs ${isSelected ? 'text-cyan-300' : 'text-gray-100'}">${t.name}</span>
-                    <span class="text-[9px] font-mono px-1.5 py-0.5 rounded-md bg-white/10 text-gray-300 font-semibold">${t.bpm} BPM</span>
+                    <span class="font-bold text-xs ${isSelected ? 'text-cyan-300' : 'text-slate-100'}">${t.name}</span>
+                    <span class="text-[9px] font-mono px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-300 font-semibold">${t.bpm} BPM</span>
                   </div>
-                  <span class="text-[10px] text-gray-400 line-clamp-1">${t.description}</span>
+                  <span class="text-[10px] text-slate-400 line-clamp-1">${t.description}</span>
                 </button>
               `;
             }).join('')}
@@ -101,18 +109,18 @@ export class MusicLibraryCard {
 
         <!-- Custom File Dropzone & Microphone Input -->
         <div class="flex flex-col gap-2 pt-2 border-t border-white/10">
-          <span class="text-[10px] font-semibold text-gray-300">Live Audio & Custom Audio:</span>
+          <span class="text-[10px] font-semibold text-slate-300">Audio Input:</span>
           
           <!-- Dropzone / Upload -->
-          <label class="glass-panel p-2.5 rounded-2xl border-dashed border-white/20 hover:border-cyan-400/60 bg-black/30 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:bg-black/50 group">
-            <svg class="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <label class="p-2.5 rounded-2xl border-dashed border border-white/20 hover:border-cyan-400/60 bg-slate-900/60 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:bg-slate-800/60 group">
+            <svg class="w-4 h-4 text-cyan-400 group-hover:scale-105 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="17 8 12 3 7 8"/>
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
-            <div class="text-[10px] text-gray-300 text-center">
-              <span class="font-semibold text-white group-hover:text-cyan-300">Upload or drop audio</span>
-              <span class="text-[9px] text-gray-400 block">MP3, WAV, FLAC</span>
+            <div class="text-[10px] text-slate-300 text-center">
+              <span class="font-semibold text-white group-hover:text-cyan-300">Upload or drop audio file</span>
+              <span class="text-[9px] text-slate-400 block">MP3, WAV, FLAC</span>
             </div>
             <input type="file" id="lib-file-input" accept="audio/*" class="hidden" />
           </label>
@@ -121,9 +129,9 @@ export class MusicLibraryCard {
           <button
             id="lib-btn-mic"
             class="w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
-              this.isMicActive
-                ? 'bg-gradient-to-r from-red-500 to-accent-magenta text-white shadow-lg shadow-red-500/30 animate-pulse border-red-400'
-                : 'bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10'
+              isMicActive
+                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm'
+                : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'
             }"
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -132,7 +140,7 @@ export class MusicLibraryCard {
               <line x1="12" y1="19" x2="12" y2="23"/>
               <line x1="8" y1="23" x2="16" y2="23"/>
             </svg>
-            <span>${this.isMicActive ? '🔴 Live Microphone Streaming' : 'Enable Microphone Input'}</span>
+            <span>${isMicActive ? 'Live Microphone Streaming' : 'Enable Microphone Input'}</span>
           </button>
         </div>
 
@@ -150,11 +158,8 @@ export class MusicLibraryCard {
         const trackId = target.getAttribute('data-track');
         if (trackId) {
           await this.audioEngine.initialize();
-          this.loadedFileName = null;
-          this.isMicActive = false;
           this.audioEngine.playDemoTrack(trackId);
           if (this.onTrackChange) this.onTrackChange(trackId);
-          this.render();
         }
       });
     });
@@ -165,27 +170,18 @@ export class MusicLibraryCard {
       const target = e.target as HTMLInputElement;
       if (target.files && target.files[0]) {
         const file = target.files[0];
-        this.loadedFileName = file.name;
-        this.isMicActive = false;
         await this.audioEngine.loadAudioFile(file);
-        this.render();
       }
     });
 
     // Mic button
     this.element.querySelector('#lib-btn-mic')?.addEventListener('click', async () => {
-      if (this.isMicActive) {
+      if (this.audioEngine.isMicrophoneActive()) {
         this.audioEngine.stopMicrophone();
-        this.isMicActive = false;
-        this.audioEngine.playDemoTrack('cosmic-odyssey');
+        this.audioEngine.playDemoTrack();
       } else {
-        const ok = await this.audioEngine.startMicrophone();
-        if (ok) {
-          this.isMicActive = true;
-          this.loadedFileName = null;
-        }
+        await this.audioEngine.startMicrophone();
       }
-      this.render();
     });
   }
 }

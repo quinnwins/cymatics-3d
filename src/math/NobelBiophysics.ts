@@ -231,7 +231,7 @@ export class NobelBiophysics {
     const rho = 1050; // blood density kg/m3
     const mu = 0.0035; // blood dynamic viscosity Pa.s
     const deltaR = (fusPowerMPa / 1.5) * (microbubbleRadiusUm * 0.35) * 1e-6;
-    const acousticShearStressPa = 0.5 * Math.sqrt(rho * mu * Math.pow(omega, 1.5) * 0.001) * deltaR * 1e6;
+    const acousticShearStressPa = 0.5 * Math.sqrt(rho * mu * Math.pow(omega, 3)) * deltaR * 1e-3;
 
     // Reversible tight-junction pore gap: 1 nm -> 45 nm
     const claudinPoreWidthNm = 1.0 + dilationProgress * 44.0;

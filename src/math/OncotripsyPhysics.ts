@@ -137,7 +137,10 @@ export class OncotripsyPhysics {
 
     const netPressure = Math.sqrt(Math.max(0, meanSquared * 2));
     const maxPossible = amplitudeCancer + amplitudeTherapy;
-    const cancellationPercent = Math.max(0, Math.min(100, (1.0 - netPressure / maxPossible) * 100));
+    const cancellationPercent =
+      maxPossible > 1e-6
+        ? Math.max(0, Math.min(100, (1.0 - netPressure / maxPossible) * 100))
+        : 100.0;
 
     return {
       netPressure,

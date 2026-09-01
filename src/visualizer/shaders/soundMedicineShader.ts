@@ -127,7 +127,7 @@ varying float vProgress;
 
 void main() {
     float flow = fract(vProgress * 8.0 - uTime * uEntrainmentSpeed);
-    float packet = smoothstep(0.0, 0.2, flow) * smoothstep(1.0, 0.4, flow);
+    float packet = smoothstep(0.0, 0.2, flow) * (1.0 - smoothstep(0.4, 1.0, flow));
 
     vec3 color = uStreamColor * (packet * 2.5 + 0.35);
     float alpha = packet * 0.85;

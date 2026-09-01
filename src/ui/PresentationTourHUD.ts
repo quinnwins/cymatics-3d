@@ -70,11 +70,11 @@ export class PresentationTourHUD {
       .map((_, i) => {
         const isActive = i === this.currentStepIndex;
         const isPast = i < this.currentStepIndex;
-        return `<span class="h-2 rounded-full transition-all duration-300 ${
+        return `<span class="h-1.5 rounded-full transition-all duration-300 ${
           isActive
-            ? 'w-8 bg-gradient-to-r from-amber-400 to-yellow-300 shadow-md shadow-amber-400/50'
+            ? 'w-6 bg-cyan-400'
             : isPast
-            ? 'w-2 bg-amber-400/60'
+            ? 'w-2 bg-cyan-400/50'
             : 'w-2 bg-white/20'
         }"></span>`;
       })
@@ -85,11 +85,11 @@ export class PresentationTourHUD {
         <!-- Top Bar: Chapter Badge, Progress Dots & Controls -->
         <div class="flex items-center justify-between border-b border-white/10 pb-2">
           <div class="flex items-center gap-2">
-            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-gradient-to-r from-amber-400 to-yellow-400 text-black uppercase tracking-wider">
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-800 text-slate-200 border border-slate-700 uppercase tracking-wider">
               ${step.badge}
             </span>
-            <span class="text-xs font-bold text-white/90">
-              Chapter ${step.chapterNumber} of ${total}: <span class="text-amber-300">${step.title}</span>
+            <span class="text-xs font-bold text-white">
+              Chapter ${step.chapterNumber} of ${total}: <span class="text-cyan-400">${step.title}</span>
             </span>
           </div>
 
@@ -98,38 +98,37 @@ export class PresentationTourHUD {
               ${progressDots}
             </div>
 
-            <button id="btn-tour-exit" class="text-xs text-white/60 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-all font-semibold">
-              ✕ Exit Tour
+            <button id="btn-tour-exit" class="text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-lg transition-all font-semibold cursor-pointer border border-slate-700">
+              Exit Tour
             </button>
           </div>
         </div>
 
-        <!-- Middle: Cinematic Subtitle & Narration -->
-        <div class="text-sm font-medium text-white/95 leading-relaxed bg-black/40 p-3 rounded-2xl border border-white/5 flex items-start gap-3">
-          <span class="text-xl animate-pulse">🎙️</span>
+        <!-- Middle: Subtitle & Narration -->
+        <div class="text-sm font-medium text-slate-200 leading-relaxed bg-slate-900/80 p-3 rounded-2xl border border-white/5 flex items-start gap-3">
           <div class="flex flex-col gap-1">
-            <p class="text-xs md:text-sm text-cyan-100">${step.subtitle}</p>
+            <p class="text-xs md:text-sm text-slate-100">${step.subtitle}</p>
           </div>
         </div>
 
         <!-- Bottom Controls -->
         <div class="flex items-center justify-between pt-1">
           <div class="flex items-center gap-2">
-            <button id="btn-tour-prev" class="px-3 py-1 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 transition-all text-white/80 ${
+            <button id="btn-tour-prev" class="px-3 py-1 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 transition-all text-slate-200 border border-slate-700 cursor-pointer ${
               this.currentStepIndex === 0 ? 'opacity-40 pointer-events-none' : ''
             }">
-              ◀ Previous
+              Previous
             </button>
-            <button id="btn-tour-pause" class="px-3 py-1 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 transition-all text-white/80">
-              ${this.isPaused ? '▶ Resume' : '⏸ Pause'}
+            <button id="btn-tour-pause" class="px-3 py-1 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 transition-all text-slate-200 border border-slate-700 cursor-pointer">
+              ${this.isPaused ? 'Resume' : 'Pause'}
             </button>
-            <button id="btn-tour-next" class="px-3 py-1 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-400 to-yellow-300 text-black hover:opacity-90 transition-all shadow-lg shadow-amber-400/20">
-              ${this.currentStepIndex === total - 1 ? '🎉 Finish Tour' : 'Next Chapter ▶'}
+            <button id="btn-tour-next" class="px-3 py-1 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-all shadow-sm cursor-pointer">
+              ${this.currentStepIndex === total - 1 ? 'Finish Tour' : 'Next Chapter'}
             </button>
           </div>
 
-          <button id="btn-tour-mute" class="text-[11px] text-white/60 hover:text-white flex items-center gap-1">
-            <span>${this.isNarrationMuted ? '🔇 Voice Muted' : '🔊 Voice Narration On'}</span>
+          <button id="btn-tour-mute" class="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer">
+            <span>${this.isNarrationMuted ? 'Voice Muted' : 'Voice Narration On'}</span>
           </button>
         </div>
       </div>

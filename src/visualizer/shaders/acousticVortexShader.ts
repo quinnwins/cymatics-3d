@@ -34,7 +34,7 @@ void main() {
     vec3 pos = position;
 
     float r = length(pos.xy);
-    float theta = atan(pos.y, pos.x);
+    float theta = (abs(pos.x) < 1e-6 && abs(pos.y) < 1e-6) ? 0.0 : atan(pos.y, pos.x);
     float z = pos.z;
 
     vRadialDist = r;
