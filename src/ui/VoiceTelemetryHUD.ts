@@ -12,7 +12,7 @@ export class VoiceTelemetryHUD {
 
   constructor(private audioEngine: AudioEngine) {
     this.element = document.createElement('div');
-    this.element.className = 'fixed top-20 right-4 z-40 w-80 max-w-[calc(100vw-2rem)] flex flex-col gap-2 pointer-events-none transition-all duration-300';
+    this.element.className = 'w-full flex flex-col gap-2 transition-all duration-300 select-none';
     this.render();
   }
 

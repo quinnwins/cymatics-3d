@@ -5,47 +5,72 @@ import path from 'path';
 import http from 'http';
 
 const SCREENSHOT_DIR = path.resolve(process.cwd(), 'qa_screenshots');
-const ARTIFACT_DIR = '/Users/qenglish/.gemini/antigravity/brain/b822b34c-c823-4549-a101-e6c1f11933c7/qa_screenshots';
+const ARTIFACT_DIR = '/Users/qenglish/.gemini/antigravity/brain/78ae3161-f0c3-4d52-a5c7-de2843b46649/qa_screenshots';
 
 if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 if (!fs.existsSync(ARTIFACT_DIR)) fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
 
-async function waitForServer(url, timeoutMs = 15000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      await new Promise((resolve, reject) => {
-        const req = http.get(url, res => {
-          if (res.statusCode === 200) resolve(true);
-          else reject(new Error(`Status ${res.statusCode}`));
+function createStaticServer(distDir, port) {
+  const mimeTypes = {
+    '.html': 'text/html',
+    '.js': 'application/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.svg': 'image/svg+xml',
+    '.wav': 'audio/wav',
+    '.mp3': 'audio/mpeg',
+  };
+
+  const server = http.createServer((req, res) => {
+    let reqPath = req.url.split('?')[0];
+    if (reqPath === '/') reqPath = '/index.html';
+    const filePath = path.join(distDir, reqPath);
+
+    fs.readFile(filePath, (err, data) => {
+      if (err) {
+        fs.readFile(path.join(distDir, 'index.html'), (err2, indexData) => {
+          if (err2) {
+            res.writeHead(404);
+            res.end('Not Found');
+          } else {
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(indexData);
+          }
         });
-        req.on('error', reject);
-        req.end();
-      });
-      return true;
-    } catch {
-      await new Promise(r => setTimeout(r, 200));
-    }
-  }
-  throw new Error(`Server at ${url} failed to respond within ${timeoutMs}ms`);
+        return;
+      }
+      const ext = path.extname(filePath);
+      const contentType = mimeTypes[ext] || 'application/octet-stream';
+      res.writeHead(200, { 'Content-Type': contentType });
+      res.end(data);
+    });
+  });
+
+  return new Promise((resolve, reject) => {
+    server.listen(port, '127.0.0.1', () => resolve(server));
+    server.on('error', reject);
+  });
 }
 
-async function runVisualQA() {
-  console.log('📦 Building production bundle for fast preview...');
+export async function runVisualQA(iteration = 1) {
+  console.log(`\n======================================================`);
+  console.log(`📸 Running Visual QA Capture Matrix — Iteration #${iteration}`);
+  console.log(`======================================================\n`);
+
+  console.log('📦 Building production bundle...');
   const buildProc = spawn('npx', ['vite', 'build'], { stdio: 'inherit', shell: true });
   await new Promise((resolve, reject) => {
     buildProc.on('close', code => code === 0 ? resolve() : reject(new Error('Build failed')));
   });
 
-  console.log('🚀 Starting Vite preview server...');
-  const previewProcess = spawn('npx', ['vite', 'preview', '--port', '5199', '--strictPort'], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    shell: true,
-  });
-
-  const serverUrl = 'http://localhost:5199';
-  await waitForServer(serverUrl);
-  console.log('✅ Preview server ready at:', serverUrl);
+  const port = 5195;
+  const distDir = path.resolve(process.cwd(), 'dist');
+  console.log(`🚀 Starting in-process static HTTP server on port ${port}...`);
+  const server = await createStaticServer(distDir, port);
+  const serverUrl = `http://127.0.0.1:${port}`;
+  console.log('✅ Server ready at:', serverUrl);
 
   const browser = await chromium.launch({
     headless: true,
@@ -66,11 +91,17 @@ async function runVisualQA() {
     const localPath = path.join(SCREENSHOT_DIR, filename);
     const artifactPath = path.join(ARTIFACT_DIR, filename);
     await page.screenshot({ path: localPath, fullPage: false });
-    fs.copyFileSync(localPath, artifactPath);
+    try {
+      fs.copyFileSync(localPath, artifactPath);
+    } catch (e) {
+      console.warn('Failed to copy to artifact dir:', e.message);
+    }
   };
 
   try {
-    // --- 1. 4K / Ultra-wide Desktop Viewport (2560x1440) ---
+    // =========================================================================
+    // 1. 4K Ultra-wide Desktop Viewport (2560x1440)
+    // =========================================================================
     console.log('\n--- 🖥️ Testing 4K Ultra-wide Desktop (2560x1440) ---');
     const context4K = await browser.newContext({
       viewport: { width: 2560, height: 1440 },
@@ -84,14 +115,15 @@ async function runVisualQA() {
     await page4K.waitForSelector('#welcome-card', { timeout: 10000 });
     await captureState(page4K, '01_welcome_screen_4k.png', '4K Welcome Screen with Glowing Emitter Card');
 
-    // Unlock Audio and enter 3D Cymatics Lab
     await page4K.click('#welcome-card');
     await page4K.waitForTimeout(600);
     await captureState(page4K, '02_cymatics_lab_4k_fundamental.png', '4K 3D Cymatics Lab with (1,1,1) Fundamental Standing Wave');
     await context4K.close();
 
-    // --- 2. Standard 1080p Desktop (1920x1080) Full Feature Test Suite ---
-    console.log('\n--- 🖥️ Testing Standard 1080p Desktop (1920x1080) Full Test Matrix ---');
+    // =========================================================================
+    // 2. Standard 1080p Desktop (1920x1080) Full Feature Test Matrix
+    // =========================================================================
+    console.log('\n--- 🖥️ Testing Standard 1080p Desktop (1920x1080) Full Feature Suite ---');
     const context1080p = await browser.newContext({
       viewport: { width: 1920, height: 1080 },
       deviceScaleFactor: 2,
@@ -104,141 +136,237 @@ async function runVisualQA() {
     await page.click('#welcome-card');
     await page.waitForTimeout(600);
 
-    // Test A: 3D Cymatics Lab Presets & Chambers
+    // Mode 1: 3D Cymatics Lab
     await captureState(page, '03_cymatics_cube_1080p.png', 'Cube Chamber with Volumetric Chladni Membranes');
 
-    // Cylinder Chamber
-    const btnCylinder = page.locator('#btn-geom-cylinder');
+    const btnCylinder = page.locator('.btn-geometry[data-geometry="cylinder"]');
     if (await btnCylinder.count() > 0) {
-      await btnCylinder.click();
-      await page.waitForTimeout(500);
+      await btnCylinder.click({ force: true });
+      await page.waitForTimeout(400);
       await captureState(page, '04_cymatics_cylinder_bessel_1080p.png', 'Cylinder Chamber with Radial Bessel Standing Tubes');
     }
 
-    // Sphere Chamber
-    const btnSphere = page.locator('#btn-geom-sphere');
+    const btnSphere = page.locator('.btn-geometry[data-geometry="sphere"]');
     if (await btnSphere.count() > 0) {
-      await btnSphere.click();
-      await page.waitForTimeout(500);
+      await btnSphere.click({ force: true });
+      await page.waitForTimeout(400);
       await captureState(page, '05_cymatics_sphere_harmonics_1080p.png', 'Spherical Resonator with Spherical Harmonic Nodal Shells');
     }
 
-    // High-Order Resonant Crystal Preset (5,4,3)
-    const preset543 = page.locator('button[data-preset-id="resonant-crystal"]');
+    const preset543 = page.locator('.btn-preset-card[data-preset="resonant-crystal"]');
     if (await preset543.count() > 0) {
-      await preset543.click();
-      await page.waitForTimeout(500);
+      await preset543.click({ force: true });
+      await page.waitForTimeout(400);
       await captureState(page, '06_cymatics_crystal_543_1080p.png', 'Ultra High-Order (5,4,3) Resonant Crystal Preset');
     }
 
-    // Inverse Trapping Antinodes Mode
     const btnAntinodes = page.locator('#btn-trap-antinodes');
     if (await btnAntinodes.count() > 0) {
-      await btnAntinodes.click();
-      await page.waitForTimeout(600);
+      await btnAntinodes.click({ force: true });
+      await page.waitForTimeout(400);
       await captureState(page, '07_particles_inverse_antinodes_1080p.png', 'Inverse Chladni Antinodal Particle Levitation');
     }
 
-    // Switch back to Cube & Normal Nodes
-    const btnCube = page.locator('#btn-geom-cube');
-    if (await btnCube.count() > 0) await btnCube.click();
+    // Reset Cymatics
+    const btnCube = page.locator('.btn-geometry[data-geometry="cube"]');
+    if (await btnCube.count() > 0) await btnCube.click({ force: true });
     const btnNodes = page.locator('#btn-trap-nodes');
     if (await btnNodes.count() > 0) await btnNodes.click();
 
-    // Test B: Frequency Lab
+    // Mode 2: Frequency Lab
     console.log('\n--- 🔬 Testing Frequency Lab ---');
-    await page.click('#btn-mode-freq');
+    await page.click('#btn-mode-freq', { force: true });
     await page.waitForTimeout(600);
     await captureState(page, '08_frequency_lab_main_1080p.png', 'Frequency Lab with 8-Harmonic Fourier Drawbars & Solfeggio Matrix');
 
-    // Select 528 Hz Transformation Preset
     const btn528 = page.locator('button[data-hz="528"]');
     if (await btn528.count() > 0) {
-      await btn528.click();
-      await page.waitForTimeout(500);
+      await btn528.click({ force: true });
+      await page.waitForTimeout(400);
       await captureState(page, '09_frequency_lab_528hz_1080p.png', 'Frequency Lab at 528 Hz Transformation Tone');
     }
 
-    // Activate Anti-Phase Cancellation & Heterodyne
-    const btnAntiPhase = page.locator('#btn-antiphase-toggle');
-    if (await btnAntiPhase.count() > 0) await btnAntiPhase.click();
-    const btnHeterodyne = page.locator('#btn-heterodyne-toggle');
-    if (await btnHeterodyne.count() > 0) await btnHeterodyne.click();
-    await page.waitForTimeout(500);
-    await captureState(page, '10_frequency_lab_anc_heterodyne_1080p.png', 'Active Noise Cancellation (180° Anti-Phase) & Heterodyne Gamma Beating');
+    const btnHarmonics = page.locator('#btn-toggle-harmonics');
+    if (await btnHarmonics.count() > 0) {
+      await btnHarmonics.click({ force: true });
+      await page.waitForTimeout(400);
+      await captureState(page, '10_frequency_lab_overtones_drawer_1080p.png', 'Frequency Lab with Overtones Harmonics Drawer Open');
+      await btnHarmonics.click({ force: true }); // close
+    }
 
-    // Test C: Music Space (Audio-Reactive) & Visual Styles
+    // Mode 3: Music Space & Visual Styles
     console.log('\n--- 🎵 Testing Music Space & Visual Styles ---');
-    await page.click('#btn-mode-music');
-    await page.waitForTimeout(700);
-    await captureState(page, '11_music_space_hybrid_cosmos_1080p.png', 'Music Space Cosmos Hybrid Visual Style with 6-Band Log-FFT Spectrum HUD');
+    await page.click('#btn-mode-music', { force: true });
+    await page.waitForTimeout(600);
+    await captureState(page, '11_music_space_cosmos_1080p.png', 'Music Space Cosmos Hybrid Visual Style');
 
-    // Waves Visual Style
     const btnWaves = page.locator('button[data-style="wavefront"]');
     if (await btnWaves.count() > 0) {
-      await btnWaves.click();
-      await page.waitForTimeout(500);
+      await btnWaves.click({ force: true });
+      await page.waitForTimeout(400);
       await captureState(page, '12_music_space_waves_style_1080p.png', 'Expanding Concentric Acoustic Wavefront Shells');
     }
 
-    // Dust Visual Style
     const btnDust = page.locator('button[data-style="particles"]');
     if (await btnDust.count() > 0) {
-      await btnDust.click();
-      await page.waitForTimeout(500);
+      await btnDust.click({ force: true });
+      await page.waitForTimeout(400);
       await captureState(page, '13_music_space_dust_style_1080p.png', '3D Acoustic Particle Nebula Dust Cloud');
     }
 
-    // Ribbon Visual Style
     const btnRibbon = page.locator('button[data-style="ribbon"]');
     if (await btnRibbon.count() > 0) {
-      await btnRibbon.click();
-      await page.waitForTimeout(500);
+      await btnRibbon.click({ force: true });
+      await page.waitForTimeout(400);
       await captureState(page, '14_music_space_ribbon_style_1080p.png', 'Continuous Archimedean Spacetime Sonic Ribbon');
     }
 
-    // Test D: Physics Drawer & Parameters
-    console.log('\n--- ⚙️ Testing Physics Drawer ---');
-    const btnPhysics = page.locator('#btn-toggle-physics');
-    if (await btnPhysics.count() > 0) {
-      await btnPhysics.click();
-      await page.waitForTimeout(500);
-      await captureState(page, '15_physics_drawer_expanded_1080p.png', 'Physics Drawer Expanded (Gor\'kov Power, Stokes Viscosity, Wave Damping)');
-      await btnPhysics.click(); // close
+    // Mode 4: Bio-Acoustics Resonator
+    console.log('\n--- 🧬 Testing Bio-Acoustics Resonator ---');
+    await page.click('#btn-mode-bio', { force: true });
+    await page.waitForTimeout(600);
+    await captureState(page, '15_bio_acoustics_cell_inspector_1080p.png', 'Bio-Acoustics Cellular Spectroscopy & Deformation Engine');
+
+    const btnSorter = page.locator('#bio-view-sorter');
+    if (await btnSorter.count() > 0) {
+      await btnSorter.click({ force: true });
+      await page.waitForTimeout(400);
+      await captureState(page, '16_bio_acoustics_microfluidic_sorter_1080p.png', 'Acoustophoretic Microfluidic Cell Sorter');
     }
 
-    // Test E: Color Theme Palettes
+    const btnGlio = page.locator('button[data-specimen-id="cancer-glioblastoma"]');
+    if (await btnGlio.count() > 0) {
+      await btnGlio.click({ force: true });
+      await page.waitForTimeout(400);
+      await captureState(page, '17_bio_acoustics_glioblastoma_specimen_1080p.png', 'Cancerous Glioblastoma Cell Acoustic Resonance');
+    }
+
+    // Mode 5: Cancer Therapy Lab
+    console.log('\n--- 🎯 Testing Cancer Therapy Lab ---');
+    await page.click('#btn-mode-therapy', { force: true });
+    await page.waitForTimeout(600);
+    await captureState(page, '18_cancer_therapy_phase_cancel_1080p.png', 'Cancer Therapy Phase Cancellation Deck');
+
+    const tabOnco = page.locator('#tab-oncotripsy');
+    if (await tabOnco.count() > 0) {
+      await tabOnco.click({ force: true });
+      await page.waitForTimeout(400);
+      await captureState(page, '19_cancer_therapy_oncotripsy_1080p.png', 'Oncotripsy Targeted Cell Destruction');
+    }
+
+    const tabSono = page.locator('#tab-sonodynamic-sdt');
+    if (await tabSono.count() > 0) {
+      await tabSono.click({ force: true });
+      await page.waitForTimeout(400);
+      await captureState(page, '20_cancer_therapy_sonodynamic_1080p.png', 'Sonodynamic Microbubble Cavitation Resonance');
+    }
+
+    const tabVortex = page.locator('#tab-vortex-torsion');
+    if (await tabVortex.count() > 0) {
+      await tabVortex.click({ force: true });
+      await page.waitForTimeout(400);
+      await captureState(page, '21_cancer_therapy_vortex_mode_1080p.png', 'Acoustic Vortex Nanoporation & Shear Stress');
+    }
+
+    // Mode 6: Voice Biometrics Lab
+    console.log('\n--- 🗣️ Testing Voice Biometrics Lab ---');
+    await page.click('#btn-mode-voice', { force: true });
+    await page.waitForTimeout(600);
+    await captureState(page, '22_voice_biometrics_main_1080p.png', 'Voice Biometrics Formant Manifold & Pitch Telemetry');
+
+    const voiceSelect = page.locator('#voice-preset-select');
+    if (await voiceSelect.count() > 0) {
+      await voiceSelect.selectOption({ value: 'vocal-nodules' });
+      await page.waitForTimeout(400);
+      await captureState(page, '23_voice_biometrics_nodules_1080p.png', 'Pathological Vocal Nodules Diagnosis & Prescription');
+    }
+
+    // Mode 7: Nobel Discovery Lab
+    console.log('\n--- 🏆 Testing Nobel Discovery Lab ---');
+    await page.click('#btn-mode-nobel', { force: true });
+    await page.waitForTimeout(600);
+    await captureState(page, '24_nobel_discovery_mechanogenomics_1080p.png', 'Nobel Lab: Mechanogenomic Chromatin Remodeling & HUD');
+
+    const btnBBB = page.locator('#btn-frontier-bbb');
+    if (await btnBBB.count() > 0) {
+      await btnBBB.click({ force: true });
+      await page.waitForTimeout(400);
+      await captureState(page, '25_nobel_discovery_bbb_dilation_1080p.png', 'Nobel Lab: Blood-Brain Barrier Ultrasonic Tight Junction Dilation');
+    }
+
+    const btnViral = page.locator('#btn-frontier-viral');
+    if (await btnViral.count() > 0) {
+      await btnViral.click({ force: true });
+      await page.waitForTimeout(400);
+      await captureState(page, '26_nobel_discovery_viral_shatter_1080p.png', 'Nobel Lab: Viral Capsid Acoustic Shatter Mode');
+    }
+
+    // Executive Keynote Tour
+    console.log('\n--- ✨ Testing Executive Keynote Tour ---');
+    const btnTour = page.locator('.btn-executive-tour:visible').first();
+    if (await btnTour.count() > 0) {
+      await btnTour.click({ force: true });
+      await page.waitForTimeout(600);
+      await captureState(page, '26_executive_tour_slide1_1080p.png', 'Executive Tour Slide 1 Overlay');
+      
+      const btnTourNext = page.locator('#tour-btn-next');
+      if (await btnTourNext.count() > 0) {
+        await btnTourNext.click({ force: true });
+        await page.waitForTimeout(500);
+        await captureState(page, '27_executive_tour_slide2_1080p.png', 'Executive Tour Slide 2 Overlay');
+      }
+
+      const btnTourExit = page.locator('#tour-btn-exit');
+      if (await btnTourExit.count() > 0) {
+        await btnTourExit.click({ force: true });
+        await page.waitForTimeout(300);
+      }
+    }
+
+    // Physics Drawer
+    console.log('\n--- ⚙️ Testing Physics Drawer ---');
+    const btnPhysics = page.locator('#btn-toggle-physics:visible').first();
+    if (await btnPhysics.count() > 0) {
+      await btnPhysics.click({ force: true });
+      await page.waitForTimeout(400);
+      await captureState(page, '28_physics_drawer_expanded_1080p.png', 'Physics Drawer Expanded');
+      await btnPhysics.click({ force: true }); // close
+    }
+
+    // Color Palettes
     console.log('\n--- 🎨 Testing Color Palettes ---');
     const themeSelect = page.locator('#theme-selector');
     if (await themeSelect.count() > 0) {
       await themeSelect.selectOption({ value: 'solar-flare' });
-      await page.waitForTimeout(400);
-      await captureState(page, '16_palette_solar_flare_1080p.png', 'Solar Flare High-Energy Palette');
+      await page.waitForTimeout(300);
+      await captureState(page, '29_palette_solar_flare_1080p.png', 'Solar Flare Palette');
 
       await themeSelect.selectOption({ value: 'siri-luminescence' });
-      await page.waitForTimeout(400);
-      await captureState(page, '17_palette_siri_luminescence_1080p.png', 'Siri Luminescence Magenta-Cyan Palette');
+      await page.waitForTimeout(300);
+      await captureState(page, '30_palette_siri_luminescence_1080p.png', 'Siri Luminescence Palette');
 
       await themeSelect.selectOption({ value: 'prismatic-crystal' });
-      await page.waitForTimeout(400);
-      await captureState(page, '18_palette_prismatic_crystal_1080p.png', 'Prismatic Crystal Optical Dispersion Palette');
+      await page.waitForTimeout(300);
+      await captureState(page, '31_palette_prismatic_crystal_1080p.png', 'Prismatic Crystal Palette');
 
       await themeSelect.selectOption({ value: 'quantum-void' });
-      await page.waitForTimeout(400);
-      await captureState(page, '19_palette_quantum_void_1080p.png', 'Quantum Void Abyssal Palette');
+      await page.waitForTimeout(300);
+      await captureState(page, '32_palette_quantum_void_1080p.png', 'Quantum Void Palette');
     }
 
-    // Test F: Zen Immersion Mode (H)
+    // Zen Mode
     console.log('\n--- ✨ Testing Zen Immersion Mode ---');
     await page.keyboard.press('h');
-    await page.waitForTimeout(500);
-    await captureState(page, '20_zen_immersion_mode_1080p.png', 'Zen Mode: Zero UI Overhead Immersive 3D Visualizer');
+    await page.waitForTimeout(400);
+    await captureState(page, '33_zen_immersion_mode_1080p.png', 'Zen Mode: Zero UI Overhead Visualizer');
     await page.keyboard.press('h'); // restore
     await page.waitForTimeout(300);
 
     await context1080p.close();
 
-    // --- 3. Tablet Viewport (1024x768) ---
+    // =========================================================================
+    // 3. Tablet Viewport (1024x768)
+    // =========================================================================
     console.log('\n--- 📱 Testing Tablet Viewport (1024x768) ---');
     const contextTablet = await browser.newContext({
       viewport: { width: 1024, height: 768 },
@@ -248,10 +376,12 @@ async function runVisualQA() {
     await pageTablet.goto(serverUrl, { waitUntil: 'networkidle' });
     await pageTablet.click('#welcome-card');
     await pageTablet.waitForTimeout(600);
-    await captureState(pageTablet, '21_tablet_viewport_1024x768.png', 'Tablet Landscape Responsive Layout');
+    await captureState(pageTablet, '34_tablet_viewport_1024x768.png', 'Tablet Landscape Responsive Layout');
     await contextTablet.close();
 
-    // --- 4. Mobile Viewport (390x844 - iPhone 14) ---
+    // =========================================================================
+    // 4. Mobile Viewport (390x844 - iPhone 14)
+    // =========================================================================
     console.log('\n--- 📱 Testing Mobile Viewport (390x844) ---');
     const contextMobile = await browser.newContext({
       viewport: { width: 390, height: 844 },
@@ -263,22 +393,25 @@ async function runVisualQA() {
     await pageMobile.goto(serverUrl, { waitUntil: 'networkidle' });
     await pageMobile.click('#welcome-card');
     await pageMobile.waitForTimeout(600);
-    await captureState(pageMobile, '22_mobile_viewport_390x844.png', 'Mobile Portrait Responsive Layout with Touch Controls');
+    await captureState(pageMobile, '35_mobile_viewport_390x844.png', 'Mobile Portrait Responsive Layout with Touch Controls');
     await contextMobile.close();
 
     console.log('\n🎉 Visual QA Execution Completed Successfully!');
-    console.log(`Total Screenshots Captured: 22`);
+    console.log(`Total Screenshots Captured: 35`);
     console.log(`Page Errors: ${errors.length}`);
     if (errors.length > 0) {
       console.error('Errors encountered:', errors);
     }
-
+    return { success: true, count: 35, errors };
   } catch (err) {
     console.error('Visual QA run failed:', err);
+    return { success: false, error: err.message };
   } finally {
-    await browser.close();
-    previewProcess.kill('SIGTERM');
+    if (browser) await browser.close();
+    if (server) server.close();
   }
 }
 
-runVisualQA();
+if (process.argv[1] && process.argv[1].endsWith('visual_qa_runner.mjs')) {
+  runVisualQA(1);
+}

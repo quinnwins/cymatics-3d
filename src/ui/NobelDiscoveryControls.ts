@@ -27,7 +27,13 @@ export class NobelDiscoveryControls {
     this.onStateChange = onStateChange;
     this.onExportDossier = onExportDossier;
 
+    this.preventEventBleeding();
     this.render();
+  }
+
+  private preventEventBleeding(): void {
+    this.container.addEventListener('wheel', e => e.stopPropagation(), { passive: false });
+    this.container.addEventListener('pointerdown', e => e.stopPropagation());
   }
 
   public setState(newState: Partial<NobelLabState>) {
@@ -45,54 +51,54 @@ export class NobelDiscoveryControls {
     const selectedVirus = NobelBiophysics.VIRUS_PROFILES[this.state.selectedVirusId] || viruses[0];
 
     this.container.innerHTML = `
-      <div class="glass-panel p-4 rounded-2xl flex flex-col gap-3 max-w-4xl w-full mx-auto shadow-2xl border border-white/10 backdrop-blur-xl animate-fade-in text-white">
+      <div class="glass-panel p-3.5 sm:p-4 rounded-3xl flex flex-col gap-3 w-full shadow-2xl border border-white/10 backdrop-blur-xl text-white select-none">
         <!-- 1. Frontier Selector Tabs -->
-        <div class="flex items-center justify-between gap-2 border-b border-white/10 pb-2 flex-wrap">
+        <div class="flex flex-col gap-2 border-b border-white/10 pb-2.5">
           <div class="flex items-center gap-2">
-            <span class="text-xl">🏆</span>
-            <span class="font-bold tracking-wide text-sm uppercase text-amber-300">Nobel Discovery Frontiers</span>
+            <span class="text-lg">🏆</span>
+            <span class="font-bold text-xs sm:text-sm uppercase text-amber-300">Nobel Discovery Frontiers</span>
           </div>
 
-          <div class="flex items-center gap-1.5 bg-black/40 p-1 rounded-xl border border-white/10 flex-wrap">
-            <button id="btn-frontier-mech" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              isMech ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black shadow-lg shadow-amber-500/30' : 'text-white/70 hover:text-white hover:bg-white/5'
+          <div class="grid grid-cols-2 gap-1.5 bg-black/40 p-1 rounded-2xl border border-white/10">
+            <button id="btn-frontier-mech" class="px-2 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              isMech ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black shadow-md shadow-amber-500/30 font-bold' : 'text-white/70 hover:text-white hover:bg-white/5'
             }">
               🧬 Mechanogenomics
             </button>
-            <button id="btn-frontier-bbb" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              isBbb ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-black shadow-lg shadow-cyan-500/30' : 'text-white/70 hover:text-white hover:bg-white/5'
+            <button id="btn-frontier-bbb" class="px-2 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              isBbb ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-black shadow-md shadow-cyan-500/30 font-bold' : 'text-white/70 hover:text-white hover:bg-white/5'
             }">
               🧠 BBB Opening
             </button>
-            <button id="btn-frontier-viral" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              isViral ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-500/30' : 'text-white/70 hover:text-white hover:bg-white/5'
+            <button id="btn-frontier-viral" class="px-2 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              isViral ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md shadow-pink-500/30 font-bold' : 'text-white/70 hover:text-white hover:bg-white/5'
             }">
               🦠 Viral Shatter
             </button>
-            <button id="btn-frontier-seno" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              isSeno ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-black shadow-lg shadow-emerald-500/30' : 'text-white/70 hover:text-white hover:bg-white/5'
+            <button id="btn-frontier-seno" class="px-2 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              isSeno ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-black shadow-md shadow-emerald-500/30 font-bold' : 'text-white/70 hover:text-white hover:bg-white/5'
             }">
-              ⏳ Senolytic Rejuvenation
+              ⏳ Senolytic Purge
             </button>
           </div>
         </div>
 
         <!-- 2. Frontier-Specific Interactive Control Decks -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+        <div class="flex flex-col gap-2.5">
           
-          <!-- LEFT: Description & Specimen Info -->
-          <div class="bg-white/5 p-3.5 rounded-xl border border-white/10 flex flex-col gap-1.5 text-xs">
+          <!-- Description & Specimen Info -->
+          <div class="bg-black/30 p-2.5 rounded-2xl border border-white/5 flex flex-col gap-1 text-xs">
             ${
               isMech
                 ? `
               <div class="flex items-center justify-between">
-                <span class="font-bold text-amber-300 text-sm">🧬 Nuclear Lamina & p53 Activation</span>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">EPIGENETIC</span>
+                <span class="font-bold text-amber-300 text-xs">🧬 Nuclear Lamina & p53</span>
+                <span class="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">EPIGENETIC</span>
               </div>
-              <p class="text-white/80 leading-relaxed">
-                Acoustic waves transmit through cytoskeletal LINC cables, dilating nuclear pores from 9 nm to 42 nm and uncoiling dense heterochromatin to trigger the <strong>p53 tumor suppressor gene</strong>.
+              <p class="text-white/80 text-[10px] leading-tight">
+                Acoustic waves dilate nuclear pores from 9 nm to 42 nm, decondensing heterochromatin to trigger <strong>p53 tumor suppressor</strong>.
               </p>
-              <div class="flex gap-3 text-[11px] text-white/60 pt-1">
+              <div class="flex gap-2 text-[10px] text-white/60 pt-0.5">
                 <span>Pressure: <strong class="text-amber-300">${this.state.acousticPressureKPa} kPa</strong></span>
                 <span>Carrier: <strong class="text-cyan-300">432 Hz</strong></span>
               </div>
@@ -100,40 +106,40 @@ export class NobelDiscoveryControls {
                 : isBbb
                 ? `
               <div class="flex items-center justify-between">
-                <span class="font-bold text-cyan-300 text-sm">🧠 Focused Ultrasound Blood-Brain Barrier</span>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-400/20 text-cyan-300 border border-cyan-400/30">NEURO-DELIVERY</span>
+                <span class="font-bold text-cyan-300 text-xs">🧠 Focused Ultrasound BBB</span>
+                <span class="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-cyan-400/20 text-cyan-300 border border-cyan-400/30">NEURO-DELIVERY</span>
               </div>
-              <p class="text-white/80 leading-relaxed">
-                Microbubble cavitation in brain capillaries gently unzips <strong>Claudin-5 tight junctions</strong>, allowing targeted nanomedicines and antibodies to enter glioblastoma tissue.
+              <p class="text-white/80 text-[10px] leading-tight">
+                Capillary cavitation unzips <strong>Claudin-5 junctions</strong> for targeted nanomedicine delivery into tumor tissue.
               </p>
-              <div class="flex gap-3 text-[11px] text-white/60 pt-1">
-                <span>FUS Power: <strong class="text-cyan-300">${this.state.fusPowerMPa} MPa</strong></span>
-                <span>Pore Size: <strong class="text-emerald-300">${(1 + this.state.bbbDilationProgress * 44).toFixed(0)} nm</strong></span>
+              <div class="flex gap-2 text-[10px] text-white/60 pt-0.5">
+                <span>FUS: <strong class="text-cyan-300">${this.state.fusPowerMPa} MPa</strong></span>
+                <span>Pore: <strong class="text-emerald-300">${(1 + this.state.bbbDilationProgress * 44).toFixed(0)} nm</strong></span>
               </div>
             `
                 : isViral
                 ? `
               <div class="flex items-center justify-between">
-                <span class="font-bold text-pink-300 text-sm">🦠 ${selectedVirus.name}</span>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-400/20 text-pink-300 border border-pink-400/30">${selectedVirus.family.toUpperCase()}</span>
+                <span class="font-bold text-pink-300 text-xs">🦠 ${selectedVirus.name}</span>
+                <span class="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-pink-400/20 text-pink-300 border border-pink-400/30">${selectedVirus.family.toUpperCase()}</span>
               </div>
-              <p class="text-white/80 leading-relaxed">${selectedVirus.description}</p>
-              <div class="flex gap-3 text-[11px] text-white/60 pt-1">
-                <span>Lamb Resonant Freq: <strong class="text-pink-300">${selectedVirus.lambQuadrupoleHz} Hz</strong></span>
-                <span>Capsid Shell: <strong class="text-cyan-300">T=${selectedVirus.triangulationNumber} (E = ${selectedVirus.youngsModulusGPa} GPa)</strong></span>
+              <p class="text-white/80 text-[10px] leading-tight">${selectedVirus.description}</p>
+              <div class="flex gap-2 text-[10px] text-white/60 pt-0.5">
+                <span>Lamb Freq: <strong class="text-pink-300">${selectedVirus.lambQuadrupoleHz} Hz</strong></span>
+                <span>Capsid: <strong class="text-cyan-300">T=${selectedVirus.triangulationNumber} (${selectedVirus.youngsModulusGPa} GPa)</strong></span>
               </div>
             `
                 : `
               <div class="flex items-center justify-between">
-                <span class="font-bold text-emerald-300 text-sm">⏳ Targeted Senolytic Zombie Cell Purge</span>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">REJUVENATION</span>
+                <span class="font-bold text-emerald-300 text-xs">⏳ Senolytic Zombie Cell Purge</span>
+                <span class="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">REJUVENATION</span>
               </div>
-              <p class="text-white/80 leading-relaxed">
-                Stiff senescent cells (14.5 kPa) absorb 4.8× more acoustic strain than flexible young cells (2.8 kPa), selectively rupturing and halting toxic inflammatory SASP secretion.
+              <p class="text-white/80 text-[10px] leading-tight">
+                Stiff senescent cells (14.5 kPa) absorb 4.8× more acoustic strain than flexible young cells, halting toxic SASP secretion.
               </p>
-              <div class="flex gap-3 text-[11px] text-white/60 pt-1">
-                <span>Shockwave Power: <strong class="text-emerald-300">${this.state.shockwaveIntensity.toFixed(1)}×</strong></span>
-                <span>Safety Selectivity: <strong class="text-cyan-300">>75,000:1</strong></span>
+              <div class="flex gap-2 text-[10px] text-white/60 pt-0.5">
+                <span>Intensity: <strong class="text-emerald-300">${this.state.shockwaveIntensity.toFixed(1)}×</strong></span>
+                <span>Selectivity: <strong class="text-cyan-300">>75k:1</strong></span>
               </div>
             `
             }
@@ -146,8 +152,8 @@ export class NobelDiscoveryControls {
                 ? `
               <div>
                 <div class="flex justify-between text-xs text-white/80 mb-1">
-                  <span>Acoustic Acoustic Pressure</span>
-                  <span class="font-mono text-amber-300">${this.state.acousticPressureKPa} kPa</span>
+                  <span>Acoustic Pressure</span>
+                  <span class="font-mono text-amber-300 font-semibold">${this.state.acousticPressureKPa} kPa</span>
                 </div>
                 <input type="range" id="slider-mech-pressure" min="10" max="250" step="5" value="${this.state.acousticPressureKPa}" class="w-full accent-amber-400 h-1.5 bg-white/10 rounded-lg cursor-pointer" />
               </div>

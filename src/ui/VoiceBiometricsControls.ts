@@ -24,9 +24,15 @@ export class VoiceBiometricsControls {
     private visualizer: VisualizerEngine
   ) {
     this.container = document.createElement('div');
-    this.container.className = 'w-full max-w-4xl mx-auto flex flex-col gap-3';
+    this.container.className = 'w-full flex flex-col gap-2.5 select-none';
     this.activeProfile = VoiceBiometricsPhysics.PROFILES['bel-canto'];
+    this.preventEventBleeding();
     this.render();
+  }
+
+  private preventEventBleeding(): void {
+    this.container.addEventListener('wheel', e => e.stopPropagation(), { passive: false });
+    this.container.addEventListener('pointerdown', e => e.stopPropagation());
   }
 
   public render(): void {
@@ -38,39 +44,45 @@ export class VoiceBiometricsControls {
     const rx = report?.soundMedicinePrescription;
 
     this.container.innerHTML = `
-      <div class="glass-panel p-3 md:p-4 rounded-3xl flex flex-col gap-3">
+      <div class="glass-panel p-3.5 sm:p-4 rounded-3xl flex flex-col gap-3 shadow-2xl border border-white/10 backdrop-blur-2xl text-white select-none">
         
         <!-- Header Bar: Mic Toggle & Preset Selector -->
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-3">
-          
-          <!-- Left: Microphone Capture -->
-          <div class="flex items-center gap-3">
+        <div class="flex flex-col gap-2 border-b border-white/10 pb-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-accent-purple via-accent-magenta to-accent-cyan flex items-center justify-center text-base shadow-lg shadow-accent-purple/20 shrink-0">
+                🗣️
+              </div>
+              <div>
+                <h3 class="text-xs sm:text-sm font-bold text-white">Voice Biometrics</h3>
+                <p class="text-[10px] text-gray-400">Clinical Vocal Biomarkers & Sound Medicine</p>
+              </div>
+            </div>
+
+            <!-- Microphone Capture -->
             <button
               id="btn-voice-mic"
-              class="px-4 py-2 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all shadow-lg ${
+              class="px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-lg cursor-pointer shrink-0 ${
                 this.isMicActive
                   ? 'bg-gradient-to-r from-red-500 to-accent-magenta text-white shadow-red-500/30 scale-105 animate-pulse'
-                  : 'bg-gradient-to-r from-accent-cyan to-accent-blue text-white shadow-accent-cyan/30 hover:scale-105'
+                  : 'bg-gradient-to-r from-accent-cyan to-accent-blue text-white shadow-accent-cyan/30 hover:scale-105 active:scale-95'
               }"
             >
-              <span>${this.isMicActive ? '⏹️ Stop Mic' : '🎙️ Record Voice'}</span>
+              <span>${this.isMicActive ? '⏹️ Stop' : '🎙️ Record'}</span>
             </button>
-
-            <span class="text-[11px] text-gray-400 font-medium">
-              ${this.isMicActive ? '🔴 Live Vocal Stream Active' : 'Or select clinical preset:'}
-            </span>
           </div>
 
-          <!-- Right: 7 Clinical Human Voice Presets -->
-          <div class="flex items-center gap-2 flex-1 max-w-[340px]">
+          <!-- Clinical Preset Selector -->
+          <div class="flex items-center gap-2">
+            <label class="text-[10px] text-gray-400 font-semibold whitespace-nowrap">Preset:</label>
             <select
               id="voice-preset-select"
-              class="w-full bg-gray-800/80 text-gray-200 text-xs font-semibold rounded-xl px-3 py-2 border border-white/10 outline-none focus:border-accent-cyan cursor-pointer hover:bg-gray-800 transition-colors"
+              class="w-full bg-slate-900/90 text-gray-100 text-xs font-semibold rounded-xl px-2.5 py-1.5 border border-white/15 outline-none focus:border-accent-cyan cursor-pointer hover:bg-slate-800 shadow-md transition-colors"
             >
               ${profiles
                 .map(
                   p => `
-                <option value="${p.id}" ${p.id === this.activeProfile.id ? 'selected' : ''}>
+                <option value="${p.id}" class="bg-slate-900 text-gray-100" ${p.id === this.activeProfile.id ? 'selected' : ''}>
                   ${p.name}
                 </option>
               `
@@ -78,18 +90,17 @@ export class VoiceBiometricsControls {
                 .join('')}
             </select>
           </div>
-
         </div>
 
         <!-- Middle Bar: Clinical Summary & Diagnostics -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="flex flex-col gap-2.5">
           
           <!-- Vocal Profile Card -->
-          <div class="bg-black/30 p-3 rounded-2xl border border-white/5 flex flex-col justify-between gap-2">
+          <div class="bg-black/30 p-2.5 rounded-2xl border border-white/5 flex flex-col justify-between gap-1.5">
             <div>
               <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-gray-200">${this.activeProfile.name}</span>
-                <span class="text-[10px] px-2 py-0.5 rounded-full font-mono uppercase font-bold ${
+                <span class="text-[9px] px-2 py-0.5 rounded-full font-mono uppercase font-bold ${
                   this.activeProfile.category === 'healthy'
                     ? 'bg-emerald-500/20 text-accent-emerald border border-emerald-500/30'
                     : this.activeProfile.category === 'neurological'
@@ -99,50 +110,47 @@ export class VoiceBiometricsControls {
                   ${this.activeProfile.category}
                 </span>
               </div>
-              <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">${this.activeProfile.description}</p>
+              <p class="text-[10px] text-gray-400 mt-0.5 leading-tight">${this.activeProfile.description}</p>
             </div>
 
             <!-- Quick Telemetry Chips -->
-            <div class="flex flex-wrap gap-2 pt-1">
-              <span class="text-[10px] font-mono bg-white/5 px-2 py-1 rounded-lg text-gray-300">
+            <div class="flex flex-wrap gap-1.5 pt-1">
+              <span class="text-[9px] font-mono bg-white/5 px-1.5 py-0.5 rounded-lg text-gray-300">
                 f₀: <strong class="text-accent-cyan">${Math.round(this.activeProfile.f0Hz)} Hz</strong>
               </span>
-              <span class="text-[10px] font-mono bg-white/5 px-2 py-1 rounded-lg text-gray-300">
+              <span class="text-[9px] font-mono bg-white/5 px-1.5 py-0.5 rounded-lg text-gray-300">
                 Jitter: <strong class="${this.activeProfile.jitterPercent > 1.04 ? 'text-red-400' : 'text-emerald-400'}">${this.activeProfile.jitterPercent.toFixed(2)}%</strong>
               </span>
-              <span class="text-[10px] font-mono bg-white/5 px-2 py-1 rounded-lg text-gray-300">
+              <span class="text-[9px] font-mono bg-white/5 px-1.5 py-0.5 rounded-lg text-gray-300">
                 HNR: <strong class="${this.activeProfile.hnrDb < 15 ? 'text-red-400' : 'text-emerald-400'}">${this.activeProfile.hnrDb.toFixed(1)} dB</strong>
-              </span>
-              <span class="text-[10px] font-mono bg-white/5 px-2 py-1 rounded-lg text-gray-300">
-                FCR: <strong class="${this.activeProfile.fcr > 1.2 ? 'text-amber-400' : 'text-cyan-400'}">${this.activeProfile.fcr.toFixed(2)}</strong>
               </span>
             </div>
           </div>
 
           <!-- One-Touch Personalized Sound Medicine Action & Prescription -->
-          <div class="bg-gradient-to-br from-purple-950/40 via-blue-950/30 to-black/40 p-3 rounded-2xl border border-accent-purple/20 flex flex-col justify-between gap-2 shadow-inner">
+          <div class="bg-gradient-to-br from-purple-950/40 via-blue-950/30 to-black/40 p-2.5 rounded-2xl border border-accent-purple/20 flex flex-col gap-2 shadow-inner">
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-accent-purple flex items-center gap-1.5">
                 <span>💊</span>
                 <span>Personalized Sound Medicine</span>
               </span>
-              <span class="text-[10px] font-mono text-gray-400">4-Tier Bio-Harmonic Synthesis</span>
+              <span class="text-[9px] font-mono text-gray-400">4-Tier Bio-Harmonic</span>
             </div>
 
-            <div class="text-[11px] text-gray-300 leading-tight">
+            <div class="text-[10px] text-gray-300 leading-tight">
               ${rx ? `<strong class="text-white">${rx.prescriptionTitle}</strong>` : 'Analyzes your vocal profile to compose a custom restorative acoustic wave.'}
             </div>
 
             <!-- Action Button -->
             <button
               id="btn-play-medicine"
-              class="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg ${
+              class="w-full py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer ${
                 this.isMedicinePlaying
                   ? 'bg-gradient-to-r from-accent-magenta via-accent-purple to-accent-cyan text-white shadow-accent-purple/40 animate-pulse'
                   : 'bg-gradient-to-r from-accent-purple to-accent-blue text-white shadow-accent-purple/30 hover:scale-[1.02]'
               }"
             >
-              <span>${this.isMedicinePlaying ? '⏸️ Stop Sound Medicine' : '✨ Synthesize & Play Sound Medicine'}</span>
+              <span>${this.isMedicinePlaying ? '⏸️ Stop Medicine' : '✨ Synthesize & Play Sound Medicine'}</span>
             </button>
           </div>
 

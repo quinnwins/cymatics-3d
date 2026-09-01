@@ -13,8 +13,8 @@ export class CentralEmitter {
   constructor(initialPalette: PalettePreset) {
     this.group = new THREE.Group();
 
-    // 1. Solid glowing core at origin (0, 0, 0)
-    const coreGeo = new THREE.SphereGeometry(0.35, 32, 32);
+    // 1. Sleek glowing acoustic transducer core at origin (0, 0, 0)
+    const coreGeo = new THREE.SphereGeometry(0.18, 32, 32);
     this.coreMaterial = new THREE.MeshBasicMaterial({
       color: initialPalette.coreGlow,
       wireframe: false,
@@ -22,8 +22,8 @@ export class CentralEmitter {
     this.coreMesh = new THREE.Mesh(coreGeo, this.coreMaterial);
     this.group.add(this.coreMesh);
 
-    // 2. Halo atmospheric glow with radiant shoulder
-    const glowGeo = new THREE.SphereGeometry(0.75, 32, 32);
+    // 2. Halo atmospheric glow with smooth Fresnel falloff
+    const glowGeo = new THREE.SphereGeometry(0.36, 32, 32);
     this.glowMaterial = new THREE.ShaderMaterial({
       vertexShader: `
         varying vec3 vNormal;
@@ -42,10 +42,9 @@ export class CentralEmitter {
         varying vec3 vViewPosition;
         void main() {
           float NdotV = max(dot(vNormal, normalize(vViewPosition)), 0.0);
-          float fresnel = pow(1.0 - NdotV, 3.0);
-          vec3 radiant = uColor * (1.2 + uIntensity * 2.5);
-          float hotCore = exp(-NdotV * 3.5) * 0.4;
-          gl_FragColor = vec4(radiant + vec3(hotCore), fresnel * 0.92);
+          float fresnel = pow(1.0 - NdotV, 2.5);
+          vec3 radiant = uColor * (0.8 + uIntensity * 0.3);
+          gl_FragColor = vec4(radiant, fresnel * 0.4);
         }
       `,
       uniforms: {
@@ -55,18 +54,18 @@ export class CentralEmitter {
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      side: THREE.BackSide,
+      side: THREE.FrontSide,
     });
     this.glowMesh = new THREE.Mesh(glowGeo, this.glowMaterial);
     this.group.add(this.glowMesh);
 
     // 3. Equatorial birth emitter ring
-    const ringGeo = new THREE.RingGeometry(0.4, 0.48, 64);
+    const ringGeo = new THREE.RingGeometry(0.22, 0.28, 64);
     this.ringMaterial = new THREE.MeshBasicMaterial({
       color: initialPalette.accent,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.6,
       blending: THREE.AdditiveBlending,
     });
     this.ringMesh = new THREE.Mesh(ringGeo, this.ringMaterial);
@@ -75,11 +74,11 @@ export class CentralEmitter {
   }
 
   public update(time: number, bassEnergy: number, transientShock: number): void {
-    const scale = 1.0 + bassEnergy * 0.45 + transientShock * 0.35;
+    const scale = 1.0 + bassEnergy * 0.35 + transientShock * 0.25;
     this.coreMesh.scale.setScalar(scale);
-    this.glowMesh.scale.setScalar(scale * 1.3);
+    this.glowMesh.scale.setScalar(scale * 1.2);
 
-    this.glowMaterial.uniforms.uIntensity.value = 1.0 + bassEnergy * 2.5 + transientShock * 2.0;
+    this.glowMaterial.uniforms.uIntensity.value = 0.8 + bassEnergy * 0.9 + transientShock * 0.7;
 
     // Spinning emitter ring
     this.ringMesh.rotation.z = time * 1.5;

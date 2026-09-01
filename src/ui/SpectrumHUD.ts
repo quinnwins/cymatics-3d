@@ -15,14 +15,20 @@ export class SpectrumHUD {
 
   constructor(private audioEngine: AudioEngine, private visualizer: VisualizerEngine) {
     this.element = document.createElement('div');
-    this.element.className = 'glass-panel p-3.5 rounded-2xl flex flex-col gap-2.5 shadow-xl w-64 md:w-72 select-none';
+    this.element.className = 'glass-panel p-3.5 rounded-2xl flex flex-col gap-2.5 shadow-xl w-full select-none border border-white/10 backdrop-blur-xl';
     this.render();
     this.cacheElements();
     this.startUpdateLoop();
+    this.preventEventBleeding();
   }
 
   public getElement(): HTMLElement {
     return this.element;
+  }
+
+  private preventEventBleeding(): void {
+    this.element.addEventListener('wheel', e => e.stopPropagation(), { passive: false });
+    this.element.addEventListener('pointerdown', e => e.stopPropagation());
   }
 
   private render(): void {
@@ -53,7 +59,7 @@ export class SpectrumHUD {
             m => `
           <div class="flex flex-col items-center gap-1 h-full justify-end min-h-0">
             <div class="w-full bg-white/10 rounded-full flex-1 min-h-0 relative overflow-hidden flex flex-col justify-end p-0.5">
-              <div id="${m.id}" class="w-full bg-gradient-to-t from-cyan-400 via-indigo-400 to-fuchsia-400 rounded-full shadow-[0_0_8px_rgba(0,242,254,0.4)] transition-[height] duration-75 ease-out" style="height: 0%"></div>
+              <div id="${m.id}" class="eq-meter-bar w-full h-full bg-gradient-to-t from-cyan-400 via-indigo-400 to-fuchsia-400 rounded-full shadow-[0_0_8px_rgba(0,242,254,0.4)]"></div>
             </div>
             <span class="text-[9px] text-gray-400 font-mono tracking-tight shrink-0">${m.label}</span>
           </div>
@@ -125,7 +131,7 @@ export class SpectrumHUD {
         }
       }
 
-      // Update 6 Band Meters
+      // Update 6 Band Meters via GPU Composited scaleY
       const bandValues = [
         bands.subBass,
         bands.bass,
@@ -138,8 +144,8 @@ export class SpectrumHUD {
       for (let i = 0; i < this.meterEls.length; i++) {
         const el = this.meterEls[i];
         if (el) {
-          const heightPct = Math.min(100, Math.max(0, Math.round(bandValues[i] * 100)));
-          el.style.height = `${heightPct}%`;
+          const scale = Math.min(1, Math.max(0.04, bandValues[i]));
+          el.style.transform = `scaleY(${scale})`;
         }
       }
 

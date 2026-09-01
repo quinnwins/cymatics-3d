@@ -41,6 +41,7 @@ export class SpectralAnalyzer {
   // Pitch tracking
   public fundamentalFreq = 0;
   public pitchConfidence = 0;
+  private lastFrameTime = 0;
 
   constructor(analyserNode: AnalyserNode, sampleRate = 44100) {
     this.analyser = analyserNode;
@@ -96,16 +97,27 @@ export class SpectralAnalyzer {
 
     const rms = Math.min(2.0, totalEnergy / 6);
 
-    // Exponential Attack / Decay smoothing
+    // Framerate-independent continuous dual-speed ballistics (Apple ProMotion 60Hz/120Hz consistency)
+    const dt = currentTimeSeconds > 0 && (currentTimeSeconds - this.lastFrameTime) > 0.001
+      ? Math.min(0.1, currentTimeSeconds - this.lastFrameTime)
+      : 1 / 60;
+    this.lastFrameTime = currentTimeSeconds;
+
+    const tauAttack = 0.018;  // 18ms snappy transient response
+    const tauRelease = 0.220; // 220ms smooth natural organic decay
+    const alphaAttack = 1.0 - Math.exp(-dt / tauAttack);
+    const alphaRelease = 1.0 - Math.exp(-dt / tauRelease);
+
     const bandKeys: (keyof AudioBands)[] = ['subBass', 'bass', 'lowMid', 'mid', 'highMid', 'high'];
     for (let i = 0; i < bandKeys.length; i++) {
       const key = bandKeys[i];
       const target = rawBands[i];
       const current = this.smoothedBands[key];
-      const alpha = target > current ? 0.85 : 0.2;
+      const alpha = target > current ? alphaAttack : alphaRelease;
       this.smoothedBands[key] = current + alpha * (target - current);
     }
-    this.smoothedBands.rms = this.smoothedBands.rms * 0.8 + rms * 0.2;
+    const rmsAlpha = 1.0 - Math.exp(-dt / 0.120);
+    this.smoothedBands.rms = this.smoothedBands.rms + rmsAlpha * (rms - this.smoothedBands.rms);
     this.currentBands = { ...this.smoothedBands };
 
     // 2. Spectral Flux Transient Detection

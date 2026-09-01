@@ -3,6 +3,7 @@ import { AudioEngine } from './audio/AudioEngine';
 import { VisualizerEngine } from './visualizer/VisualizerEngine';
 import { Header, EngineMode } from './ui/Header';
 import { AudioControlsBar } from './ui/AudioControlsBar';
+import { MusicLibraryCard } from './ui/MusicLibraryCard';
 import { FrequencyLabControls } from './ui/FrequencyLabControls';
 import { ModalSweeperControls } from './ui/ModalSweeperControls';
 import { BioAcousticControls } from './ui/BioAcousticControls';
@@ -22,6 +23,7 @@ class App {
   private visualizer: VisualizerEngine;
   private header: Header;
   private audioControlsBar: AudioControlsBar;
+  private musicLibraryCard: MusicLibraryCard;
   private frequencyLabControls: FrequencyLabControls;
   private modalSweeperControls: ModalSweeperControls;
   private bioAcousticControls: BioAcousticControls;
@@ -36,15 +38,19 @@ class App {
   private physicsDrawer: PhysicsDrawer;
 
   private currentMode: EngineMode = 'music';
-  private footerRoot: HTMLElement;
+  private leftSidebarRoot: HTMLElement;
+  private rightSidebarRoot: HTMLElement;
+  private bottomTransportRoot: HTMLElement;
   private centerPromptRoot: HTMLElement;
-  private sidePanelRoot: HTMLElement;
+  private isLeftSidebarOpen = true;
+  private isRightSidebarOpen = true;
   private hasInteracted = false;
 
   constructor() {
-    this.footerRoot = document.getElementById('footer-root') as HTMLElement;
+    this.leftSidebarRoot = document.getElementById('left-sidebar-root') as HTMLElement;
+    this.rightSidebarRoot = document.getElementById('right-sidebar-root') as HTMLElement;
+    this.bottomTransportRoot = document.getElementById('bottom-transport-root') as HTMLElement;
     this.centerPromptRoot = document.getElementById('center-prompt-root') as HTMLElement;
-    this.sidePanelRoot = document.getElementById('side-panel-root') as HTMLElement;
 
     const canvasContainer = document.getElementById('canvas-container') as HTMLElement;
 
@@ -72,6 +78,9 @@ class App {
 
     // 3. Initialize UI Components
     this.audioControlsBar = new AudioControlsBar(this.audioEngine);
+    this.musicLibraryCard = new MusicLibraryCard(this.audioEngine, () => {
+      this.audioControlsBar.render();
+    });
     this.frequencyLabControls = new FrequencyLabControls(this.audioEngine);
     this.modalSweeperControls = new ModalSweeperControls(
       this.audioEngine,
@@ -111,17 +120,10 @@ class App {
       },
       () => this.exportClinicalDossier()
     );
-    this.nobelTelemetryHUD = new NobelTelemetryHUD(this.sidePanelRoot);
+    this.nobelTelemetryHUD = new NobelTelemetryHUD(this.rightSidebarRoot);
 
     this.spectrumHUD = new SpectrumHUD(this.audioEngine, this.visualizer);
     this.physicsDrawer = new PhysicsDrawer(this.visualizer);
-
-    // Mount floating side panels (HUD & Physics)
-    this.sidePanelRoot.appendChild(this.spectrumHUD.getElement());
-    this.sidePanelRoot.appendChild(this.physicsDrawer.getElement());
-    this.sidePanelRoot.appendChild(this.voiceTelemetryHUD.getElement());
-    this.voiceTelemetryHUD.setVisible(false);
-    this.nobelTelemetryHUD.setVisible(false);
 
     // Periodic HUD update timer (10 Hz for smooth live metrics)
     setInterval(() => {
@@ -140,14 +142,40 @@ class App {
       this.visualizer,
       mode => this.switchMode(mode),
       () => this.presentationTourEngine.startTour(),
-      () => this.exportClinicalDossier()
+      () => this.exportClinicalDossier(),
+      () => this.toggleLeftSidebar(),
+      () => this.toggleRightSidebar()
     );
 
-    // 5. Initial Mount of Bottom Controls
-    this.renderFooter();
+    // Mount Master Audio Transport in Bottom Dock
+    this.bottomTransportRoot.appendChild(this.audioControlsBar.getElement());
+
+    // 5. Initial Mount of Active Mode (3D Cymatics Lab)
+    this.switchMode('modal');
+    this.header.setMode('modal');
 
     // 6. Initial Welcome & Audio Unlock Overlay
     this.showWelcomePrompt();
+  }
+
+  private toggleLeftSidebar(): void {
+    this.isLeftSidebarOpen = !this.isLeftSidebarOpen;
+    if (this.isLeftSidebarOpen) {
+      this.leftSidebarRoot.classList.remove('sidebar-collapsed');
+    } else {
+      this.leftSidebarRoot.classList.add('sidebar-collapsed');
+    }
+    this.header.setSidebarStates(this.isLeftSidebarOpen, this.isRightSidebarOpen);
+  }
+
+  private toggleRightSidebar(): void {
+    this.isRightSidebarOpen = !this.isRightSidebarOpen;
+    if (this.isRightSidebarOpen) {
+      this.rightSidebarRoot.classList.remove('sidebar-collapsed');
+    } else {
+      this.rightSidebarRoot.classList.add('sidebar-collapsed');
+    }
+    this.header.setSidebarStates(this.isLeftSidebarOpen, this.isRightSidebarOpen);
   }
 
   private exportClinicalDossier(): void {
@@ -163,7 +191,7 @@ class App {
   private switchMode(mode: EngineMode): void {
     this.currentMode = mode;
 
-    // Reset voice & nobel HUD visibility & therapy state when switching modes
+    // Reset audio and lab specific states when changing modes
     if (mode !== 'voice') {
       this.voiceTelemetryHUD.setVisible(false);
       this.audioEngine.stopPersonalizedSoundMedicine();
@@ -218,31 +246,47 @@ class App {
       }
     }
 
-    this.renderFooter();
+    this.renderSidebars();
+    this.audioControlsBar.render();
   }
 
-  private renderFooter(): void {
-    this.footerRoot.innerHTML = '';
+  private renderSidebars(): void {
+    // 1. Render Left Sidebar (Action Controls & Workflows)
+    this.leftSidebarRoot.innerHTML = '';
     if (this.currentMode === 'music') {
-      this.footerRoot.appendChild(this.audioControlsBar.getElement());
+      this.leftSidebarRoot.appendChild(this.musicLibraryCard.getElement());
     } else if (this.currentMode === 'frequency') {
-      this.footerRoot.appendChild(this.frequencyLabControls.getElement());
+      this.leftSidebarRoot.appendChild(this.frequencyLabControls.getElement());
     } else if (this.currentMode === 'modal') {
-      this.footerRoot.appendChild(this.modalSweeperControls.getElement());
+      this.leftSidebarRoot.appendChild(this.modalSweeperControls.getElement());
     } else if (this.currentMode === 'bio') {
-      this.footerRoot.appendChild(this.bioAcousticControls.container);
+      this.leftSidebarRoot.appendChild(this.bioAcousticControls.container);
     } else if (this.currentMode === 'therapy') {
-      this.footerRoot.appendChild(this.therapyLabControls.container);
+      this.leftSidebarRoot.appendChild(this.therapyLabControls.container);
     } else if (this.currentMode === 'voice') {
-      this.footerRoot.appendChild(this.voiceBiometricsControls.container);
+      this.leftSidebarRoot.appendChild(this.voiceBiometricsControls.container);
     } else if (this.currentMode === 'nobel') {
-      this.footerRoot.appendChild(this.nobelDiscoveryControls.container);
+      this.leftSidebarRoot.appendChild(this.nobelDiscoveryControls.container);
     }
+
+    // 2. Render Right Sidebar (Spectrum Telemetry, Mode Diagnostics & Physics Deck)
+    this.rightSidebarRoot.innerHTML = '';
+    this.rightSidebarRoot.appendChild(this.spectrumHUD.getElement());
+
+    if (this.currentMode === 'voice') {
+      this.rightSidebarRoot.appendChild(this.voiceTelemetryHUD.getElement());
+      this.voiceTelemetryHUD.setVisible(true);
+    } else if (this.currentMode === 'nobel') {
+      this.rightSidebarRoot.appendChild(this.nobelTelemetryHUD.getElement());
+      this.nobelTelemetryHUD.setVisible(true);
+    }
+
+    this.rightSidebarRoot.appendChild(this.physicsDrawer.getElement());
   }
 
   private showWelcomePrompt(): void {
     this.centerPromptRoot.innerHTML = `
-      <div id="welcome-card" class="glass-panel-accent p-6 md:p-8 rounded-3xl max-w-md text-center flex flex-col items-center gap-4 cursor-pointer transform hover:scale-105 transition-all shadow-2xl">
+      <div id="welcome-card" class="glass-panel-accent p-6 md:p-8 rounded-3xl max-w-md text-center flex flex-col items-center gap-4 cursor-pointer transform hover:scale-105 transition-all shadow-2xl pointer-events-auto">
         <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-accent-cyan via-accent-blue to-accent-magenta flex items-center justify-center shadow-lg shadow-accent-cyan/30 emitter-glow">
           <svg class="w-8 h-8 text-white ml-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/>
@@ -292,3 +336,4 @@ class App {
 window.addEventListener('DOMContentLoaded', () => {
   new App();
 });
+
