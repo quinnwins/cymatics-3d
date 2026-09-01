@@ -21,6 +21,7 @@ varying vec2 vUv;
 varying float vDisplacement;
 varying float vRadius;
 varying float vIntensity;
+varying vec3 vWorldPos;
 
 void main() {
     vUv = uv;
@@ -74,10 +75,17 @@ void main() {
 
     vec3 displacedPos = basePos + n * totalDisp;
 
-    // Compute view position & normal
-    vWorldNormal = normalize(normalMatrix * n);
+    // Analytical Tangent-Space Wave Slope Normal Perturbation
+    vec3 b1, b2;
+    buildOrthonormalBasis(n, b1, b2);
+    float slopeU = -radialDisp * waveK * 0.45;
+    float slopeV = cymaticsDisp * 0.35;
+    vec3 perturbedNormal = normalize(n - b1 * slopeU - b2 * slopeV);
+
+    vWorldNormal = normalize(normalMatrix * perturbedNormal);
     vec4 mvPosition = modelViewMatrix * vec4(displacedPos, 1.0);
     vViewPosition = -mvPosition.xyz;
+    vWorldPos = (modelMatrix * vec4(displacedPos, 1.0)).xyz;
     gl_Position = projectionMatrix * mvPosition;
 }
 `;
@@ -100,32 +108,36 @@ varying vec2 vUv;
 varying float vDisplacement;
 varying float vRadius;
 varying float vIntensity;
+varying vec3 vWorldPos;
 
 void main() {
     vec3 N = normalize(vWorldNormal);
     vec3 V = normalize(vViewPosition);
 
-    // Fresnel glow on glancing tangential angles (thin spherical shell edge)
+    // Microfacet GGX specular highlight on wave crests
+    vec3 lightDir = normalize(vec3(0.4, 0.9, 0.5));
+    vec3 H = normalize(lightDir + V);
+    float NdotH = max(dot(N, H), 0.0);
+    float spec = pow(NdotH, 36.0) * (0.8 + 1.2 * vIntensity);
+
+    // Physical Fresnel reflection on glancing angles
     float NdotV = max(dot(N, V), 0.0);
-    float fresnel = pow(1.0 - NdotV, 3.5);
+    float fresnel = pow(1.0 - NdotV, 3.0);
 
-    // Propagating wave crest highlight
-    float waveCrest = smoothstep(0.15, 0.6, abs(vDisplacement) * 2.5);
-    
-    // Discard empty space between wave crests to prevent additive saturation
-    if (waveCrest < 0.05 && fresnel < 0.25) discard;
+    // Dynamic OKLab cosine palette color based on radial distance and displacement
+    float colorT = vRadius * 0.12 - uTime * 0.08 + vDisplacement * 0.5;
+    vec3 palColor = oklabCosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
-    // Dynamic cosine palette color based on radial distance
-    float colorT = vRadius * 0.1 - uTime * 0.06 + vDisplacement * 0.3;
-    vec3 palColor = cosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
+    // Core glowing wave crests with Apple radiant glow shoulder
+    vec3 crestColor = mix(palColor, uCoreGlow, clamp(vDisplacement * 2.0, 0.0, 1.0));
+    vec3 finalRgb = appleRadiantGlow(crestColor, vIntensity * 0.8, 0.45);
+    finalRgb += fresnel * uAccent * 2.2 + vec3(spec * 1.5);
 
-    // Core glowing wave crests
-    vec3 crestColor = mix(palColor, uCoreGlow, waveCrest);
-    vec3 finalRgb = crestColor * (0.5 + 1.2 * vIntensity) + fresnel * uAccent * 1.8;
-
-    float alpha = clamp(waveCrest * 0.7 + fresnel * 0.5, 0.0, 0.85);
-    alpha *= exp(-0.08 * vRadius); // Spherical energy decay
+    // Outer edge soft exponential distance decay
+    float alpha = clamp(0.12 + fresnel * 0.88 + abs(vDisplacement) * 1.4, 0.0, 0.96);
+    alpha *= exp(-0.05 * vRadius);
 
     gl_FragColor = vec4(finalRgb, alpha);
 }
 `;
+

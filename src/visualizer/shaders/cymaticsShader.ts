@@ -34,11 +34,11 @@ void main() {
     vDisplacement = disp;
     vNodalValue = abs(disp); // Near 0 = Nodal line / boundary
 
-    // Analytical / Finite-difference normal recalculation for crisp reflections
-    float eps = 0.006;
-    vec3 tX = normalize(cross(n, vec3(0.0, 1.0, 0.001)));
-    vec3 tY = normalize(cross(n, tX));
+    // Singularity-Free Orthonormal Tangent Frame (Frisvad / Duff formulation)
+    vec3 tX, tY;
+    buildOrthonormalBasis(n, tX, tY);
 
+    float eps = 0.006;
     vec3 pX = basePos + tX * eps;
     vec3 pY = basePos + tY * eps;
 
@@ -87,21 +87,23 @@ void main() {
     // Nodal line luminescence (standing wave nodal lines glow like sacred geometry)
     float nodalLine = smoothstep(0.06, 0.0, vNodalValue);
 
-    // Iridescent thin-film interference
+    // Iridescent thin-film interference in OKLab space
     float phase = dot(vLocalPosition, vec3(1.0, 2.0, 3.0)) * 0.4 + vDisplacement * 6.0 - uTime * 0.15;
-    vec3 interferenceColor = cosinePalette(phase, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
+    vec3 interferenceColor = oklabCosinePalette(phase, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
-    // Composite crystalline surface
-    vec3 surfaceColor = mix(interferenceColor * 0.4, uCoreGlow, nodalLine * 0.8);
-    surfaceColor += fresnel * uAccent * 2.0;
+    // Composite crystalline surface with Apple radiant tone
+    vec3 surfaceColor = mix(interferenceColor * 0.45, uCoreGlow, nodalLine * 0.85);
+    surfaceColor = appleRadiantGlow(surfaceColor, nodalLine * 1.5, 0.35);
+    surfaceColor += fresnel * uAccent * 2.4;
 
     // Specular highlight
     vec3 lightDir = normalize(vec3(1.0, 2.0, 3.0));
     vec3 H = normalize(lightDir + V);
-    float spec = pow(max(dot(N, H), 0.0), 32.0);
-    surfaceColor += vec3(spec * 1.5);
+    float spec = pow(max(dot(N, H), 0.0), 36.0);
+    surfaceColor += vec3(spec * 1.6);
 
-    float alpha = clamp(0.35 + fresnel * 0.65 + nodalLine * 0.5, 0.0, 0.95);
+    float alpha = clamp(0.35 + fresnel * 0.65 + nodalLine * 0.55, 0.0, 0.98);
     gl_FragColor = vec4(surfaceColor, alpha);
 }
 `;
+

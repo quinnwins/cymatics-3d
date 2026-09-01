@@ -73,8 +73,8 @@ export class SpectralAnalyzer {
   }
 
   public update(currentTimeSeconds: number): void {
-    this.analyser.getFloatFrequencyData(this.freqData as unknown as Float32Array<ArrayBuffer>);
-    this.analyser.getFloatTimeDomainData(this.timeData as unknown as Float32Array<ArrayBuffer>);
+    this.analyser.getFloatFrequencyData(this.freqData as any);
+    this.analyser.getFloatTimeDomainData(this.timeData as any);
 
     // 1. Calculate 6-Band Perceptual Energy
     const rawBands = [0, 0, 0, 0, 0, 0];

@@ -17,8 +17,6 @@ export interface GorkovForceVector {
   potential: number;
 }
 
-import { BesselFunctions } from './BesselFunctions';
-
 export class ChladniPhysics {
   public static readonly SPEED_OF_SOUND = 343.0; // m/s in air at 20°C
   public static readonly AIR_DENSITY = 1.204; // kg/m^3
@@ -39,38 +37,6 @@ export class ChladniPhysics {
   ): number {
     const term = Math.pow(n / Lx, 2) + Math.pow(m / Ly, 2) + Math.pow(l / Lz, 2);
     return (c / 2) * Math.sqrt(term);
-  }
-
-  /**
-   * Resonant frequency of a cylindrical cavity (radius R, length L).
-   * f = c * sqrt((alpha_(m,n) / (2*PI*R))^2 + (l / (2*L))^2)
-   */
-  public static cylindricalResonanceFrequency(
-    m: number,
-    n: number,
-    l: number,
-    R = 1.0,
-    L = 1.0,
-    c = this.SPEED_OF_SOUND
-  ): number {
-    const root = n * Math.PI + (m * Math.PI) / 2.0;
-    const radial = root / (2 * Math.PI * R);
-    const axial = l / (2 * L);
-    return c * Math.sqrt(radial * radial + axial * axial);
-  }
-
-  /**
-   * Resonant frequency of a spherical resonator (radius R).
-   * f = (c / (2*PI*R)) * alpha_(l,n)
-   */
-  public static sphericalResonanceFrequency(
-    l: number,
-    n: number,
-    R = 1.0,
-    c = this.SPEED_OF_SOUND
-  ): number {
-    const root = n * Math.PI + (l * Math.PI) / 2.0;
-    return (c / (2 * Math.PI * R)) * root;
   }
 
   /**
@@ -102,7 +68,7 @@ export class ChladniPhysics {
 
   /**
    * Evaluates 3D acoustic pressure field p(r, theta, z) in a cylindrical cavity.
-   * p(r, theta, z) = J_m(k_r * r) * cos(m * theta) * cos(k_z * z)
+   * r in [0, 1], theta in [-PI, PI], y (z-axis) in [-1, 1].
    */
   public static cylindricalPressure(
     x: number,
@@ -137,18 +103,13 @@ export class ChladniPhysics {
     n: number
   ): number {
     const r = Math.sqrt(x * x + y * y + z * z);
-    const kr = n * Math.PI * r;
+    if (r < 0.001) return 1.0;
 
-    // Exact spherical Bessel j_l(kr) using Maclaurin series near origin
-    let jl = 1.0;
-    const lMod = Math.abs(Math.floor(l)) % 4;
-    if (lMod === 0) jl = BesselFunctions.j0(kr);
-    else if (lMod === 1) jl = BesselFunctions.j1(kr);
-    else if (lMod === 2) jl = BesselFunctions.j2(kr);
-    else if (lMod === 3) jl = BesselFunctions.j3(kr);
+    const kr = n * Math.PI * r;
+    // Spherical Bessel j_l(kr)
+    const jl = Math.sin(kr - (l * Math.PI) / 2) / Math.max(0.01, kr);
 
     // Spherical harmonic angular component
-    if (r < 0.0001) return jl;
     const cosTheta = y / r;
     const phi = Math.atan2(z, x);
     const legendre = Math.pow(Math.abs(cosTheta), Math.max(0.1, l - m + 1));

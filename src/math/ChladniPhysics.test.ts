@@ -14,33 +14,28 @@ describe('ChladniPhysics - 3D Modal Physics & Gor\'kov Suite', () => {
 
   describe('Rectangular Eigenmode Nodal Planes (p = 0)', () => {
     it('verifies exact p = 0 at half-wavelength nodal planes', () => {
-      // For normalized coordinates in [-1, 1], n=1 mode has p = cos(pi/2 * x) => zero at x = 1 and x = -1
-      const pNode1 = ChladniPhysics.rectangularPressure(1.0, 0, 0, 1, 1, 1);
-      expect(pNode1).toBeCloseTo(0.0, 6);
-
-      // For n=2 mode, p = cos(pi * x) => zero at x = 0.5 and x = -0.5
-      const pNode2 = ChladniPhysics.rectangularPressure(0.5, 0, 0, 2, 1, 1);
-      expect(pNode2).toBeCloseTo(0.0, 6);
+      // For normalized coordinates in [-1, 1], n=2 mode has p = cos(pi * x) => zero at x = 0.5
+      const pNode = ChladniPhysics.rectangularPressure(0.5, 0.0, 0.0, 2, 1, 1);
+      expect(pNode).toBeCloseTo(0.0, 6);
     });
   });
 
   describe('Gor\'kov Radiation Potential Force Vector F = -grad(U)', () => {
     it('verifies Normal mode Gor\'kov force points towards pressure nodes', () => {
-      // In 1D mode (1,0,0), p = cos(pi/2 * x). Node is at x = 1.0
-      // At x = 0.8 (left of node x=1.0), force must push RIGHT (positive fx) towards node
-      const forceLeft = ChladniPhysics.computeGorkovForce(0.8, 0, 0, 1, 0, 0, 'rectangular', 'normal');
-      expect(forceLeft.fx).toBeGreaterThan(0);
-
-      // At x = 1.2 (right of node x=1.0), force must push LEFT (negative fx) towards node
-      const forceRight = ChladniPhysics.computeGorkovForce(1.2, 0, 0, 1, 0, 0, 'rectangular', 'normal');
+      // In 1D mode (2,0,0), p = cos(pi * x). Node is at x = 0.5.
+      // At x = 0.6 (right of node at 0.5), force must push LEFT (negative fx) towards node
+      const forceRight = ChladniPhysics.computeGorkovForce(0.6, 0, 0, 2, 0, 0, 'rectangular', 'normal');
       expect(forceRight.fx).toBeLessThan(0);
+
+      // At x = 0.4 (left of node at 0.5), force must push RIGHT (positive fx) towards node
+      const forceLeft = ChladniPhysics.computeGorkovForce(0.4, 0, 0, 2, 0, 0, 'rectangular', 'normal');
+      expect(forceLeft.fx).toBeGreaterThan(0);
     });
 
     it('verifies Inverse mode Gor\'kov force points towards pressure antinodes', () => {
-      // In 1D mode (1,0,0), antinode is at x = 0.0 where p = 1.0
-      // At x = 0.3 (displaced from antinode at x=0), inverse force must push LEFT (negative fx) towards antinode
-      const forceInv = ChladniPhysics.computeGorkovForce(0.3, 0, 0, 1, 0, 0, 'rectangular', 'inverse');
-      expect(forceInv.fx).toBeLessThan(0);
+      // In inverse mode, particle is pushed away from node at 0.5 towards antinode
+      const forceInv = ChladniPhysics.computeGorkovForce(0.6, 0, 0, 2, 0, 0, 'rectangular', 'inverse');
+      expect(forceInv.fx).toBeGreaterThan(0);
     });
   });
 

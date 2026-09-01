@@ -9,59 +9,97 @@ export interface PalettePreset {
   d: THREE.Vector3;
   coreGlow: THREE.Color;
   accent: THREE.Color;
+  coreIntensity?: number;
+  accentIntensity?: number;
+  dispersion?: number;
+  causticTint?: THREE.Color;
 }
 
 export class ColorPalettes {
   public static readonly PALETTES: Record<string, PalettePreset> = {
     'cosmic-nebula': {
       id: 'cosmic-nebula',
-      name: '🌌 Cosmic Nebula',
-      a: new THREE.Vector3(0.5, 0.5, 0.5),
-      b: new THREE.Vector3(0.5, 0.5, 0.5),
-      c: new THREE.Vector3(1.0, 1.0, 1.0),
+      name: '🌌 Celestial Indigo',
+      a: new THREE.Vector3(0.50, 0.50, 0.50),
+      b: new THREE.Vector3(0.50, 0.50, 0.50),
+      c: new THREE.Vector3(1.00, 1.00, 1.00),
       d: new THREE.Vector3(0.00, 0.33, 0.67),
-      coreGlow: new THREE.Color('#00f2fe'),
-      accent: new THREE.Color('#7928ca'),
+      coreGlow: new THREE.Color('#5E5CE6'), // Apple Indigo
+      accent: new THREE.Color('#00F0FF'),   // Electric Cyan Specular
+      coreIntensity: 4.8,
+      accentIntensity: 3.4,
+      dispersion: 0.038,
+      causticTint: new THREE.Color('#64D2FF'),
     },
-    'cyber-violet': {
-      id: 'cyber-violet',
-      name: '⚡ Cyber Violet',
-      a: new THREE.Vector3(0.8, 0.5, 0.4),
-      b: new THREE.Vector3(0.2, 0.4, 0.2),
-      c: new THREE.Vector3(2.0, 1.0, 1.0),
-      d: new THREE.Vector3(0.00, 0.25, 0.25),
-      coreGlow: new THREE.Color('#f355da'),
-      accent: new THREE.Color('#00f2fe'),
+    'siri-luminescence': {
+      id: 'siri-luminescence',
+      name: '✨ Siri Luminescence',
+      a: new THREE.Vector3(0.80, 0.50, 0.60),
+      b: new THREE.Vector3(0.30, 0.40, 0.30),
+      c: new THREE.Vector3(1.50, 1.00, 1.00),
+      d: new THREE.Vector3(0.00, 0.25, 0.50),
+      coreGlow: new THREE.Color('#FF375F'), // Apple Rose Magenta
+      accent: new THREE.Color('#00F5D4'),   // Siri Mint Cyan
+      coreIntensity: 5.4,
+      accentIntensity: 3.8,
+      dispersion: 0.048,
+      causticTint: new THREE.Color('#BF5AF2'),
     },
     'solar-flare': {
       id: 'solar-flare',
-      name: '🔥 Solar Flare',
-      a: new THREE.Vector3(0.5, 0.5, 0.5),
-      b: new THREE.Vector3(0.5, 0.5, 0.5),
-      c: new THREE.Vector3(2.0, 1.0, 0.0),
+      name: '🔥 Solar Amber',
+      a: new THREE.Vector3(0.50, 0.50, 0.50),
+      b: new THREE.Vector3(0.50, 0.50, 0.50),
+      c: new THREE.Vector3(2.00, 1.00, 0.00),
       d: new THREE.Vector3(0.50, 0.20, 0.25),
-      coreGlow: new THREE.Color('#ffb300'),
-      accent: new THREE.Color('#ff3d00'),
+      coreGlow: new THREE.Color('#FF9F0A'), // Apple Amber
+      accent: new THREE.Color('#FF453A'),   // Apple Coral
+      coreIntensity: 6.2,
+      accentIntensity: 4.2,
+      dispersion: 0.045,
+      causticTint: new THREE.Color('#FFD60A'),
     },
     'bioluminescent': {
       id: 'bioluminescent',
-      name: '🌿 Bioluminescent Deep',
-      a: new THREE.Vector3(0.5, 0.5, 0.5),
-      b: new THREE.Vector3(0.5, 0.5, 0.5),
-      c: new THREE.Vector3(1.0, 1.0, 0.5),
+      name: '🌿 Boreal Emerald',
+      a: new THREE.Vector3(0.50, 0.50, 0.50),
+      b: new THREE.Vector3(0.50, 0.50, 0.50),
+      c: new THREE.Vector3(1.00, 1.00, 0.50),
       d: new THREE.Vector3(0.80, 0.90, 0.30),
-      coreGlow: new THREE.Color('#00f5a0'),
-      accent: new THREE.Color('#00d2ff'),
+      coreGlow: new THREE.Color('#30D158'), // Apple Mint
+      accent: new THREE.Color('#64D2FF'),   // Sky Blue
+      coreIntensity: 4.6,
+      accentIntensity: 3.2,
+      dispersion: 0.035,
+      causticTint: new THREE.Color('#30D158'),
     },
     'prismatic-crystal': {
       id: 'prismatic-crystal',
-      name: '💎 Prismatic Crystal',
-      a: new THREE.Vector3(0.5, 0.5, 0.5),
-      b: new THREE.Vector3(0.5, 0.5, 0.5),
-      c: new THREE.Vector3(1.0, 1.0, 1.0),
-      d: new THREE.Vector3(0.30, 0.20, 0.80),
-      coreGlow: new THREE.Color('#ffffff'),
-      accent: new THREE.Color('#f355da'),
+      name: '💎 Pearlescent Quartz',
+      a: new THREE.Vector3(0.60, 0.60, 0.65),
+      b: new THREE.Vector3(0.40, 0.40, 0.35),
+      c: new THREE.Vector3(1.00, 1.00, 1.00),
+      d: new THREE.Vector3(0.20, 0.30, 0.70),
+      coreGlow: new THREE.Color('#FFFFFF'), // Pure Specular
+      accent: new THREE.Color('#C084FC'),   // Opal Lavender
+      coreIntensity: 7.0,
+      accentIntensity: 3.6,
+      dispersion: 0.065,
+      causticTint: new THREE.Color('#70D7FF'),
+    },
+    'quantum-void': {
+      id: 'quantum-void',
+      name: '🌌 Abyssal Void',
+      a: new THREE.Vector3(0.25, 0.30, 0.50),
+      b: new THREE.Vector3(0.60, 0.40, 0.60),
+      c: new THREE.Vector3(1.00, 1.50, 2.00),
+      d: new THREE.Vector3(0.10, 0.40, 0.70),
+      coreGlow: new THREE.Color('#AF52DE'), // Deep Violet
+      accent: new THREE.Color('#5AC8FA'),   // Electric Aqua
+      coreIntensity: 5.6,
+      accentIntensity: 3.8,
+      dispersion: 0.055,
+      causticTint: new THREE.Color('#BF5AF2'),
     },
   };
 
@@ -69,3 +107,4 @@ export class ColorPalettes {
     return this.PALETTES[id] || this.PALETTES['cosmic-nebula'];
   }
 }
+

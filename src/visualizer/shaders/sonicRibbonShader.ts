@@ -14,13 +14,13 @@ varying vec2 vUv;
 varying float vDisplacement;
 varying float vRadius;
 varying vec3 vViewPosition;
+varying vec3 vWorldNormal;
 
 void main() {
     vUv = uv;
-    // uv.x: Angular angle around cylinder / ribbon [0..1]
-    // uv.y: Radial distance from center [0..1] (0 = center source, 1 = outer edge)
     
-    float angle = uv.x * TWO_PI * 3.0 + uTime * 0.2; // 3-turn Archimedean spiral
+    // 3-turn Archimedean spiral
+    float angle = uv.x * TWO_PI * 3.0 + uTime * 0.2;
     float r = 0.5 + uv.y * 7.5;
     vRadius = r;
 
@@ -41,6 +41,20 @@ void main() {
     float y = dispY + (uv.y - 0.5) * 0.5;
 
     vec3 displacedPos = vec3(x, y, z);
+
+    // Analytical Surface Derivatives for Frenet Normal Frame
+    // Tangent along spiral u:
+    float dAngle_du = TWO_PI * 3.0;
+    vec3 dPos_du = vec3(-r * sin(angle) * dAngle_du, 0.0, r * cos(angle) * dAngle_du);
+
+    // Tangent along radial v:
+    float dr_dv = 7.5;
+    float dY_dv = -dispY * (0.2 * dr_dv / (0.8 + 0.2 * r)) + 0.5;
+    vec3 dPos_dv = vec3(dr_dv * cos(angle), dY_dv, dr_dv * sin(angle));
+
+    vec3 ribNormal = normalize(cross(dPos_dv, dPos_du));
+    vWorldNormal = normalize(normalMatrix * ribNormal);
+
     vec4 mvPosition = modelViewMatrix * vec4(displacedPos, 1.0);
     vViewPosition = -mvPosition.xyz;
     gl_Position = projectionMatrix * mvPosition;
@@ -62,25 +76,36 @@ varying vec2 vUv;
 varying float vDisplacement;
 varying float vRadius;
 varying vec3 vViewPosition;
+varying vec3 vWorldNormal;
 
 void main() {
-    // Cosine palette color
+    vec3 N = normalize(vWorldNormal);
+    vec3 V = normalize(vViewPosition);
+
+    float NdotV = abs(dot(N, V));
+    float fresnel = pow(1.0 - NdotV, 3.0);
+
+    // OKLab Cosine palette color
     float colorT = vUv.x + vRadius * 0.1 - uTime * 0.06;
-    vec3 palColor = cosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
+    vec3 palColor = oklabCosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
-    // Glowing crests on displacement peaks
-    vec3 finalRgb = mix(palColor * 0.7, uCoreGlow, clamp(vDisplacement * 1.5, 0.0, 1.0));
-    finalRgb += uAccent * smoothstep(0.8, 1.0, vDisplacement);
+    // Glowing crests on displacement peaks with Apple radiant tone
+    vec3 crestColor = mix(palColor, uCoreGlow, clamp(vDisplacement * 1.5, 0.0, 1.0));
+    vec3 finalRgb = appleRadiantGlow(crestColor, clamp(vDisplacement * 1.4, 0.0, 2.5), 0.4);
+    finalRgb += uAccent * (fresnel * 1.8 + smoothstep(0.8, 1.0, vDisplacement) * 1.5);
 
-    // Grid wireframe highlight effect
-    float gridU = abs(fract(vUv.x * 64.0) - 0.5);
-    float gridV = abs(fract(vUv.y * 32.0) - 0.5);
-    float gridLine = smoothstep(0.46, 0.5, max(gridU, gridV));
-    finalRgb += vec3(gridLine * 0.3);
+    // Anti-Aliased Derivative Wireframe Grid Lines (No Moire)
+    vec2 gridCoord = vUv * vec2(64.0, 32.0);
+    vec2 gridDelta = fwidth(gridCoord);
+    vec2 gridLine = smoothstep(vec2(0.5) - gridDelta * 1.5, vec2(0.5), fract(gridCoord)) *
+                    (1.0 - smoothstep(vec2(0.5), vec2(0.5) + gridDelta * 1.5, fract(gridCoord)));
+    float wireframe = max(gridLine.x, gridLine.y);
+    finalRgb += vec3(wireframe * 0.45);
 
-    float alpha = clamp(0.4 + vDisplacement * 0.8, 0.0, 0.95);
-    alpha *= exp(-0.08 * vRadius);
+    float alpha = clamp(0.35 + fresnel * 0.65 + vDisplacement * 0.8, 0.0, 0.96);
+    alpha *= exp(-0.06 * vRadius);
 
     gl_FragColor = vec4(finalRgb, alpha);
 }
 `;
+

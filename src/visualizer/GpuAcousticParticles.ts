@@ -241,13 +241,15 @@ void main() {
         float excessR = max(rXY - (L - margin), 0.0);
         float excessZ = max(abs(pos.z) - (L - margin), 0.0);
         vec2 nXY = rXY > 1e-4 ? pos.xy / rXY : vec2(0.0);
-        F_boundary.xy = -nXY * (excessR * excessR * 180.0);
-        F_boundary.z = -sign(pos.z) * (excessZ * excessZ * 180.0);
+        float normVelR = dot(vel.xy, nXY);
+        F_boundary.xy = -nXY * (excessR * excessR * 180.0) - nXY * max(0.0, normVelR) * 8.0;
+        F_boundary.z = -sign(pos.z) * (excessZ * excessZ * 180.0) - sign(pos.z) * max(0.0, vel.z * sign(pos.z)) * 8.0;
     } else {
-        // Sphere boundary
+        // Sphere boundary with viscoelastic damping
         float margin = L * 0.08;
         float excess = max(r - (L - margin), 0.0);
-        F_boundary = -nPos * (excess * excess * 180.0);
+        float normVel = dot(vel, nPos);
+        F_boundary = -nPos * (excess * excess * 180.0) - nPos * max(0.0, normVel) * 8.0;
     }
 
     // Total Force Integration
@@ -257,12 +259,10 @@ void main() {
     // Symplectic Euler / Verlet velocity update
     vec3 newVel = vel + acceleration * uDeltaTime;
 
-    // Physical Speed Clamp for Numerical Stability
-    float speed = length(newVel);
+    // Smooth Algebraic Soft-Saturation (C^1 continuous, eliminates hard clamping snaps)
     float maxSpeed = 16.0;
-    if (speed > maxSpeed) {
-        newVel = (newVel / speed) * maxSpeed;
-    }
+    float speedSq = dot(newVel, newVel);
+    newVel = newVel * (maxSpeed / sqrt(speedSq + maxSpeed * maxSpeed));
 
     // Store updated velocity in rgb, acoustic pressure magnitude in a
     gl_FragColor = vec4(newVel, abs(pressure));
@@ -378,7 +378,7 @@ void main() {
 `;
 
 // ----------------------------------------------------------------------------
-// Particle Volumetric Point Rendering Shaders
+// Particle Volumetric Point Rendering Shaders (3D Ray-Sphere Impostor)
 // ----------------------------------------------------------------------------
 const PARTICLE_RENDER_VERTEX_SHADER = `
 ${CYMATICS_CORE_GLSL}
@@ -402,6 +402,7 @@ attribute float aParticleSeed;
 varying vec4 vColor;
 varying float vIntensity;
 varying float vSpeed;
+varying float vDepthFade;
 
 void main() {
     vec4 posData = texture2D(uPosTexture, aParticleUv);
@@ -423,20 +424,24 @@ void main() {
     vec3 palColor = cosinePalette(colorPhase, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
     // Composite glowing particle color
-    vec3 finalColor = palColor * (0.4 + 0.9 * excitation);
+    vec3 finalColor = palColor * (0.45 + 0.95 * excitation);
     finalColor += uCoreGlow * (excitation * 0.85);
     finalColor += uAccent * (clamp(speed * 0.3, 0.0, 1.5));
 
     // Particle alpha: subtle ambient dust, glowing on acoustic resonance
-    float alpha = clamp(0.12 + excitation * 0.55, 0.0, 0.95);
+    float alpha = clamp(0.14 + excitation * 0.60, 0.0, 0.98);
     vColor = vec4(finalColor, alpha);
 
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
 
+    // Soft camera near-plane depth fade to prevent clipping
+    float zDist = -mvPosition.z;
+    vDepthFade = smoothstep(0.4, 1.2, zDist);
+
     // Point size with physical distance attenuation & kinetic flare
-    float pSize = (1.8 + excitation * 2.8 + speed * 0.6) * uParticleScale * (120.0 / -mvPosition.z);
-    gl_PointSize = clamp(pSize, 1.5, 36.0);
+    float pSize = (1.8 + excitation * 2.8 + speed * 0.6) * uParticleScale * (140.0 / max(zDist, 0.1));
+    gl_PointSize = clamp(pSize, 1.5, 48.0);
 }
 `;
 
@@ -446,21 +451,41 @@ precision highp float;
 varying vec4 vColor;
 varying float vIntensity;
 varying float vSpeed;
+varying float vDepthFade;
 
 void main() {
-    // Render smooth anti-aliased Gaussian point sprite with hot core
-    vec2 coord = gl_PointCoord - vec2(0.5);
-    float distSq = dot(coord, coord);
-    if (distSq > 0.25) discard;
+    vec2 pCoord = gl_PointCoord * 2.0 - 1.0;
+    float r2 = dot(pCoord, pCoord);
+    if (r2 > 1.0) discard;
 
-    // Volumetric Gaussian Falloff
-    float alpha = exp(-distSq * 18.0) * vColor.a;
+    // 1. Exact Spherical Normal Reconstruction
+    float zNorm = sqrt(1.0 - r2);
+    vec3 impostorNormal = vec3(pCoord.x, -pCoord.y, zNorm);
 
-    // Crystalline Luminous Hot Core
-    float core = smoothstep(0.04, 0.0, distSq) * (1.0 + vIntensity * 1.5);
+    // 2. Directional Lighting on Spherical Micro-Mote
+    vec3 lightDir = normalize(vec3(0.5, 0.8, 1.0));
+    float NdotL = max(dot(impostorNormal, lightDir), 0.0);
+    float spec = pow(max(dot(impostorNormal, normalize(lightDir + vec3(0.0, 0.0, 1.0))), 0.0), 32.0);
 
-    vec3 finalRgb = vColor.rgb + vec3(core * 0.6);
-    gl_FragColor = vec4(finalRgb, alpha);
+    // 3. Multi-Wavelength Chromatic Airy Fringe Separation
+    float rR = sqrt(r2) * 1.03;
+    float rG = sqrt(r2);
+    float rB = sqrt(r2) * 0.97;
+
+    vec3 chromaticAlpha = vec3(
+        exp(-rR * rR * 10.0),
+        exp(-rG * rG * 11.5),
+        exp(-rB * rB * 13.0)
+    );
+
+    float coreGaussian = exp(-r2 * 14.0);
+    float edgeAA = smoothstep(1.0, 0.80, sqrt(r2));
+
+    vec3 baseRgb = vColor.rgb * (0.60 + 0.80 * NdotL);
+    vec3 finalRgb = baseRgb * chromaticAlpha + vec3(spec * 1.4 * vIntensity);
+    float finalAlpha = clamp(coreGaussian * vColor.a * edgeAA * vDepthFade, 0.0, 1.0);
+
+    gl_FragColor = vec4(finalRgb, finalAlpha);
 }
 `;
 

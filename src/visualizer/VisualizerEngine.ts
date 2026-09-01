@@ -15,9 +15,13 @@ import { CentralEmitter } from './CentralEmitter';
 import { VolumetricChladniMesh } from './VolumetricChladniMesh';
 import { GpuAcousticParticles } from './GpuAcousticParticles';
 import { ChamberEnclosure } from './ChamberEnclosure';
+import { BioAcousticResonator } from './BioAcousticResonator';
+import { AcousticTherapyLab } from './AcousticTherapyLab';
+import { VocalBiometricsLab } from './VocalBiometricsLab';
+import { NobelDiscoveryLab } from './NobelDiscoveryLab';
 import { ColorPalettes, PalettePreset } from './ColorPalettes';
 
-export type VisualStyle = 'wavefront' | 'particles' | 'cymatics' | 'ribbon' | 'hybrid';
+export type VisualStyle = 'wavefront' | 'particles' | 'cymatics' | 'ribbon' | 'hybrid' | 'bio-acoustics' | 'therapy-lab' | 'voice-biometrics' | 'nobel-lab';
 export type CameraMode = 'orbit' | 'autocam' | 'emitter-lock' | 'top-down';
 
 export class VisualizerEngine {
@@ -39,6 +43,10 @@ export class VisualizerEngine {
   public volumetricChladni: VolumetricChladniMesh;
   public gpuAcousticParticles: GpuAcousticParticles;
   public chamberEnclosure: ChamberEnclosure;
+  public bioAcousticResonator: BioAcousticResonator;
+  public acousticTherapyLab: AcousticTherapyLab;
+  public vocalBiometricsLab: VocalBiometricsLab;
+  public nobelDiscoveryLab: NobelDiscoveryLab;
 
   // State
   private currentStyle: VisualStyle = 'hybrid';
@@ -106,6 +114,10 @@ export class VisualizerEngine {
     this.volumetricChladni = new VolumetricChladniMesh(this.currentPalette);
     this.gpuAcousticParticles = new GpuAcousticParticles(this.renderer, this.currentPalette);
     this.chamberEnclosure = new ChamberEnclosure(this.currentPalette);
+    this.bioAcousticResonator = new BioAcousticResonator('healthy-somatic');
+    this.acousticTherapyLab = new AcousticTherapyLab();
+    this.vocalBiometricsLab = new VocalBiometricsLab();
+    this.nobelDiscoveryLab = new NobelDiscoveryLab();
 
     this.scene.add(this.wavefrontShells.group);
     this.scene.add(this.cymaticsMesh.group);
@@ -115,6 +127,10 @@ export class VisualizerEngine {
     this.scene.add(this.volumetricChladni.group);
     this.scene.add(this.gpuAcousticParticles.group);
     this.scene.add(this.chamberEnclosure.group);
+    this.scene.add(this.bioAcousticResonator.group);
+    this.scene.add(this.acousticTherapyLab.group);
+    this.scene.add(this.vocalBiometricsLab.group);
+    this.scene.add(this.nobelDiscoveryLab.group);
 
     // 7. Post-Processing Pipeline
     const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
@@ -145,6 +161,10 @@ export class VisualizerEngine {
     this.volumetricChladni.setVisible(false);
     this.gpuAcousticParticles.setVisible(false);
     this.chamberEnclosure.setVisible(false);
+    this.bioAcousticResonator.setVisible(false);
+    this.acousticTherapyLab.setVisible(false);
+    this.vocalBiometricsLab.setVisible(false);
+    this.nobelDiscoveryLab.setVisible(false);
 
     switch (style) {
       case 'wavefront':
@@ -173,6 +193,42 @@ export class VisualizerEngine {
         this.volumetricChladni.group.position.y = 0.45;
         this.gpuAcousticParticles.group.position.y = 0.45;
         this.chamberEnclosure.group.position.y = 0.45;
+        break;
+      case 'bio-acoustics':
+        this.wavefrontShells.setVisible(false);
+        this.particleNebula.setVisible(false);
+        this.cymaticsMesh.setVisible(false);
+        this.sonicRibbon.setVisible(false);
+        this.centralEmitter.group.visible = false;
+        this.bioAcousticResonator.setVisible(true);
+        this.bioAcousticResonator.group.position.y = 0.45;
+        break;
+      case 'therapy-lab':
+        this.wavefrontShells.setVisible(false);
+        this.particleNebula.setVisible(false);
+        this.cymaticsMesh.setVisible(false);
+        this.sonicRibbon.setVisible(false);
+        this.centralEmitter.group.visible = false;
+        this.acousticTherapyLab.setVisible(true);
+        this.acousticTherapyLab.group.position.y = 0.45;
+        break;
+      case 'voice-biometrics':
+        this.wavefrontShells.setVisible(false);
+        this.particleNebula.setVisible(false);
+        this.cymaticsMesh.setVisible(false);
+        this.sonicRibbon.setVisible(false);
+        this.centralEmitter.group.visible = false;
+        this.vocalBiometricsLab.setVisible(true);
+        this.vocalBiometricsLab.group.position.y = 0.45;
+        break;
+      case 'nobel-lab':
+        this.wavefrontShells.setVisible(false);
+        this.particleNebula.setVisible(false);
+        this.cymaticsMesh.setVisible(false);
+        this.sonicRibbon.setVisible(false);
+        this.centralEmitter.group.visible = false;
+        this.nobelDiscoveryLab.setVisible(true);
+        this.nobelDiscoveryLab.group.position.y = 0.45;
         break;
       case 'ribbon':
         this.wavefrontShells.setVisible(false);
@@ -280,15 +336,28 @@ export class VisualizerEngine {
     this.volumetricChladni.update(time, vBands03, vBands45, fundamentalHz, this.camera);
     this.gpuAcousticParticles.update(time, 0.016, vBands03, vBands45, vShockwaves, fundamentalHz);
     this.chamberEnclosure.update(time, 0.016, vBands03, vBands45, this.camera);
+    this.bioAcousticResonator.update(time, 0.016, this.camera, vBands03);
+    this.acousticTherapyLab.update(time, 0.016, this.camera, vBands03);
+    this.nobelDiscoveryLab.update(time, 0.016, this.camera, vBands03);
+
+    if (this.audioEngine.voiceBiometrics) {
+      const voiceReport = this.audioEngine.voiceBiometrics.update();
+      this.vocalBiometricsLab.update(0.016, time, this.camera, voiceReport);
+    }
 
     // Camera handling
     if (this.cameraMode === 'autocam') {
       const isCymatics = this.currentStyle === 'cymatics';
-      const radius = isCymatics ? 9.6 : (9.5 + Math.sin(time * 0.15) * 1.5);
-      const targetY = isCymatics ? 0.45 : 0.0;
+      const isBio = this.currentStyle === 'bio-acoustics';
+      const isTherapy = this.currentStyle === 'therapy-lab';
+      const isVoice = this.currentStyle === 'voice-biometrics';
+      const isNobel = this.currentStyle === 'nobel-lab';
+      const isSorter = isBio && this.bioAcousticResonator.getViewMode() === 'microfluidic-sorter';
+      const radius = isCymatics ? 9.6 : isSorter ? 12.5 : isTherapy ? 8.2 : isBio ? 6.8 : isVoice ? 7.6 : isNobel ? 7.8 : (9.5 + Math.sin(time * 0.15) * 1.5);
+      const targetY = (isCymatics || isBio || isTherapy || isVoice || isNobel) ? 0.45 : 0.0;
       this.camera.position.x = Math.sin(time * 0.12 * this.autoRotateSpeed) * radius;
       this.camera.position.z = Math.cos(time * 0.12 * this.autoRotateSpeed) * radius;
-      this.camera.position.y = (isCymatics ? 2.8 : 3.2) + Math.sin(time * 0.08) * 0.8;
+      this.camera.position.y = (isCymatics ? 2.8 : isSorter ? 3.0 : isTherapy ? 2.2 : isBio ? 1.6 : isVoice ? 2.0 : isNobel ? 2.2 : 3.2) + Math.sin(time * 0.08) * 0.8;
       this.camera.lookAt(0, targetY, 0);
     } else {
       this.controls.update();

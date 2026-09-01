@@ -258,7 +258,8 @@ float evaluatePressure(vec3 p) {
 // ----------------------------------------------------------------------------
 vec3 computeGradient(vec3 p, out float pVal) {
     pVal = evaluatePressure(p);
-    const float h = 0.006;
+    float maxK = PI * (max(uModes.x, max(uModes.y, uModes.z)) + 1.0);
+    float h = clamp(0.035 / maxK, 0.0015, 0.008);
     vec3 grad;
     grad.x = evaluatePressure(p + vec3(h, 0.0, 0.0)) - evaluatePressure(p - vec3(h, 0.0, 0.0));
     grad.y = evaluatePressure(p + vec3(0.0, h, 0.0)) - evaluatePressure(p - vec3(0.0, h, 0.0));
@@ -275,19 +276,25 @@ float computeTaubinDistance(vec3 p, out vec3 normal, out float pVal) {
 }
 
 // ----------------------------------------------------------------------------
-// Boundary Clipping Tests
+// Boundary Clipping Tests with Smoothstep Edge Softness
 // ----------------------------------------------------------------------------
-bool isInsideChamber(vec3 p) {
+float getChamberConfinement(vec3 p) {
     if (uChamberType == 0) {
-        // Rectangular box [-1, 1]^3
-        return abs(p.x) <= 1.0 && abs(p.y) <= 1.0 && abs(p.z) <= 1.0;
+        vec3 d = abs(p);
+        float maxD = max(max(d.x, d.y), d.z);
+        return smoothstep(1.02, 0.98, maxD);
     } else if (uChamberType == 1) {
-        // Cylinder r <= 1.0, |z| <= 1.0
-        return (p.x * p.x + p.y * p.y) <= 1.0 && abs(p.z) <= 1.0;
+        float r = length(p.xy);
+        float z = abs(p.z);
+        return smoothstep(1.02, 0.98, r) * smoothstep(1.02, 0.98, z);
     } else {
-        // Sphere r <= 1.0
-        return dot(p, p) <= 1.0;
+        float r = length(p);
+        return smoothstep(1.02, 0.98, r);
     }
+}
+
+bool isInsideChamber(vec3 p) {
+    return getChamberConfinement(p) > 0.001;
 }
 
 // ----------------------------------------------------------------------------
@@ -357,12 +364,20 @@ bool getChamberRayInterval(vec3 ro, vec3 rd, out float tNear, out float tFar) {
 }
 
 // ----------------------------------------------------------------------------
-// Pseudo-Random Hash for Ray Jittering (Eliminates Banding Artifacts)
+// Low-Discrepancy Screen Dither Hash (Eliminates Banding Artifacts)
 // ----------------------------------------------------------------------------
 float screenHash(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * 0.1031);
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
+}
+
+// ----------------------------------------------------------------------------
+// Henyey-Greenstein Forward Phase Function
+// ----------------------------------------------------------------------------
+float hgPhase(float cosTheta, float g) {
+    float g2 = g * g;
+    return (1.0 - g2) / (4.0 * PI * pow(max(0.0001, 1.0 + g2 - 2.0 * g * cosTheta), 1.5));
 }
 
 // ----------------------------------------------------------------------------
@@ -386,66 +401,74 @@ void main() {
     }
 
     // Dynamic Step Size & Jitter
-    int steps = clamp(uStepCount, 32, 128);
+    int steps = clamp(uStepCount, 40, 128);
     float stepSize = rayLength / float(steps);
     float jitter = screenHash(gl_FragCoord.xy);
     float t = tNear + stepSize * jitter;
 
-    // Optical Integration Accumulators
-    vec3 accumColor = vec3(0.0);
-    float accumAlpha = 0.0;
+    // Optical Spectral Integration Accumulators
+    vec3 accumRadiance = vec3(0.0);
+    vec3 accumTransmittance = vec3(1.0); // 3-channel spectral Beer-Lambert extinction
 
     // Membrane Core Width (sigma) dynamically modulated by SubBass & Bass
-    float effectiveThickness = max(0.004, uThickness * (1.0 + 0.35 * uBandEnergies.x));
+    float effectiveThickness = max(0.0035, uThickness * (1.0 + 0.35 * uBandEnergies.x));
     float sigmaSq2 = 2.0 * effectiveThickness * effectiveThickness;
     float audioGain = 1.0 + 1.8 * uBandEnergies.x + 1.2 * uBandEnergies.y + 0.6 * uBandEnergies.z;
 
     vec3 viewDir = -rayDir;
+    vec3 spectralExtinction = vec3(1.35, 0.95, 0.70) * (uAbsorption * 28.0);
 
     // March through the 3D acoustic pressure volume
     for (int i = 0; i < 128; i++) {
-        if (i >= steps || t >= tFar || accumAlpha >= 0.98) break;
+        if (i >= steps || t >= tFar || dot(accumTransmittance, accumTransmittance) < 0.001) break;
 
         vec3 samplePos = rayOrigin + t * rayDir;
+        float boundaryMask = getChamberConfinement(samplePos);
 
-        // Verify chamber boundary confinement
-        if (isInsideChamber(samplePos)) {
+        if (boundaryMask > 0.001) {
             vec3 normal;
             float pVal;
             float distToNode = computeTaubinDistance(samplePos, normal, pVal);
 
             // 1. Smooth Gaussian Nodal Membrane Core (Translucent Sheets at p = 0)
-            float density = exp(-(distToNode * distToNode) / sigmaSq2);
+            float density = exp(-(distToNode * distToNode) / sigmaSq2) * boundaryMask;
 
-            if (density > 0.01) {
+            if (density > 0.008) {
                 // 2. Physical Fresnel Edge Lighting
                 float NdotV = abs(dot(normal, viewDir));
                 float fresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), uFresnelPower);
 
-                // 3. Chromatic Thin-Film Dispersion & Phase Interference
+                // 3. Internal Forward Mie-Scattering toward acoustic core
+                vec3 toEmitter = normalize(-samplePos);
+                float cosScatter = dot(rayDir, toEmitter);
+                float forwardScatter = hgPhase(cosScatter, 0.45);
+
+                // 4. Chromatic Thin-Film Dispersion & Phase Interference
                 float dispersionAngle = acos(clamp(NdotV, 0.0, 1.0));
-                float filmPhase = dispersionAngle * 4.0 + distToNode * 40.0 + uTime * 0.4;
+                float filmPhase = dispersionAngle * 4.0 + distToNode * 40.0 + uTime * 0.35;
                 vec3 chromaticColor = 0.5 + 0.5 * cos(TWO_PI * vec3(0.0, 0.33, 0.67) + filmPhase * uChromaticDispersion);
 
-                // 4. Inigo Quilez Cosine Palette Coloring
+                // 5. Inigo Quilez Cosine Palette Coloring
                 float paletteCoord = length(samplePos) * 0.35 + abs(pVal) * 0.4 + uTime * 0.05;
                 vec3 paletteColor = cosinePalette(paletteCoord, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
-                // 5. Composite Nodal Membrane Radiance
+                // 6. Composite Nodal Membrane Radiance with Apple Radiant Tone Shoulder
                 vec3 nodeEmission = mix(paletteColor, uCoreGlow, 0.35);
-                nodeEmission += chromaticColor * (fresnel * 1.6);
-                nodeEmission += uAccent * (pow(fresnel, 2.0) * 2.2);
+                nodeEmission += chromaticColor * (fresnel * 1.4);
+                nodeEmission += uAccent * (pow(fresnel, 2.0) * 1.8 + forwardScatter * 1.2);
 
                 // Center glowing resonance core
-                float centerGlow = exp(-dot(samplePos, samplePos) * 1.5) * 0.25;
+                float centerGlow = exp(-dot(samplePos, samplePos) * 2.5) * 0.35;
                 nodeEmission += uCoreGlow * centerGlow;
+                nodeEmission *= audioGain;
 
-                // 6. Beer-Lambert Optical Absorption & Alpha Compositing
-                float stepAlpha = 1.0 - exp(-density * uAbsorption * stepSize * 45.0);
-                vec3 stepRadiance = nodeEmission * density * audioGain;
+                // 7. Spectral Beer-Lambert Step Absorption
+                vec3 stepOpticalDepth = density * spectralExtinction * stepSize;
+                vec3 stepTransmittance = exp(-stepOpticalDepth);
+                vec3 inScattered = nodeEmission * (vec3(1.0) - stepTransmittance);
 
-                accumColor += (1.0 - accumAlpha) * stepRadiance * stepAlpha;
-                accumAlpha += (1.0 - accumAlpha) * stepAlpha;
+                accumRadiance += accumTransmittance * inScattered;
+                accumTransmittance *= stepTransmittance;
             }
         }
 
@@ -453,17 +476,16 @@ void main() {
     }
 
     // Subtle chamber glass hull luminescence (edge bounding cage glow)
-    vec3 hullEntryPos = rayOrigin + tNear * rayDir;
     float hullEdge = pow(clamp(1.0 - abs(dot(vWorldNormal, normalize(vWorldPosition - cameraPosition))), 0.0, 1.0), 3.5);
-    vec3 hullGlow = uAccent * (hullEdge * 0.18) * (1.0 + 0.5 * uHighEnergies.x);
+    vec3 hullGlow = uAccent * (hullEdge * 0.16) * (1.0 + 0.5 * uHighEnergies.x);
 
-    accumColor += (1.0 - accumAlpha) * hullGlow;
-    accumAlpha = clamp(accumAlpha + hullEdge * 0.12, 0.0, 1.0);
+    accumRadiance += accumTransmittance * hullGlow;
+    float finalAlpha = clamp(1.0 - dot(accumTransmittance, vec3(0.3333)) + hullEdge * 0.08, 0.0, 1.0);
 
-    if (accumAlpha < 0.005) {
+    if (finalAlpha < 0.005) {
         discard;
     }
 
-    gl_FragColor = vec4(accumColor, accumAlpha);
+    gl_FragColor = vec4(accumRadiance, finalAlpha);
 }
 `;

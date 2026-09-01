@@ -107,6 +107,18 @@ export class VolumetricChladniMesh {
 
     this.mesh = new THREE.Mesh(geometry, this.material);
     this.group.add(this.mesh);
+
+    // Subtle Glass Chamber Edge Wireframe
+    const wireGeo = new THREE.BoxGeometry(2.0, 2.0, 2.0);
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: palette.accent,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.12,
+    });
+    const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+    wireMesh.name = 'chamber-wireframe';
+    this.group.add(wireMesh);
   }
 
   /**
@@ -146,6 +158,19 @@ export class VolumetricChladniMesh {
   public setChamberType(type: ChamberGeometryType): void {
     this.currentChamberType = this.parseChamberType(type);
     this.material.uniforms.uChamberType.value = this.currentChamberType;
+
+    // Update visual wireframe cage geometry to reflect active chamber shape
+    const wire = this.group.getObjectByName('chamber-wireframe') as THREE.Mesh;
+    if (wire) {
+      wire.geometry.dispose();
+      if (this.currentChamberType === 0) {
+        wire.geometry = new THREE.BoxGeometry(2.0, 2.0, 2.0);
+      } else if (this.currentChamberType === 1) {
+        wire.geometry = new THREE.CylinderGeometry(1.0, 1.0, 2.0, 24, 4, true);
+      } else {
+        wire.geometry = new THREE.SphereGeometry(1.0, 24, 16);
+      }
+    }
   }
 
   public getChamberType(): number {
@@ -218,6 +243,11 @@ export class VolumetricChladniMesh {
     u.uPaletteD.value.copy(palette.d);
     u.uCoreGlow.value.copy(palette.coreGlow);
     u.uAccent.value.copy(palette.accent);
+
+    const wire = this.group.getObjectByName('chamber-wireframe') as THREE.Mesh;
+    if (wire && wire.material instanceof THREE.MeshBasicMaterial) {
+      wire.material.color.copy(palette.accent);
+    }
   }
 
   public setVisible(visible: boolean): void {
@@ -246,5 +276,10 @@ export class VolumetricChladniMesh {
   public dispose(): void {
     this.mesh.geometry.dispose();
     this.material.dispose();
+    const wire = this.group.getObjectByName('chamber-wireframe') as THREE.Mesh;
+    if (wire) {
+      wire.geometry.dispose();
+      (wire.material as THREE.Material).dispose();
+    }
   }
 }
