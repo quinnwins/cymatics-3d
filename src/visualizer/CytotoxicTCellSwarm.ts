@@ -287,6 +287,7 @@ export class CytotoxicTCellSwarm {
     this.instancedMesh.instanceMatrix.needsUpdate = true;
     velAttr.needsUpdate = true;
     mtocAttr.needsUpdate = true;
+    this.granuleGeometry.setDrawRange(0, activeLyticStreams);
     granOriginAttr.needsUpdate = true;
     granTargetAttr.needsUpdate = true;
   }

@@ -36,6 +36,7 @@ export class SoundMedicineSynthesizer {
 
   private isPlaying = false;
   private activePrescription: VocalBiomarkerReport['soundMedicinePrescription'] | null = null;
+  private cleanupTimer: number | null = null;
 
   constructor(audioContext: AudioContext, destinationNode: AudioNode) {
     this.ctx = audioContext;
@@ -121,30 +122,59 @@ export class SoundMedicineSynthesizer {
   }
 
   public stop(): void {
+    if (this.cleanupTimer !== null) {
+      clearTimeout(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+
     const now = this.ctx.currentTime;
     this.masterGain.gain.cancelScheduledValues(now);
     this.masterGain.gain.setTargetAtTime(0, now, 0.04);
 
-    setTimeout(() => {
-      try {
-        this.carrierOsc?.stop();
-        this.carrierOsc?.disconnect();
-        this.formantOscs.forEach(o => {
-          o.stop();
-          o.disconnect();
-        });
-        this.binauralLeftOsc?.stop();
-        this.binauralRightOsc?.stop();
-        this.binauralLeftOsc?.disconnect();
-        this.binauralRightOsc?.disconnect();
-      } catch {
-        // Safe cleanup
-      }
-      this.carrierOsc = null;
-      this.formantOscs = [];
-      this.binauralLeftOsc = null;
-      this.binauralRightOsc = null;
-      this.isPlaying = false;
+    const oscsToStop = [
+      this.carrierOsc,
+      ...this.formantOscs,
+      this.binauralLeftOsc,
+      this.binauralRightOsc,
+      ...this.goldenOscs,
+    ].filter(Boolean) as OscillatorNode[];
+
+    const gainsToDisconnect = [
+      this.carrierGain,
+      ...this.formantGains,
+      this.binauralGain,
+      ...this.goldenGains,
+    ].filter(Boolean) as GainNode[];
+
+    const pannersToDisconnect = [
+      this.binauralLeftPanner,
+      this.binauralRightPanner,
+    ].filter(Boolean) as StereoPannerNode[];
+
+    this.carrierOsc = null;
+    this.carrierGain = null;
+    this.formantOscs = [];
+    this.formantGains = [];
+    this.binauralLeftOsc = null;
+    this.binauralRightOsc = null;
+    this.binauralGain = null;
+    this.binauralLeftPanner = null;
+    this.binauralRightPanner = null;
+    this.goldenOscs = [];
+    this.goldenGains = [];
+    this.isPlaying = false;
+
+    this.cleanupTimer = window.setTimeout(() => {
+      oscsToStop.forEach(o => {
+        try { o.stop(); o.disconnect(); } catch {}
+      });
+      gainsToDisconnect.forEach(g => {
+        try { g.disconnect(); } catch {}
+      });
+      pannersToDisconnect.forEach(p => {
+        try { p.disconnect(); } catch {}
+      });
+      this.cleanupTimer = null;
     }, 80);
   }
 

@@ -40,7 +40,8 @@ void main() {
     float dilationOffset = uDilationProgress * focalGaussian * 0.45 + cavitationPulsation * 0.1;
     vLocalDilation = clamp(uDilationProgress * focalGaussian, 0.0, 1.0);
 
-    vec3 radialNormal = normalize(vec3(position.x, position.y, 0.0));
+    float rPos = length(position.xy);
+    vec3 radialNormal = rPos > 1e-5 ? vec3(position.xy / rPos, 0.0) : vec3(1.0, 0.0, 0.0);
     vec3 displacedPos = position + radialNormal * dilationOffset;
 
     vec4 worldPos = modelMatrix * vec4(displacedPos, 1.0);
@@ -88,7 +89,7 @@ float evalClaudinJunctions(vec2 uv, float dilation) {
     }
 
     float strandWidth = 0.08 + dilation * 0.16;
-    return smoothstep(strandWidth, strandWidth - 0.04, minDist);
+    return 1.0 - smoothstep(max(0.0, strandWidth - 0.04), strandWidth, minDist);
 }
 
 void main() {
@@ -155,7 +156,7 @@ void main() {
     float dist = length(coord);
     if (dist > 0.5) discard;
 
-    float core = smoothstep(0.5, 0.1, dist);
+    float core = 1.0 - smoothstep(0.1, 0.5, dist);
     vec3 finalColor = vNanobotColor * (core * 2.0 + 0.5);
 
     gl_FragColor = vec4(finalColor, core);

@@ -198,6 +198,15 @@ class ChromatinMechanogenomicsSystem {
     this.particleUniforms.uTime.value = time;
     this.particleUniforms.uAcousticIntensity.value = acousticPower;
   }
+
+  public dispose(): void {
+    this.laminaMesh.geometry.dispose();
+    (this.laminaMesh.material as THREE.Material).dispose();
+    this.chromatinFiberMesh.geometry.dispose();
+    (this.chromatinFiberMesh.material as THREE.Material).dispose();
+    this.transcriptionParticles.geometry.dispose();
+    (this.transcriptionParticles.material as THREE.Material).dispose();
+  }
 }
 
 // ============================================================================
@@ -312,6 +321,15 @@ class BbbCavitationSystem {
     const bubbleScale = 1.0 + Math.sin(time * 24.0) * 0.35 * fusPower;
     this.microbubbleMesh.scale.setScalar(bubbleScale);
   }
+
+  public dispose(): void {
+    this.capillaryMesh.geometry.dispose();
+    (this.capillaryMesh.material as THREE.Material).dispose();
+    this.nanobotPoints.geometry.dispose();
+    (this.nanobotPoints.material as THREE.Material).dispose();
+    this.microbubbleMesh.geometry.dispose();
+    (this.microbubbleMesh.material as THREE.Material).dispose();
+  }
 }
 
 // ============================================================================
@@ -414,6 +432,13 @@ class ViralCapsidShatterSystem {
 
     this.genomeUniforms.uTime.value = time;
     this.genomeUniforms.uShatterProgress.value = shatterProg;
+  }
+
+  public dispose(): void {
+    this.capsidMesh.geometry.dispose();
+    (this.capsidMesh.material as THREE.Material).dispose();
+    this.genomeMesh.geometry.dispose();
+    (this.genomeMesh.material as THREE.Material).dispose();
   }
 }
 
@@ -525,6 +550,15 @@ class SenolyticClearanceSystem {
     // Healthy cell breathes mildly without damage
     const healScale = 0.9 + Math.sin(time * 3.0) * 0.04;
     this.healthyCell.scale.setScalar(healScale);
+  }
+
+  public dispose(): void {
+    this.senescentCell.geometry.dispose();
+    (this.senescentCell.material as THREE.Material).dispose();
+    this.healthyCell.geometry.dispose();
+    (this.healthyCell.material as THREE.Material).dispose();
+    this.saspCloud.geometry.dispose();
+    (this.saspCloud.material as THREE.Material).dispose();
   }
 }
 
@@ -716,5 +750,12 @@ export class NobelDiscoveryLab {
         );
         break;
     }
+  }
+
+  public dispose(): void {
+    this.mechanogenomics.dispose();
+    this.bbbCavitation.dispose();
+    this.viralCapsid.dispose();
+    this.senolytic.dispose();
   }
 }

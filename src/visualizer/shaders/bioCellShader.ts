@@ -14,13 +14,6 @@
 export const BIO_CELL_MEMBRANE_VERTEX_SHADER = `
 precision highp float;
 
-// Transform Uniforms
-uniform mat4 modelMatrix;
-uniform mat4 viewMatrix;
-uniform mat4 projectionMatrix;
-uniform mat3 normalMatrix;
-uniform mat4 modelViewMatrix;
-
 // Simulation & Physics Uniforms
 uniform float uTime;
 uniform float uDiseaseState;        // 0.0 = Rigid Healthy, 1.0 = Softened Malignant, 2.0 = Viral Capsid, 3.0 = Bacteria
@@ -159,7 +152,7 @@ float evalSH(vec3 dir, vec4 ampsL0L3, float ampL4, float time, float disease) {
 // ----------------------------------------------------------------------------
 float evalRayleighWave(vec3 pos, float time, float freq) {
     float theta = acos(clamp(pos.z, -1.0, 1.0));
-    float phi = atan(pos.y, pos.x);
+    float phi = (abs(pos.x) < 1e-6 && abs(pos.y) < 1e-6) ? 0.0 : atan(pos.y, pos.x);
     float waveK = 6.0;
     float wavePhase = freq * 0.2 * time;
     float standingWave = sin(waveK * theta) * cos(4.0 * phi - wavePhase);
@@ -168,7 +161,8 @@ float evalRayleighWave(vec3 pos, float time, float freq) {
 
 void main() {
     vUv = uv;
-    vec3 baseDir = normalize(position);
+    float pLen = length(position);
+    vec3 baseDir = pLen > 1e-5 ? position / pLen : vec3(0.0, 1.0, 0.0);
 
     // 1. Spherical Harmonics Displacement
     float shDisp = evalSH(baseDir, uModalAmplitudesL0L3, uL4IcosahedralAmp, uTime, uDiseaseState);
@@ -200,7 +194,8 @@ void main() {
 
     // Normal recalculation with numerical tangent offsets
     float eps = 0.015;
-    vec3 tangentX = normalize(cross(baseDir, vec3(0.0, 1.0, 0.001)));
+    vec3 refAxis = abs(baseDir.y) > 0.99 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+    vec3 tangentX = normalize(cross(baseDir, refAxis));
     vec3 tangentY = normalize(cross(baseDir, tangentX));
     
     vec3 pX = position + tangentX * eps;
@@ -339,7 +334,7 @@ void main() {
 
     // 5. Internal Dense Organelle / Chromatin Core Lighting
     float coreDist = length(vObjectPosition);
-    float coreMask = smoothstep(uCoreRadius + 0.15, uCoreRadius - 0.1, coreDist);
+    float coreMask = 1.0 - smoothstep(max(0.0, uCoreRadius - 0.1), uCoreRadius + 0.15, coreDist);
     vec3 nucleusGlow = uCoreNucleusColor * coreMask * (1.2 + uAudioBands.x * 2.0);
 
     // 6. Diffuse & Specular Lighting

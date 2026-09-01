@@ -45,9 +45,10 @@ float evalLegendre(int l, int m, float cosTheta) {
 }
 
 float evalLambEigenmode(vec3 pos, float time, float resonanceGain) {
-    vec3 nPos = normalize(pos);
+    float pLen = length(pos);
+    vec3 nPos = pLen > 1e-5 ? pos / pLen : vec3(0.0, 1.0, 0.0);
     float cosTheta = clamp(nPos.z, -1.0, 1.0);
-    float phi = atan(nPos.y, nPos.x);
+    float phi = (abs(nPos.x) < 1e-6 && abs(nPos.y) < 1e-6) ? 0.0 : atan(nPos.y, nPos.x);
 
     float legendre = evalLegendre(uLambModeL, uLambModeM, cosTheta);
     float harmonic = legendre * cos(float(uLambModeM) * phi);
@@ -58,7 +59,8 @@ float evalLambEigenmode(vec3 pos, float time, float resonanceGain) {
 
 void main() {
     vIsPentamer = aIsPentamer;
-    vec3 baseDir = normalize(position);
+    float pLen0 = length(position);
+    vec3 baseDir = pLen0 > 1e-5 ? position / pLen0 : vec3(0.0, 1.0, 0.0);
 
     // 1. Acoustic Resonance Lorentzian Q-Factor
     float freqDiff = abs(uAcousticFrequency - uLambResonantFreq);

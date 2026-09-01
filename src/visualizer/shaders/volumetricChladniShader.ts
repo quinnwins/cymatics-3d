@@ -202,7 +202,7 @@ float evalRectangularCavity(vec3 p, vec3 modes, vec3 weights) {
 // 2. Cylindrical Chamber Resonator Mode
 float evalCylindricalChamber(vec3 p, vec3 modes) {
     float r = length(p.xy);
-    float theta = atan(p.y, p.x);
+    float theta = (abs(p.x) < 1e-6 && abs(p.y) < 1e-6) ? 0.0 : atan(p.y, p.x);
     float zMapped = (p.z + 1.0) * 0.5 * PI;
 
     float n = max(0.5, modes.x);
@@ -224,7 +224,7 @@ float evalSphericalChamber(vec3 p, vec3 modes) {
     if (r < 1e-5) return 1.0;
     
     float cosTheta = clamp(p.z / r, -1.0, 1.0);
-    float phi = atan(p.y, p.x);
+    float phi = (abs(p.x) < 1e-6 && abs(p.y) < 1e-6) ? 0.0 : atan(p.y, p.x);
 
     float n = max(0.5, modes.x);
     float m = max(0.0, modes.y);
@@ -282,14 +282,14 @@ float getChamberConfinement(vec3 p) {
     if (uChamberType == 0) {
         vec3 d = abs(p);
         float maxD = max(max(d.x, d.y), d.z);
-        return smoothstep(1.02, 0.98, maxD);
+        return 1.0 - smoothstep(0.98, 1.02, maxD);
     } else if (uChamberType == 1) {
         float r = length(p.xy);
         float z = abs(p.z);
-        return smoothstep(1.02, 0.98, r) * smoothstep(1.02, 0.98, z);
+        return (1.0 - smoothstep(0.98, 1.02, r)) * (1.0 - smoothstep(0.98, 1.02, z));
     } else {
         float r = length(p);
-        return smoothstep(1.02, 0.98, r);
+        return 1.0 - smoothstep(0.98, 1.02, r);
     }
 }
 
@@ -439,7 +439,8 @@ void main() {
                 float fresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), uFresnelPower);
 
                 // 3. Internal Forward Mie-Scattering toward acoustic core
-                vec3 toEmitter = normalize(-samplePos);
+                float sampleDist = length(samplePos);
+                vec3 toEmitter = sampleDist > 1e-5 ? -samplePos / sampleDist : vec3(0.0, 1.0, 0.0);
                 float cosScatter = dot(rayDir, toEmitter);
                 float forwardScatter = hgPhase(cosScatter, 0.45);
 

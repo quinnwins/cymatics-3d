@@ -27,11 +27,11 @@ void main() {
     vUv = uv;
     vec3 basePos = position;
     float baseR = length(basePos);
-    vec3 n = normalize(basePos);
+    vec3 n = baseR > 1e-5 ? basePos / baseR : vec3(0.0, 1.0, 0.0);
     vRadius = baseR;
 
     // 1. Physical Retarded-Time lookup: tau = r / c
-    float travelTime = baseR / uPropagationSpeed;
+    float travelTime = baseR / max(uPropagationSpeed, 0.001);
     float historyRow = fract(uHistoryHead - travelTime * 0.15);
 
     // Map spherical coordinates (theta, phi) to frequency bin u in [0, 1]

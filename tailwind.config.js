@@ -8,8 +8,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#040711',
-        panel: 'rgba(10, 15, 30, 0.75)',
+        background: '#090a0f',
+        panel: 'rgba(13, 16, 23, 0.85)',
         panelBorder: 'rgba(255, 255, 255, 0.08)',
         accent: {
           cyan: '#00f2fe',
@@ -26,17 +26,9 @@ export default {
       },
       backdropBlur: {
         xs: '2px',
-      },
-      animation: {
-        'pulse-glow': 'pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-      },
-      keyframes: {
-        pulseGlow: {
-          '0%, 100%': { opacity: '0.6', transform: 'scale(1)' },
-          '50%': { opacity: '1', transform: 'scale(1.05)' },
-        }
       }
     },
   },
   plugins: [],
 }
+

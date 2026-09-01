@@ -74,7 +74,8 @@ float snoise(vec3 v) {
 
 void main() {
     vUv = uv;
-    vec3 baseDir = normalize(position);
+    float posLen = length(position);
+    vec3 baseDir = posLen > 1e-5 ? position / posLen : vec3(0.0, 1.0, 0.0);
 
     // 1. Flattened Morphology
     vec3 flattenedPos = position;
@@ -133,7 +134,7 @@ void main() {
     vec3 baseColor = uSaBetaGalColor;
 
     vec2 fociGrid = fract(vUv * 24.0) - 0.5;
-    float fociMask = smoothstep(0.14, 0.0, length(fociGrid));
+    float fociMask = 1.0 - smoothstep(0.0, 0.14, length(fociGrid));
     baseColor += uGammaH2AxColor * fociMask * 1.6;
 
     vec3 crackGlow = uMicroCrackColor * vFatigueCrack * 3.5;
@@ -189,7 +190,7 @@ void main() {
     float dist = length(coord);
     if (dist > 0.5) discard;
 
-    float cloud = pow(smoothstep(0.5, 0.0, dist), 1.8);
+    float cloud = pow(1.0 - smoothstep(0.0, 0.5, dist), 1.8);
     vec3 finalColor = vSaspColor * cloud * 1.4;
     float alpha = (1.0 - vNormalizedLife) * cloud * 0.4;
 

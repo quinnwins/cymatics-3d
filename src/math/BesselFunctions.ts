@@ -41,7 +41,7 @@ export class BesselFunctions {
     if (absU < 0.25) {
       const u2 = u * u;
       const u3 = u2 * u;
-      return u3 / 105.0 - (u3 * u2) / 1890.0 + (u3 * u2 * u2) / 62370.0 - (u3 * u2 * u2 * u2) / 3144960.0;
+      return u3 / 105.0 - (u3 * u2) / 1890.0 + (u3 * u2 * u2) / 83160.0 - (u3 * u2 * u2 * u2) / 6486480.0;
     }
     const u2 = u * u;
     const u3 = u2 * u;
@@ -81,7 +81,7 @@ export class BesselFunctions {
         if (abs(u) < 0.25) {
           float u2 = u * u;
           float u3 = u2 * u;
-          return u3 * (1.0 / 105.0) - u3 * u2 * (1.0 / 1890.0) + u3 * u2 * u2 * (1.0 / 62370.0);
+          return u3 * (1.0 / 105.0) - u3 * u2 * (1.0 / 1890.0) + u3 * u2 * u2 * (1.0 / 83160.0);
         }
         float u2 = u * u;
         float u3 = u2 * u;

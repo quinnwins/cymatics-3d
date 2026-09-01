@@ -74,7 +74,7 @@ export class VoiceBiometricsPhysics {
   public static readonly PROFILES: Record<string, ClinicalVoiceProfile> = {
     'bel-canto': {
       id: 'bel-canto',
-      name: '💎 Bel Canto Operatic Voice',
+      name: 'Bel Canto Operatic Voice',
       category: 'healthy',
       description: 'Pristine harmonic comb structure, wide acoustic ring formant, high HNR (>25 dB) and low jitter (<0.3%).',
       f0Hz: 220.0,
@@ -91,12 +91,12 @@ export class VoiceBiometricsPhysics {
         binauralEntrainmentHz: 10.0,
         formantReinforcement: [280, 2250],
         goldenRatioHarmonic: true,
-        description: 'Harmonic Maintenance & Golden Ratio Acoustic Radiance',
+        description: 'Harmonic Maintenance & Acoustic Radiance',
       },
     },
     'grounded-chest': {
       id: 'grounded-chest',
-      name: '🌿 Warm Grounded Chest Voice',
+      name: 'Warm Grounded Chest Voice',
       category: 'healthy',
       description: 'Relaxed vocal tract, rich sub-glottal resonance, healthy harmonic decay, and stable glottal closure.',
       f0Hz: 130.0,
@@ -113,12 +113,12 @@ export class VoiceBiometricsPhysics {
         binauralEntrainmentHz: 10.0,
         formantReinforcement: [480, 1420],
         goldenRatioHarmonic: true,
-        description: 'Cellular Restoration & Vocal Cord Homeostasis',
+        description: 'Vocal Cord Homeostasis & Restorative Resonance',
       },
     },
     'hyperfunctional-strain': {
       id: 'hyperfunctional-strain',
-      name: '⚡ Hyperfunctional Vocal Strain',
+      name: 'Hyperfunctional Vocal Strain',
       category: 'pathological',
       description: 'Excessive laryngeal muscle tension, hyper-adducted vocal folds, elevated jitter (>1.8%) and compressed pitch range.',
       f0Hz: 275.0,
@@ -135,12 +135,12 @@ export class VoiceBiometricsPhysics {
         binauralEntrainmentHz: 10.0,
         formantReinforcement: [400, 1500],
         goldenRatioHarmonic: false,
-        description: 'Laryngeal De-constriction & Sensorimotor Alpha Relaxation Wave',
+        description: 'Laryngeal Relaxation & Alpha Sensorimotor Wave',
       },
     },
     'vocal-nodules': {
       id: 'vocal-nodules',
-      name: '💨 Glottal Chink & Vocal Nodules',
+      name: 'Glottal Chink & Vocal Nodules',
       category: 'pathological',
       description: 'Mass loading on bilateral vocal cords with glottal gap leakage, high aspiration noise, severe shimmer (>6%) and depressed HNR (<9 dB).',
       f0Hz: 190.0,
@@ -162,11 +162,11 @@ export class VoiceBiometricsPhysics {
     },
     'parkinsonian-tremor': {
       id: 'parkinsonian-tremor',
-      name: '🌊 Parkinsonian Hypokinetic Tremor',
+      name: 'Parkinsonian Hypokinetic Tremor',
       category: 'neurological',
       description: 'Involuntary 4–7 Hz thyroarytenoid tremor, formant centralization (FCR > 1.25), and articulatory vowel space contraction.',
       f0Hz: 145.0,
-      formants: [500, 1500, 2500, 3500], // Centralized schwa formants
+      formants: [500, 1500, 2500, 3500],
       jitterPercent: 1.65,
       shimmerPercent: 4.10,
       hnrDb: 14.5,
@@ -177,14 +177,14 @@ export class VoiceBiometricsPhysics {
       recommendedTherapy: {
         coreCarrierHz: 145.0,
         binauralEntrainmentHz: 6.0,
-        formantReinforcement: [270, 2290], // Vowel space expansion towards /i/
+        formantReinforcement: [270, 2290],
         goldenRatioHarmonic: true,
         description: 'Theta Tremor Stabilization & Articulatory Expansion Wave',
       },
     },
     'pulmonary-congestion': {
       id: 'pulmonary-congestion',
-      name: '🫁 Pulmonary / Respiratory Distress',
+      name: 'Pulmonary / Respiratory Distress',
       category: 'respiratory',
       description: 'Subglottic pressure drop, shortened phonation duration, erratic high-frequency spectral flux, and fatigue instability.',
       f0Hz: 165.0,
@@ -206,11 +206,11 @@ export class VoiceBiometricsPhysics {
     },
     'cardiovascular-edema': {
       id: 'cardiovascular-edema',
-      name: '🩸 Vocal Fold Subepithelial Edema',
+      name: 'Vocal Fold Subepithelial Edema',
       category: 'cardiovascular',
       description: 'Interstitial fluid retention in Reinke space increasing vibrating mass, downward pitch shift, and delayed glottal contact closure.',
       f0Hz: 105.0,
-      formants: [380, 1150, 2100, 3100], // 15-20% downward formant shift
+      formants: [380, 1150, 2100, 3100],
       jitterPercent: 1.75,
       shimmerPercent: 4.90,
       hnrDb: 12.8,
@@ -315,8 +315,8 @@ export class VoiceBiometricsPhysics {
     shimmerDb: number;
     shimmerApq11: number;
   } {
-    const N = periods.length;
-    if (N < 6 || amplitudes.length < 6) {
+    const N = Math.min(periods.length, amplitudes.length);
+    if (N < 6) {
       return { jitterLoc: 0, jitterRap: 0, jitterPpq5: 0, shimmerLoc: 0, shimmerDb: 0, shimmerApq11: 0 };
     }
 
@@ -393,7 +393,7 @@ export class VoiceBiometricsPhysics {
   // --------------------------------------------------------------------------
   public static calculateHNR(buffer: Float32Array, periodSamples: number): number {
     const tau = Math.round(periodSamples);
-    if (tau <= 0 || tau >= buffer.length / 2) return 15.0;
+    if (tau <= 0 || tau >= buffer.length / 2) return 0.0;
 
     const N = Math.floor(buffer.length / 2);
     let r0 = 0;
@@ -404,7 +404,7 @@ export class VoiceBiometricsPhysics {
       rTau += buffer[i] * buffer[i + tau];
     }
 
-    if (r0 <= 1e-9) return 0;
+    if (r0 <= 1e-9) return 0.0;
     const normalizedCorr = Math.max(-0.999, Math.min(0.999, rTau / r0));
     if (normalizedCorr >= 0.999) return 30.0;
     if (normalizedCorr <= 0.01) return 0.0;
@@ -416,44 +416,63 @@ export class VoiceBiometricsPhysics {
   // --------------------------------------------------------------------------
   // 5. Cepstral Peak Prominence (CPP in dB)
   // --------------------------------------------------------------------------
-  public static calculateCPP(buffer: Float32Array): number {
+  public static calculateCPP(buffer: Float32Array, sampleRate = 16000): number {
     const N = 1024;
-    if (buffer.length < N) return 12.0;
+    if (buffer.length < N) return 0.0;
 
-    // Real log magnitude spectrum approximation
-    const logMag = new Float32Array(N / 2);
-    for (let k = 0; k < N / 2; k++) {
+    // Check RMS energy
+    let energy = 0;
+    for (let i = 0; i < N; i++) {
+      energy += buffer[i] * buffer[i];
+    }
+    const rms = Math.sqrt(energy / N);
+    if (rms < 1e-4) return 0.0;
+
+    // 1. Windowed Log Magnitude Spectrum
+    const M = N / 2;
+    const logMag = new Float32Array(M);
+    for (let k = 0; k < M; k++) {
       let real = 0;
       let imag = 0;
       const angleStep = (2 * Math.PI * k) / N;
-      for (let n = 0; n < N; n += 2) { // 2x stride for high-speed calculation
-        const x = buffer[n];
+      for (let n = 0; n < N; n += 2) {
+        const w = 0.5 * (1.0 - Math.cos((2 * Math.PI * n) / N));
+        const x = buffer[n] * w;
         real += x * Math.cos(angleStep * n);
         imag -= x * Math.sin(angleStep * n);
       }
       const power = real * real + imag * imag;
-      logMag[k] = Math.log(Math.max(1e-8, power));
+      logMag[k] = Math.log(Math.max(1e-10, power));
     }
 
-    // Quefrency range corresponding to 65 - 500 Hz
-    const qMin = Math.floor(16000 / 500); // ~32
-    const qMax = Math.floor(16000 / 65);  // ~246
+    // 2. Real Inverse Transform to Quefrency Domain
+    const qMin = Math.max(1, Math.floor(sampleRate / 500));
+    const qMax = Math.min(M - 1, Math.floor(sampleRate / 65));
+
+    if (qMin >= qMax) return 0.0;
 
     let maxCepstrum = -Infinity;
-    let meanCepstrum = 0;
+    let sumCepstrum = 0;
     let count = 0;
 
-    for (let q = qMin; q < Math.min(logMag.length, qMax); q++) {
-      const val = Math.abs(logMag[q]);
-      if (val > maxCepstrum) maxCepstrum = val;
-      meanCepstrum += val;
+    for (let q = qMin; q <= qMax; q++) {
+      let c_q = 0;
+      const qAngle = (2 * Math.PI * q) / N;
+      for (let k = 0; k < M; k += 2) {
+        c_q += logMag[k] * Math.cos(k * qAngle);
+      }
+      c_q /= (M / 2);
+
+      if (c_q > maxCepstrum) maxCepstrum = c_q;
+      sumCepstrum += c_q;
       count++;
     }
 
-    if (count === 0) return 12.0;
-    const baseline = meanCepstrum / count;
-    const cpp = Math.max(0, Math.min(25.0, (maxCepstrum - baseline) * 2.2));
-    return cpp;
+    if (count === 0 || maxCepstrum <= -Infinity) return 0.0;
+    const baseline = sumCepstrum / count;
+    const prominence = Math.max(0, maxCepstrum - baseline);
+    const cppDb = Math.min(25.0, prominence * 2.2);
+    return Number(cppDb.toFixed(1));
   }
 
   // --------------------------------------------------------------------------

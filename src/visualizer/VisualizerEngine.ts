@@ -299,6 +299,7 @@ export class VisualizerEngine {
       const h = window.innerHeight;
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       this.renderer.setSize(w, h);
       this.composer.setSize(w, h);
       this.volumetricChladni.resize(w, h);
@@ -319,13 +320,10 @@ export class VisualizerEngine {
       this.lastFpsTime = time;
     }
 
-    // Audio DSP extraction
-    const bands = this.audioEngine.getCurrentBands();
+    const bands = this.audioEngine.getAudioBands();
     const shockwaves = this.audioEngine.getActiveShockwaves();
     const fundamentalHz = this.audioEngine.getFundamentalFrequency();
     const rawFft = this.audioEngine.getRawFrequencyData();
-
-    // Stream into GPU history texture
     const historyHead = this.historyTexture.pushSpectralFrame(rawFft, bands.subBass, fundamentalHz);
 
     // Vector uniforms
@@ -343,7 +341,9 @@ export class VisualizerEngine {
     this.sonicRibbon.update(time, historyHead, vBands03, vBands45);
     this.centralEmitter.update(time, bands.subBass, shockwaves.length > 0 ? shockwaves[0].strength : 0);
     this.volumetricChladni.update(time, vBands03, vBands45, fundamentalHz, this.camera);
-    this.gpuAcousticParticles.update(time, dt, vBands03, vBands45, vShockwaves, fundamentalHz);
+    if (this.currentStyle === 'particles' || this.currentStyle === 'cymatics') {
+      this.gpuAcousticParticles.update(time, dt, vBands03, vBands45, vShockwaves, fundamentalHz);
+    }
     this.chamberEnclosure.update(time, dt, vBands03, vBands45, this.camera);
     this.bioAcousticResonator.update(time, dt, this.camera, vBands03);
     this.acousticTherapyLab.update(time, dt, this.camera, vBands03);
@@ -363,19 +363,24 @@ export class VisualizerEngine {
       this.recoilVelocity.addScaledVector(viewDir, kickMag * 22.0);
     }
 
-    // Critically Damped Harmonic Return (zeta = 1.0, omega = 14 rad/s)
+    // Exact Analytical Critically Damped Harmonic Return (zeta = 1.0, omega = 14 rad/s)
     const omega = 14.0;
-    const springForceX = -omega * omega * this.recoilOffset.x - 2.0 * omega * this.recoilVelocity.x;
-    const springForceY = -omega * omega * this.recoilOffset.y - 2.0 * omega * this.recoilVelocity.y;
-    const springForceZ = -omega * omega * this.recoilOffset.z - 2.0 * omega * this.recoilVelocity.z;
+    const expTerm = Math.exp(-omega * dt);
 
-    this.recoilVelocity.x += springForceX * dt;
-    this.recoilVelocity.y += springForceY * dt;
-    this.recoilVelocity.z += springForceZ * dt;
+    const updateAxis = (pos: number, vel: number): [number, number] => {
+      const c1 = pos;
+      const c2 = vel + omega * pos;
+      const newPos = (c1 + c2 * dt) * expTerm;
+      const newVel = (vel - omega * c2 * dt) * expTerm;
+      return [newPos, newVel];
+    };
 
-    this.recoilOffset.x += this.recoilVelocity.x * dt;
-    this.recoilOffset.y += this.recoilVelocity.y * dt;
-    this.recoilOffset.z += this.recoilVelocity.z * dt;
+    const [nx, vx] = updateAxis(this.recoilOffset.x, this.recoilVelocity.x);
+    const [ny, vy] = updateAxis(this.recoilOffset.y, this.recoilVelocity.y);
+    const [nz, vz] = updateAxis(this.recoilOffset.z, this.recoilVelocity.z);
+
+    this.recoilOffset.set(nx, ny, nz);
+    this.recoilVelocity.set(vx, vy, vz);
 
     // Camera handling
     if (this.cameraMode === 'autocam') {

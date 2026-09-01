@@ -76,10 +76,12 @@ void main() {
     vSynapseActive = aTargetMtocDir.w;
 
     vec3 localPos = position;
-    vec3 baseDir = normalize(position);
+    float pLen = length(position);
+    vec3 baseDir = pLen > 1e-5 ? position / pLen : vec3(0.0, 1.0, 0.0);
 
-    vec3 mtocDir = aTargetMtocDir.xyz;
-    float mtocAlignment = dot(baseDir, mtocDir);
+    mat3 instNormMat = mat3(instanceMatrix);
+    vec3 worldBaseDir = normalize(instNormMat * baseDir);
+    float mtocAlignment = dot(worldBaseDir, aTargetMtocDir.xyz);
     vMtocPolarization = mtocAlignment;
 
     float speed = length(aInstanceVelocity.xyz);
@@ -87,18 +89,14 @@ void main() {
     float pseudopod = noise * uAmoeboidDeformScale;
 
     if (vSynapseActive > 0.05) {
-        if (mtocAlignment > 0.4) {
-            localPos -= mtocDir * (0.08 * vSynapseActive);
-        } else if (mtocAlignment < -0.4) {
-            localPos -= mtocDir * (0.15 * vSynapseActive);
-        }
+        float deform = (mtocAlignment > 0.4) ? -0.08 : ((mtocAlignment < -0.4) ? 0.15 : 0.0);
+        localPos += baseDir * (deform * vSynapseActive);
     }
 
     vec3 displacedPos = localPos + baseDir * pseudopod;
     vec4 worldPos = instanceMatrix * vec4(displacedPos, 1.0);
     vWorldPosition = worldPos.xyz;
 
-    mat3 instNormMat = mat3(instanceMatrix);
     vWorldNormal = normalize(instNormMat * normal);
 
     gl_Position = projectionMatrix * viewMatrix * worldPos;
@@ -166,7 +164,7 @@ void main() {
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
 
-    gl_PointSize = (3.5 + sin(t * 3.14159265) * 4.0) * (90.0 / -mvPosition.z);
+    gl_PointSize = (3.5 + sin(t * 3.14159265) * 4.0) * (90.0 / max(-mvPosition.z, 0.001));
 }
 `;
 

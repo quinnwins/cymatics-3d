@@ -1,4 +1,5 @@
 /**
+ * AudioEngine.ts
  * Master Unified Audio Engine
  * Coordinates Web Audio Context, AnalyserNode, Tone Synthesizer, Demo Tracks, Mic Stream, File Player, Voice Biometrics, and Sound Medicine.
  */
@@ -36,11 +37,28 @@ export class AudioEngine {
   private isMuted = false;
   private masterVolume = 0.8;
   private activeBlobUrl: string | null = null;
+  private loadedFileName: string | null = null;
+  private listeners: Set<() => void> = new Set();
 
   constructor() {
     this.audioElement = new Audio();
     this.audioElement.crossOrigin = 'anonymous';
     this.audioElement.loop = true;
+  }
+
+  public subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  public notifyChange(): void {
+    this.listeners.forEach(l => {
+      try {
+        l();
+      } catch (e) {
+        console.error('Error in AudioEngine subscriber', e);
+      }
+    });
   }
 
   public async initialize(): Promise<void> {
@@ -54,6 +72,9 @@ export class AudioEngine {
     try {
       const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioContextClass();
+      if (this.ctx.state === 'suspended') {
+        await this.ctx.resume();
+      }
 
       this.analyserNode = this.ctx.createAnalyser();
       this.analyserNode.fftSize = 4096;
@@ -86,62 +107,101 @@ export class AudioEngine {
     this.demoGenerator?.stop();
     this.soundMedicine?.stop();
     this.audioElement.pause();
-    this.stopMicrophone();
+    this.stopMicrophoneInternal();
+    this.voiceBiometrics?.stopMicrophone();
 
     this.currentMode = mode;
+    this.notifyChange();
   }
 
   public getMode(): AudioInputMode {
     return this.currentMode;
   }
 
+  public getLoadedFileName(): string | null {
+    return this.currentMode === 'file-upload' ? this.loadedFileName : null;
+  }
+
+  public isMicrophoneActive(): boolean {
+    return this.currentMode === 'microphone' && this.micStream !== null;
+  }
+
+  public getActiveTrackId(): string {
+    return this.demoGenerator?.getActiveTrackId() || 'cosmic-odyssey';
+  }
+
   // --- Demo Track Playback ---
-  public async playDemoTrack(trackId = 'cosmic-odyssey'): Promise<void> {
+  public async playDemoTrack(trackId?: string): Promise<void> {
     await this.initialize();
     this.setMode('demo-track');
+    this.loadedFileName = null;
     this.demoGenerator?.play(trackId);
+    this.notifyChange();
   }
 
   public stopDemoTrack(): void {
     this.demoGenerator?.stop();
+    this.notifyChange();
   }
 
-  // --- Frequency Lab Playback ---
-  public async playFrequency(freq: number): Promise<void> {
+  // --- Frequency Synthesizer Control ---
+  public async startFrequencyTone(freqHz: number): Promise<void> {
     await this.initialize();
     this.setMode('frequency-lab');
-    if (this.synthesizer) {
-      this.synthesizer.setFrequency(freq);
-      this.synthesizer.start(this.masterVolume);
-    }
+    this.loadedFileName = null;
+    this.synthesizer?.setFrequency(freqHz);
+    this.synthesizer?.start(this.masterVolume);
+    this.notifyChange();
   }
 
-  public async startFrequencyTone(freq: number): Promise<void> {
-    await this.playFrequency(freq);
+  public async playFrequency(freqHz: number): Promise<void> {
+    await this.startFrequencyTone(freqHz);
   }
 
-  public async setTherapyAudioState(
+  public setTherapyAudioState(
     freqHz: number,
     phaseDeg: number,
     power: number,
     isAntiPhase: boolean,
     isHeterodyne: boolean
-  ): Promise<void> {
-    await this.initialize();
-    this.setMode('frequency-lab');
-    if (this.synthesizer) {
-      if (!this.synthesizer.getIsPlaying()) {
-        this.synthesizer.start(this.masterVolume);
-      }
-      this.synthesizer.setTherapyAudioState(freqHz, phaseDeg, power, isAntiPhase, isHeterodyne);
+  ): void {
+    if (this.currentMode !== 'frequency-lab') {
+      this.setMode('frequency-lab');
     }
+    this.synthesizer?.setFrequency(freqHz);
+    this.synthesizer?.setTherapyAudioState(freqHz, phaseDeg, power, isAntiPhase, isHeterodyne);
+    if (!this.synthesizer?.getIsPlaying() && power > 0.01) {
+      this.synthesizer?.start(this.masterVolume * power);
+    }
+    this.notifyChange();
   }
 
   public stopFrequency(): void {
     this.synthesizer?.stop();
+    this.notifyChange();
   }
 
-  // --- File Upload Playback ---
+  // --- Acoustic Entrainment & Harmonic Resonance Playback ---
+  public async playPersonalizedSoundMedicine(
+    prescription: VocalBiomarkerReport['soundMedicinePrescription']
+  ): Promise<void> {
+    await this.initialize();
+    this.setMode('sound-medicine');
+    this.loadedFileName = null;
+    this.soundMedicine?.playPrescription(prescription, this.masterVolume);
+    this.notifyChange();
+  }
+
+  public stopPersonalizedSoundMedicine(): void {
+    this.soundMedicine?.stop();
+    this.notifyChange();
+  }
+
+  public isPersonalizedSoundMedicinePlaying(): boolean {
+    return this.soundMedicine?.getIsPlaying() ?? false;
+  }
+
+  // --- Custom Audio File Upload ---
   public async loadAudioFile(file: File): Promise<string> {
     await this.initialize();
     this.setMode('file-upload');
@@ -149,62 +209,79 @@ export class AudioEngine {
     if (this.activeBlobUrl) {
       URL.revokeObjectURL(this.activeBlobUrl);
     }
+
     this.activeBlobUrl = URL.createObjectURL(file);
+    this.loadedFileName = file.name;
     this.audioElement.src = this.activeBlobUrl;
 
-    if (!this.audioSourceNode && this.ctx && this.masterGain) {
+    if (this.ctx && !this.audioSourceNode) {
       this.audioSourceNode = this.ctx.createMediaElementSource(this.audioElement);
-      this.audioSourceNode.connect(this.masterGain);
+      if (this.masterGain) {
+        this.audioSourceNode.connect(this.masterGain);
+      }
     }
 
     await this.audioElement.play();
+    this.notifyChange();
     return file.name;
   }
 
   public togglePlayPause(): boolean {
-    if (this.currentMode === 'frequency-lab') {
-      if (this.synthesizer?.getIsPlaying()) {
-        this.synthesizer.stop();
-        return false;
-      } else {
-        this.synthesizer?.start(this.masterVolume);
-        return true;
-      }
-    } else if (this.currentMode === 'demo-track') {
-      if (this.demoGenerator?.getIsRunning()) {
+    if (this.currentMode === 'demo-track') {
+      if (this.demoGenerator?.getIsPlaying()) {
         this.demoGenerator.stop();
+        this.notifyChange();
         return false;
       } else {
-        const activeTrack = this.demoGenerator?.getActiveTrackId() || 'cosmic-odyssey';
-        this.demoGenerator?.play(activeTrack);
+        this.demoGenerator?.play();
+        this.notifyChange();
         return true;
       }
-    } else if (this.currentMode === 'file-upload') {
+    }
+
+    if (this.currentMode === 'file-upload') {
       if (this.audioElement.paused) {
         this.audioElement.play();
+        this.notifyChange();
         return true;
       } else {
         this.audioElement.pause();
+        this.notifyChange();
         return false;
       }
     }
-    return false;
-  }
 
-  public getIsPlaying(): boolean {
-    if (this.currentMode === 'frequency-lab') return this.synthesizer?.getIsPlaying() ?? false;
-    if (this.currentMode === 'demo-track') return this.demoGenerator?.getIsRunning() ?? false;
-    if (this.currentMode === 'file-upload') return !this.audioElement.paused;
-    if (this.currentMode === 'microphone') return this.micStream !== null;
+    if (this.currentMode === 'frequency-lab') {
+      if (this.synthesizer?.getIsPlaying()) {
+        this.synthesizer.stop();
+        this.notifyChange();
+        return false;
+      } else {
+        this.synthesizer?.start(this.masterVolume);
+        this.notifyChange();
+        return true;
+      }
+    }
+
+    if (this.currentMode === 'sound-medicine') {
+      if (this.soundMedicine?.getIsPlaying()) {
+        this.soundMedicine.stop();
+        this.notifyChange();
+        return false;
+      }
+    }
+
     return false;
   }
 
   // --- Live Microphone Input ---
   public async startMicrophone(): Promise<boolean> {
     await this.initialize();
-    this.setMode('microphone');
+    if (!this.ctx || !this.analyserNode) return false;
 
     try {
+      this.setMode('microphone');
+      this.loadedFileName = null;
       this.micStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: false,
@@ -213,11 +290,11 @@ export class AudioEngine {
         },
       });
 
-      if (this.ctx && this.analyserNode) {
-        this.micSourceNode = this.ctx.createMediaStreamSource(this.micStream);
-        // Connect mic ONLY to analyserNode, NOT to masterGain/destination, to prevent feedback loops!
-        this.micSourceNode.connect(this.analyserNode);
-      }
+      this.micSourceNode = this.ctx.createMediaStreamSource(this.micStream);
+      // NOTE: Connect mic exclusively to analyserNode to prevent feedback howl
+      this.micSourceNode.connect(this.analyserNode);
+
+      this.notifyChange();
       return true;
     } catch (err) {
       console.warn('Microphone permission denied or unavailable', err);
@@ -226,29 +303,51 @@ export class AudioEngine {
   }
 
   public stopMicrophone(): void {
-    if (this.micStream) {
-      this.micStream.getTracks().forEach(track => track.stop());
-      this.micStream = null;
-    }
+    this.stopMicrophoneInternal();
+    this.notifyChange();
+  }
+
+  private stopMicrophoneInternal(): void {
     if (this.micSourceNode) {
       this.micSourceNode.disconnect();
       this.micSourceNode = null;
     }
+    if (this.micStream) {
+      this.micStream.getTracks().forEach((t) => t.stop());
+      this.micStream = null;
+    }
   }
 
-  // --- Master Volume & Mute ---
+  // --- Voice Biometrics Live Analysis ---
+  public async startVoiceBiometrics(): Promise<boolean> {
+    await this.initialize();
+    if (!this.voiceBiometrics) return false;
+
+    this.setMode('microphone');
+    this.loadedFileName = null;
+    const ok = await this.voiceBiometrics.startMicrophone();
+    this.notifyChange();
+    return ok;
+  }
+
+  public stopVoiceBiometrics(): void {
+    this.voiceBiometrics?.stopMicrophone();
+    this.notifyChange();
+  }
+
+  // --- Global Audio Properties ---
   public setMasterVolume(vol: number): void {
     this.masterVolume = Math.max(0, Math.min(1, vol));
     if (this.masterGain && this.ctx) {
-      const now = this.ctx.currentTime;
-      this.masterGain.gain.cancelScheduledValues(now);
-      this.masterGain.gain.setTargetAtTime(this.isMuted ? 0 : this.masterVolume, now, 0.05);
+      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.masterVolume, this.ctx.currentTime);
     }
   }
 
   public toggleMute(): boolean {
     this.isMuted = !this.isMuted;
     this.setMasterVolume(this.masterVolume);
+    this.notifyChange();
     return this.isMuted;
   }
 
@@ -260,17 +359,23 @@ export class AudioEngine {
     return this.isMuted;
   }
 
-  // --- Personalized Sound Medicine Playback ---
-  public async playPersonalizedSoundMedicine(
-    prescription: VocalBiomarkerReport['soundMedicinePrescription']
-  ): Promise<void> {
-    await this.initialize();
-    this.setMode('sound-medicine');
-    this.soundMedicine?.playPrescription(prescription, this.masterVolume);
-  }
-
-  public stopPersonalizedSoundMedicine(): void {
-    this.soundMedicine?.stop();
+  public getIsPlaying(): boolean {
+    if (this.currentMode === 'demo-track') {
+      return this.demoGenerator?.getIsPlaying() ?? false;
+    }
+    if (this.currentMode === 'file-upload') {
+      return !this.audioElement.paused;
+    }
+    if (this.currentMode === 'frequency-lab') {
+      return this.synthesizer?.getIsPlaying() ?? false;
+    }
+    if (this.currentMode === 'sound-medicine') {
+      return this.soundMedicine?.getIsPlaying() ?? false;
+    }
+    if (this.currentMode === 'microphone') {
+      return this.micStream !== null;
+    }
+    return false;
   }
 
   // --- Per-Frame Update Hook ---
@@ -281,6 +386,10 @@ export class AudioEngine {
 
   public getCurrentBands(): AudioBands {
     return this.analyzer ? this.analyzer.currentBands : { subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, high: 0, rms: 0 };
+  }
+
+  public getAudioBands(): AudioBands {
+    return this.getCurrentBands();
   }
 
   public getActiveShockwaves(): ShockwaveEvent[] {

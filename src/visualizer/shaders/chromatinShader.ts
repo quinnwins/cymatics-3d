@@ -74,14 +74,14 @@ float snoise(vec3 v) {
     return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
 }
 
-// 8-Fold Nuclear Pore Complex Ring Lattice
+/// 8-Fold Nuclear Pore Complex Ring Lattice
 float evalNuclearPoreLattice(vec2 uv) {
     vec2 grid = fract(uv * 14.0) - 0.5;
     float dist = length(grid);
-    float angle = atan(grid.y, grid.x);
+    float angle = (abs(grid.x) < 1e-6 && abs(grid.y) < 1e-6) ? 0.0 : atan(grid.y, grid.x);
     float eightFold = cos(8.0 * angle);
-    float poreRing = smoothstep(0.35, 0.28, dist) * (1.0 - smoothstep(0.18, 0.12, dist));
-    float porePlugs = smoothstep(0.12, 0.0, dist) * (0.5 + 0.5 * eightFold);
+    float poreRing = (1.0 - smoothstep(0.28, 0.35, dist)) * smoothstep(0.12, 0.18, dist);
+    float porePlugs = (1.0 - smoothstep(0.0, 0.12, dist)) * (0.5 + 0.5 * eightFold);
     return poreRing + porePlugs * 1.5;
 }
 
@@ -142,7 +142,7 @@ void main() {
 
     // Nuclear Lamina Fibrous Mesh (Intermediate Filaments)
     vec2 grid = fract(vUv * 48.0) - 0.5;
-    float filament = smoothstep(0.08, 0.02, abs(grid.x) * abs(grid.y));
+    float filament = 1.0 - smoothstep(0.02, 0.08, abs(grid.x) * abs(grid.y));
     
     // Color blend: Heterochromatin (Locked) -> Euchromatin (Active Unfurled)
     float localActive = clamp(uUnfurlingRatio + vAcousticStrain * 0.35, 0.0, 1.0);
@@ -158,10 +158,9 @@ void main() {
     float spec = pow(max(dot(N, H), 0.0), 32.0) * 0.75;
 
     vec3 rawColor = baseSurface * (diff * 0.7 + 0.3) + coreGlow * (0.35 + 0.65 * localActive) + spec + fresnel * uLaminaMeshColor * 1.5;
-    vec3 finalColor = rawColor / (rawColor + vec3(1.0)) * 1.35; // Reinhard tone map
+    vec3 finalColor = rawColor / (rawColor + vec3(1.0)) * 1.4;
 
-    float alpha = clamp(0.72 + fresnel * 0.28 - vPoreMask * 0.25, 0.1, 0.95);
-    gl_FragColor = vec4(finalColor, alpha);
+    gl_FragColor = vec4(finalColor, 0.92);
 }
 `;
 
@@ -236,8 +235,9 @@ varying float vNormalizedAge;
 varying vec3  vParticleColor;
 
 void main() {
-    float age = mod(uTime - aBirthTime, uParticleLifetime);
-    vNormalizedAge = clamp(age / uParticleLifetime, 0.0, 1.0);
+    float life = max(uParticleLifetime, 0.001);
+    float age = mod(uTime - aBirthTime, life);
+    vNormalizedAge = clamp(age / life, 0.0, 1.0);
 
     vec3 currentPos = position + aInitialVelocity * (age * 1.2) + (aOriginPore - position) * pow(vNormalizedAge, 2.0);
     gl_PointSize = (1.0 - vNormalizedAge) * (14.0 + uAcousticIntensity * 10.0);
@@ -258,7 +258,7 @@ void main() {
     float dist = length(coord);
     if (dist > 0.5) discard;
 
-    float core = smoothstep(0.5, 0.0, dist);
+    float core = 1.0 - smoothstep(0.0, 0.5, dist);
     float glow = pow(core, 2.0);
 
     vec3 finalColor = vParticleColor * (glow * 2.2 + core);

@@ -19,7 +19,7 @@ varying float vNodalValue;
 void main() {
     vec3 basePos = position;
     float r = length(basePos);
-    vec3 n = normalize(basePos);
+    vec3 n = r > 1e-5 ? basePos / r : vec3(0.0, 1.0, 0.0);
     vLocalPosition = basePos;
 
     // Evaluate exact cymatics & spherical harmonics modal displacement
@@ -46,8 +46,8 @@ void main() {
     float dispY = evaluateCymaticsDisplacement(pY, uBandEnergies, uHighEnergies, uWavenumber, uTime) * uHarmonicMultiplier;
 
     vec3 pDisplaced = basePos + n * disp;
-    vec3 pXDisplaced = pX + normalize(pX) * dispX;
-    vec3 pYDisplaced = pY + normalize(pY) * dispY;
+    vec3 pXDisplaced = pX + (length(pX) > 1e-5 ? normalize(pX) : vec3(0.0, 1.0, 0.0)) * dispX;
+    vec3 pYDisplaced = pY + (length(pY) > 1e-5 ? normalize(pY) : vec3(0.0, 1.0, 0.0)) * dispY;
 
     vec3 calcNormal = normalize(cross(pXDisplaced - pDisplaced, pYDisplaced - pDisplaced));
 
@@ -85,7 +85,7 @@ void main() {
     float fresnel = pow(1.0 - NdotV, 3.0);
 
     // Nodal line luminescence (standing wave nodal lines glow like sacred geometry)
-    float nodalLine = smoothstep(0.06, 0.0, vNodalValue);
+    float nodalLine = 1.0 - smoothstep(0.0, 0.06, vNodalValue);
 
     // Iridescent thin-film interference in OKLab space
     float phase = dot(vLocalPosition, vec3(1.0, 2.0, 3.0)) * 0.4 + vDisplacement * 6.0 - uTime * 0.15;

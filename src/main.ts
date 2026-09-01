@@ -14,7 +14,7 @@ import { NobelDiscoveryControls } from './ui/NobelDiscoveryControls';
 import { NobelTelemetryHUD } from './ui/NobelTelemetryHUD';
 import { PresentationTourHUD } from './ui/PresentationTourHUD';
 import { PresentationTourEngine } from './visualizer/PresentationTourEngine';
-import { ClinicalReportExporter } from './ui/ClinicalReportExporter';
+import { AcousticDataExporter } from './ui/AcousticDataExporter';
 import { SpectrumHUD } from './ui/SpectrumHUD';
 import { PhysicsDrawer } from './ui/PhysicsDrawer';
 
@@ -72,7 +72,7 @@ class App {
       this.presentationTourHUD,
       mode => {
         this.header.setMode(mode);
-        this.switchMode(mode);
+        this.switchMode(mode, true);
       }
     );
 
@@ -81,7 +81,7 @@ class App {
     this.musicLibraryCard = new MusicLibraryCard(this.audioEngine, () => {
       this.audioControlsBar.render();
     });
-    this.frequencyLabControls = new FrequencyLabControls(this.audioEngine);
+    this.frequencyLabControls = new FrequencyLabControls(this.audioEngine, mode => this.switchMode(mode));
     this.modalSweeperControls = new ModalSweeperControls(
       this.audioEngine,
       this.visualizer,
@@ -92,10 +92,11 @@ class App {
         this.visualizer.gpuAcousticParticles.setChamberGeometry(state.geometry);
         this.visualizer.gpuAcousticParticles.setChladniMode(state.trappingMode === 'nodes' ? 'normal' : 'inverse');
         this.visualizer.chamberEnclosure.setChamberType(state.geometry);
-      }
+      },
+      mode => this.switchMode(mode)
     );
-    this.bioAcousticControls = new BioAcousticControls(this.audioEngine, this.visualizer);
-    this.therapyLabControls = new TherapyLabControls(this.audioEngine, this.visualizer);
+    this.bioAcousticControls = new BioAcousticControls(this.audioEngine, this.visualizer, mode => this.switchMode(mode));
+    this.therapyLabControls = new TherapyLabControls(this.audioEngine, this.visualizer, mode => this.switchMode(mode));
     this.voiceBiometricsControls = new VoiceBiometricsControls(this.audioEngine, this.visualizer);
     this.voiceTelemetryHUD = new VoiceTelemetryHUD(this.audioEngine);
 
@@ -118,7 +119,8 @@ class App {
           this.audioEngine.playFrequency(145);
         }
       },
-      () => this.exportClinicalDossier()
+      () => this.exportClinicalDossier(),
+      mode => this.switchMode(mode)
     );
     this.nobelTelemetryHUD = new NobelTelemetryHUD(this.rightSidebarRoot);
 
@@ -128,7 +130,7 @@ class App {
     // Periodic HUD update timer (10 Hz for smooth live metrics)
     setInterval(() => {
       if (this.currentMode === 'voice') {
-        this.voiceTelemetryHUD.render();
+        this.voiceTelemetryHUD.update();
       } else if (this.currentMode === 'nobel') {
         const frontier = this.visualizer.nobelDiscoveryLab.state.frontierId;
         const telemetry = this.visualizer.nobelDiscoveryLab.getTelemetry();
@@ -179,17 +181,46 @@ class App {
   }
 
   private exportClinicalDossier(): void {
-    const telemetry = this.visualizer.nobelDiscoveryLab.getTelemetry();
+    const chamberState = this.modalSweeperControls.getState();
     const vocalReport = this.audioEngine.voiceBiometrics?.update();
-    const record = ClinicalReportExporter.generateClinicalRecord(telemetry, vocalReport);
-    const markdown = ClinicalReportExporter.generateMarkdownDossier(record);
+    const biophysTelemetry = this.visualizer.nobelDiscoveryLab.getTelemetry();
+    const geomMap: Record<string, 'rectangular' | 'cylindrical' | 'spherical'> = {
+      cube: 'rectangular',
+      cylinder: 'cylindrical',
+      sphere: 'spherical',
+    };
+    const record = AcousticDataExporter.generateRecord(
+      {
+        geometry: geomMap[chamberState.geometry] || 'rectangular',
+        modalIndices: { n: chamberState.n, m: chamberState.m, l: chamberState.l },
+        resonantFrequencyHz: chamberState.calculatedEigenfrequency,
+        speedOfSoundMs: 343.0,
+        mediumDensityKgM3: 1.204,
+        acousticPower: 1.0,
+      },
+      {
+        gorkovPotentialPeak: 0.25,
+        activeParticles: 262144,
+        trappingMode: chamberState.trappingMode === 'nodes' ? 'nodes' : 'antinodes',
+      },
+      vocalReport,
+      biophysTelemetry
+    );
+    const markdown = AcousticDataExporter.generateMarkdownReport(record);
 
-    ClinicalReportExporter.downloadMarkdown(markdown, 'SOUNDFORM3D_CLINICAL_TRIAL_DOSSIER.md');
-    ClinicalReportExporter.downloadJson(record, 'SOUNDFORM3D_CLINICAL_TRIAL_DATA.json');
+    AcousticDataExporter.triggerDownload('SOUNDFORM3D_ACOUSTIC_SIMULATION.md', markdown, 'text/markdown');
+    AcousticDataExporter.triggerDownload('SOUNDFORM3D_ACOUSTIC_SIMULATION.json', JSON.stringify(record, null, 2), 'application/json');
   }
 
-  private switchMode(mode: EngineMode): void {
+  private switchMode(mode: EngineMode, fromTour = false): void {
+    if (!fromTour && this.presentationTourEngine?.getIsRunning()) {
+      this.presentationTourEngine.stopTour();
+    }
+
     this.currentMode = mode;
+    if (this.header) {
+      this.header.setMode(mode);
+    }
 
     // Reset audio and lab specific states when changing modes
     if (mode !== 'voice') {
@@ -286,23 +317,22 @@ class App {
 
   private showWelcomePrompt(): void {
     this.centerPromptRoot.innerHTML = `
-      <div id="welcome-card" class="glass-panel-accent p-6 md:p-8 rounded-3xl max-w-md text-center flex flex-col items-center gap-4 cursor-pointer transform hover:scale-105 transition-all shadow-2xl pointer-events-auto">
-        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-accent-cyan via-accent-blue to-accent-magenta flex items-center justify-center shadow-lg shadow-accent-cyan/30 emitter-glow">
-          <svg class="w-8 h-8 text-white ml-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/>
+      <div id="welcome-card" class="glass-panel p-6 md:p-8 rounded-3xl max-w-md text-center flex flex-col items-center gap-4 cursor-pointer hover:border-cyan-400/40 transition-all shadow-2xl pointer-events-auto border border-white/10">
+        <div class="w-14 h-14 rounded-2xl bg-cyan-500 text-slate-950 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+          <svg class="w-7 h-7 ml-0.5" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <polygon points="6 4 20 12 6 20 6 4"/>
           </svg>
         </div>
         <div class="flex flex-col gap-1">
-          <h2 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-white via-cyan-100 to-cyan-300 bg-clip-text text-transparent">
+          <h2 class="text-xl md:text-2xl font-bold text-white tracking-tight">
             SoundForm 3D
           </h2>
-          <p class="text-xs text-gray-300">
-            Click anywhere to activate audio and explore 3D Acoustic Wave Spacetime & Computational Mechanomedicine.
+          <p class="text-xs text-slate-300">
+            Click anywhere to start audio and explore 3D sound waves and biophysical acoustics.
           </p>
         </div>
-        <div class="text-[11px] text-accent-cyan font-semibold flex items-center gap-1.5 mt-1">
-          <span>✨</span>
-          <span>Tap to Enter Platform</span>
+        <div class="text-xs text-cyan-400 font-semibold mt-1">
+          Click to Start
         </div>
       </div>
     `;
@@ -312,7 +342,11 @@ class App {
       this.hasInteracted = true;
 
       await this.audioEngine.initialize();
-      this.audioEngine.playDemoTrack('cosmic-odyssey');
+      if (this.currentMode === 'music') {
+        this.audioEngine.playDemoTrack('cosmic-odyssey');
+      } else {
+        this.switchMode(this.currentMode);
+      }
 
       // Fade out welcome prompt
       const card = document.getElementById('welcome-card');

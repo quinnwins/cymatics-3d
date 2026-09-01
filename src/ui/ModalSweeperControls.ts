@@ -19,6 +19,7 @@
 import { AudioEngine } from '../audio/AudioEngine';
 import { VisualizerEngine } from '../visualizer/VisualizerEngine';
 import { WavePhysics, NoteInfo } from '../math/WavePhysics';
+import { EngineMode } from './Header';
 
 export type ChamberGeometry = 'cube' | 'cylinder' | 'sphere';
 export type TrappingMode = 'nodes' | 'antinodes';
@@ -53,6 +54,7 @@ export interface ModalSweeperState {
 export class ModalSweeperControls {
   private element: HTMLElement;
   private state: ModalSweeperState;
+  private onSwitchMode?: (mode: EngineMode) => void;
 
   public static readonly PRESETS: ModalPreset[] = [
     {
@@ -60,33 +62,33 @@ export class ModalSweeperControls {
       n: 1,
       m: 1,
       l: 1,
-      name: 'Fundamental Planes',
+      name: 'Crossing Planes',
       subtitle: '(1,1,1) Mode',
       geometry: 'cube',
-      description: 'Orthogonal nodal boundary planes partitioning chamber into 8 octants.',
-      badge: '✨ Ground State',
+      description: 'Simple orthogonal boundary planes dividing the chamber into 8 sections.',
+      badge: 'Base Shape',
     },
     {
       id: 'cubic-lattice',
       n: 2,
       m: 2,
       l: 1,
-      name: '3D Cubic Lattice',
+      name: '3D Grid Lattice',
       subtitle: '(2,2,1) Mode',
       geometry: 'cube',
-      description: 'Symmetric matrix of acoustic standing wave traps forming 3D levitation grid.',
-      badge: '📦 Stable Trap',
+      description: 'Balanced 3D matrix of standing wave traps for particle levitation.',
+      badge: 'Stable Grid',
     },
     {
       id: 'honeycomb-membrane',
       n: 3,
       m: 2,
       l: 2,
-      name: 'Honeycomb Matrix',
+      name: 'Honeycomb Trap',
       subtitle: '(3,2,2) Mode',
-      geometry: 'cylinder',
-      description: 'Interlocking cylindrical radial Bessel rings creating hex standing wave pattern.',
-      badge: '🧪 Fluid Mesh',
+      geometry: 'cube',
+      description: 'High-density standing nodal planes forming levitation cells.',
+      badge: 'Multi-Trap',
     },
     {
       id: 'architectural-cage',
@@ -96,19 +98,41 @@ export class ModalSweeperControls {
       name: 'Harmonic Cage',
       subtitle: '(4,3,2) Mode',
       geometry: 'cube',
-      description: 'High-order modal interference yielding multi-layer volumetric acoustic shells.',
-      badge: '🏛️ Harmonic Cage',
+      description: 'Dense architectural interference patterns throughout 3D space.',
+      badge: 'Complex',
     },
     {
-      id: 'resonant-crystal',
+      id: 'crystal-543',
       n: 5,
       m: 4,
       l: 3,
-      name: 'Resonant Crystal',
+      name: 'Crystal Resonator',
       subtitle: '(5,4,3) Mode',
+      geometry: 'cube',
+      description: 'Ultra high-frequency eigenmode with fine volumetric lattices.',
+      badge: 'Fine Grid',
+    },
+    {
+      id: 'cylinder-bessel',
+      n: 2,
+      m: 3,
+      l: 1,
+      name: 'Cylindrical Rings',
+      subtitle: 'Bessel Mode',
+      geometry: 'cylinder',
+      description: 'Concentric standing cylinders and radial nodal discs in 3D.',
+      badge: 'Radial',
+    },
+    {
+      id: 'spherical-harmonics',
+      n: 3,
+      m: 2,
+      l: 2,
+      name: 'Spherical Shells',
+      subtitle: 'Harmonic Shells',
       geometry: 'sphere',
-      description: 'Tessellated spherical harmonic eigenmode with dense crystalline facets.',
-      badge: '🔮 Polyhedral Gem',
+      description: 'Dense spherical harmonic standing waves with faceted crystal shapes.',
+      badge: 'Detailed',
     },
   ];
 
@@ -117,8 +141,10 @@ export class ModalSweeperControls {
   constructor(
     private audioEngine: AudioEngine,
     private visualizer?: VisualizerEngine,
-    private onStateChange?: (state: ModalSweeperState) => void
+    private onStateChange?: (state: ModalSweeperState) => void,
+    onSwitchMode?: (mode: EngineMode) => void
   ) {
+    this.onSwitchMode = onSwitchMode;
     this.element = document.createElement('div');
     this.element.className = 'w-full flex flex-col gap-2.5 transition-all duration-300';
     this.preventEventBleeding();
@@ -240,41 +266,47 @@ export class ModalSweeperControls {
     const isPlayingSynth = this.audioEngine.synthesizer?.getIsPlaying() ?? false;
 
     this.element.innerHTML = `
-      <div class="glass-panel w-full p-3.5 sm:p-4 rounded-3xl flex flex-col gap-3 shadow-2xl border-white/10 relative backdrop-blur-2xl text-white select-none">
+      <!-- Acoustic Studio Hub Switcher -->
+      <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-black/40 border border-white/10 text-xs mb-1">
+        <button id="hub-btn-modal" class="flex-1 py-1 px-1.5 rounded-xl font-bold text-center transition-all cursor-pointer glass-btn-active text-cyan-300 shadow-sm ring-1 ring-cyan-500/30">
+          💎 3D Cymatics
+        </button>
+        <button id="hub-btn-freq" class="flex-1 py-1 px-1.5 rounded-xl font-semibold text-center transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-white/5">
+          ⚡ Tone Lab
+        </button>
+      </div>
+
+      <div class="glass-panel w-full p-3.5 sm:p-4 rounded-3xl flex flex-col gap-3 shadow-xl border border-white/10 relative text-white select-none">
         
         <!-- Top Title & Header -->
         <div class="flex items-center justify-between gap-2 border-b border-white/10 pb-2.5">
           <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-accent-cyan via-accent-blue to-accent-magenta flex items-center justify-center shadow-lg shadow-accent-cyan/25 emitter-glow shrink-0">
-              <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                <path d="M2 17l10 5 10-5"/>
-                <path d="M2 12l10 5 10-5"/>
-              </svg>
+            <div class="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-cyan-400 text-sm font-mono font-bold shrink-0 shadow-sm">
+              λ
             </div>
             <div>
               <div class="flex items-center gap-1.5">
-                <h2 class="text-xs sm:text-sm font-bold bg-gradient-to-r from-white via-cyan-100 to-cyan-300 bg-clip-text text-transparent">
-                  3D Modal Sweeper
+                <h2 class="text-xs sm:text-sm font-bold text-white">
+                  3D Standing Waves
                 </h2>
-                <span class="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/40 shrink-0">
+                <span class="px-1.5 py-0.5 rounded-md text-[9px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 shrink-0">
                   (n, m, ℓ)
                 </span>
               </div>
               <p class="text-[10px] text-gray-400 font-medium">
-                Cavity Resonator & Nodal Trapping
+                Resonant chambers and acoustic particle traps
               </p>
             </div>
           </div>
         </div>
 
         <!-- Resonant Eigenfrequency Telemetry & Audition Pitch Pill -->
-        <div class="glass-panel p-2.5 rounded-2xl flex items-center justify-between gap-2 bg-black/40 border-accent-blue/30 shadow-inner">
+        <div class="glass-panel p-2.5 rounded-2xl flex items-center justify-between gap-2 bg-slate-900/80 border-slate-700/60 shadow-inner">
           <div class="flex flex-col">
             <span class="text-[8px] uppercase tracking-wider text-gray-400 font-semibold">Resonant Frequency</span>
             <div class="flex items-baseline gap-1.5 font-mono">
-              <span class="text-xs sm:text-sm font-bold text-accent-cyan">${calculatedEigenfrequency.toFixed(1)} Hz</span>
-              <span class="text-[11px] font-semibold text-accent-blue">${noteInfo.name}</span>
+              <span class="text-xs sm:text-sm font-bold text-cyan-400">${calculatedEigenfrequency.toFixed(1)} Hz</span>
+              <span class="text-[11px] font-semibold text-blue-400">${noteInfo.name}</span>
               <span class="text-[9px] text-gray-400">${noteInfo.cents >= 0 ? '+' : ''}${noteInfo.cents}c</span>
             </div>
           </div>
@@ -282,13 +314,12 @@ export class ModalSweeperControls {
           <!-- 1-Click Synth Audition Button -->
           <button
             id="btn-audition-eigenfrequency"
-            title="Audition resonant frequency through synthesizer"
+            title="Listen to resonant tone"
             class="glass-btn px-2.5 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-              isPlayingSynth ? 'glass-btn-active text-accent-cyan' : 'text-gray-200 hover:text-white'
+              isPlayingSynth ? 'glass-btn-active' : 'text-gray-200 hover:text-white'
             }"
           >
-            <span>${isPlayingSynth ? '🔊' : '🎵'}</span>
-            <span>${isPlayingSynth ? 'Playing' : 'Audition'}</span>
+            <span>${isPlayingSynth ? 'Stop Tone' : 'Play Tone'}</span>
           </button>
         </div>
 
@@ -299,10 +330,10 @@ export class ModalSweeperControls {
           <div class="glass-panel p-2.5 rounded-2xl flex flex-col gap-1.5 bg-white/5 border-white/5">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-accent-cyan"></span>
-                <span class="text-xs font-bold text-gray-200">Mode n (X / Radial)</span>
+                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                <span class="text-xs font-bold text-gray-200">Mode n (X Axis)</span>
               </div>
-              <span id="badge-mode-n" class="font-mono text-xs font-bold text-accent-cyan bg-accent-cyan/10 px-2 py-0.5 rounded-lg border border-accent-cyan/30">
+              <span id="badge-mode-n" class="font-mono text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-lg border border-cyan-500/30">
                 ${n}
               </span>
             </div>
@@ -318,16 +349,16 @@ export class ModalSweeperControls {
                 max="8"
                 step="1"
                 value="${n}"
-                class="flex-1 cursor-pointer h-2 accent-accent-cyan"
+                class="flex-1 cursor-pointer"
               />
               <button data-axis="n" data-dir="1" class="btn-step glass-btn w-7 h-7 rounded-lg text-xs font-bold text-gray-300 hover:text-white flex items-center justify-center cursor-pointer">
                 +
               </button>
             </div>
             <div class="flex justify-between text-[9px] text-gray-400 font-mono">
-              <span>1 (Plane)</span>
-              <span>4 (Octave)</span>
-              <span>8 (Micro-grid)</span>
+              <span>1 (Simple)</span>
+              <span>4 (Medium)</span>
+              <span>8 (Dense)</span>
             </div>
           </div>
 
@@ -335,10 +366,10 @@ export class ModalSweeperControls {
           <div class="glass-panel p-2.5 rounded-2xl flex flex-col gap-1.5 bg-white/5 border-white/5">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-accent-blue"></span>
-                <span class="text-xs font-bold text-gray-200">Mode m (Y / Azimuthal)</span>
+                <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                <span class="text-xs font-bold text-gray-200">Mode m (Y Axis)</span>
               </div>
-              <span id="badge-mode-m" class="font-mono text-xs font-bold text-accent-blue bg-accent-blue/10 px-2 py-0.5 rounded-lg border border-accent-blue/30">
+              <span id="badge-mode-m" class="font-mono text-xs font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-lg border border-blue-500/30">
                 ${m}
               </span>
             </div>
@@ -354,16 +385,16 @@ export class ModalSweeperControls {
                 max="8"
                 step="1"
                 value="${m}"
-                class="flex-1 cursor-pointer h-2 accent-accent-blue"
+                class="flex-1 cursor-pointer"
               />
               <button data-axis="m" data-dir="1" class="btn-step glass-btn w-7 h-7 rounded-lg text-xs font-bold text-gray-300 hover:text-white flex items-center justify-center cursor-pointer">
                 +
               </button>
             </div>
             <div class="flex justify-between text-[9px] text-gray-400 font-mono">
-              <span>1 (Plane)</span>
-              <span>4 (Octave)</span>
-              <span>8 (Micro-grid)</span>
+              <span>1 (Simple)</span>
+              <span>4 (Medium)</span>
+              <span>8 (Dense)</span>
             </div>
           </div>
 
@@ -371,10 +402,10 @@ export class ModalSweeperControls {
           <div class="glass-panel p-2.5 rounded-2xl flex flex-col gap-1.5 bg-white/5 border-white/5">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-accent-magenta"></span>
-                <span class="text-xs font-bold text-gray-200">Mode ℓ (Z / Depth)</span>
+                <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+                <span class="text-xs font-bold text-gray-200">Mode ℓ (Z Axis)</span>
               </div>
-              <span id="badge-mode-l" class="font-mono text-xs font-bold text-accent-magenta bg-accent-magenta/10 px-2 py-0.5 rounded-lg border border-accent-magenta/30">
+              <span id="badge-mode-l" class="font-mono text-xs font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-lg border border-purple-500/30">
                 ${l}
               </span>
             </div>
@@ -390,16 +421,16 @@ export class ModalSweeperControls {
                 max="8"
                 step="1"
                 value="${l}"
-                class="flex-1 cursor-pointer h-2 accent-accent-magenta"
+                class="flex-1 cursor-pointer"
               />
               <button data-axis="l" data-dir="1" class="btn-step glass-btn w-7 h-7 rounded-lg text-xs font-bold text-gray-300 hover:text-white flex items-center justify-center cursor-pointer">
                 +
               </button>
             </div>
             <div class="flex justify-between text-[9px] text-gray-400 font-mono">
-              <span>1 (Plane)</span>
-              <span>4 (Octave)</span>
-              <span>8 (Micro-grid)</span>
+              <span>1 (Simple)</span>
+              <span>4 (Medium)</span>
+              <span>8 (Dense)</span>
             </div>
           </div>
 
@@ -410,22 +441,21 @@ export class ModalSweeperControls {
           
           <!-- 1. Chamber Geometry Selector -->
           <div class="flex flex-col gap-1">
-            <span class="text-[10px] font-semibold text-gray-300">Chamber Geometry:</span>
-            <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-black/30 border-white/5">
+            <span class="text-[10px] font-semibold text-gray-300">Chamber Shape:</span>
+            <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border-white/5">
               ${[
-                { id: 'cube', icon: '📦', label: 'Cube' },
-                { id: 'cylinder', icon: '🧪', label: 'Cylinder' },
-                { id: 'sphere', icon: '🔮', label: 'Sphere' },
+                { id: 'cube', label: 'Cube' },
+                { id: 'cylinder', label: 'Cylinder' },
+                { id: 'sphere', label: 'Sphere' },
               ]
                 .map(
                   g => `
                 <button
                   data-geometry="${g.id}"
                   class="btn-geometry flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                    geometry === g.id ? 'glass-btn-active font-bold text-accent-cyan shadow-md' : 'text-gray-400 hover:text-gray-200'
+                    geometry === g.id ? 'glass-btn-active font-bold shadow-sm' : 'text-gray-400 hover:text-gray-200'
                   }"
                 >
-                  <span>${g.icon}</span>
                   <span>${g.label}</span>
                 </button>
               `
@@ -436,25 +466,23 @@ export class ModalSweeperControls {
 
           <!-- 2. Trapping Mode Switcher (Radiation Force Levitation) -->
           <div class="flex flex-col gap-1">
-            <span class="text-[10px] font-semibold text-gray-300">Radiation Force Trapping:</span>
-            <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-black/30 border-white/5">
+            <span class="text-[10px] font-semibold text-gray-300">Particle Trapping:</span>
+            <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border-white/5">
               <button
                 id="btn-trap-nodes"
                 class="flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  trappingMode === 'nodes' ? 'glass-btn-active font-bold text-accent-emerald shadow-md' : 'text-gray-400 hover:text-gray-200'
+                  trappingMode === 'nodes' ? 'glass-btn-active font-bold' : 'text-gray-400 hover:text-gray-200'
                 }"
               >
-                <span>⚪</span>
-                <span>Nodes (p = 0)</span>
+                <span>Nodes (Quiet Zones)</span>
               </button>
               <button
                 id="btn-trap-antinodes"
                 class="flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  trappingMode === 'antinodes' ? 'glass-btn-active font-bold text-accent-magenta shadow-md' : 'text-gray-400 hover:text-gray-200'
+                  trappingMode === 'antinodes' ? 'glass-btn-active font-bold' : 'text-gray-400 hover:text-gray-200'
                 }"
               >
-                <span>⚫</span>
-                <span>Antinodes</span>
+                <span>Antinodes (Active)</span>
               </button>
             </div>
           </div>
@@ -462,33 +490,31 @@ export class ModalSweeperControls {
           <!-- 3. Audio Resonance Coupling Switch -->
           <div class="flex flex-col gap-1">
             <div class="flex items-center justify-between">
-              <span class="text-[10px] font-semibold text-gray-300">Live FFT Coupling:</span>
-              <span class="text-[9px] font-mono text-gray-400 font-semibold">${audioCoupled ? 'Active' : 'Muted'}</span>
+              <span class="text-[10px] font-semibold text-gray-300">Sync to Music:</span>
+              <span class="text-[9px] font-mono text-gray-400 font-semibold">${audioCoupled ? 'Active' : 'Off'}</span>
             </div>
             <button
               id="btn-toggle-coupling"
               class="w-full py-1.5 px-3 rounded-2xl text-xs font-semibold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
                 audioCoupled
-                  ? 'bg-gradient-to-r from-accent-cyan/20 to-accent-blue/20 border-accent-cyan/40 text-accent-cyan shadow-lg shadow-accent-cyan/10'
+                  ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300 shadow-sm'
                   : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
               }"
             >
-              <span class="${audioCoupled ? 'animate-pulse' : ''}">⚡</span>
-              <span>${audioCoupled ? 'Spectral Coupling Active' : 'Coupling Disabled'}</span>
+              <span>${audioCoupled ? 'Audio Sync Active' : 'Audio Sync Off'}</span>
             </button>
           </div>
 
         </div>
 
-        <!-- Eigenstate Presets Section -->
+        <!-- Wave Presets Section -->
         <div class="flex flex-col gap-1.5 pt-2 border-t border-white/10">
           <div class="flex items-center justify-between">
             <span class="text-[10px] font-bold text-gray-300 flex items-center gap-1.5">
-              <span>🎯</span>
-              <span>Eigenstate Presets:</span>
+              <span>Wave Shape Presets:</span>
             </span>
             <span class="text-[9px] text-gray-400 font-mono">
-              Lattice: <strong class="text-accent-cyan">${totalNodalCells}</strong> Cells
+              Grid: <strong class="text-cyan-400">${totalNodalCells}</strong> Cells
             </span>
           </div>
 
@@ -498,15 +524,15 @@ export class ModalSweeperControls {
               return `
                 <button
                   data-preset="${p.id}"
-                  class="btn-preset-card glass-panel p-2 rounded-2xl flex flex-col gap-0.5 text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${
+                  class="btn-preset-card glass-panel p-2 rounded-2xl flex flex-col gap-0.5 text-left transition-all hover:border-slate-600 active:scale-[0.99] cursor-pointer ${
                     isSelected
-                      ? 'glass-panel-accent border-accent-cyan/60 shadow-lg shadow-accent-cyan/20 ring-1 ring-accent-cyan'
+                      ? 'glass-panel-accent border-cyan-500/60 shadow-sm'
                       : 'hover:border-white/20 bg-white/5 border-white/5'
                   }"
                 >
                   <div class="flex items-center justify-between w-full">
-                    <span class="font-mono text-xs font-bold text-accent-cyan">(${p.n},${p.m},${p.l})</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded-md bg-white/10 font-semibold text-gray-300">${p.badge}</span>
+                    <span class="font-mono text-xs font-bold text-cyan-400">(${p.n},${p.m},${p.l})</span>
+                    <span class="text-[9px] px-1.5 py-0.5 rounded-md bg-slate-800 font-semibold text-gray-300 border border-slate-700">${p.badge}</span>
                   </div>
                   <span class="text-[11px] font-semibold text-gray-100 leading-tight">${p.name}</span>
                   <span class="text-[9px] text-gray-400 line-clamp-1 leading-tight">${p.description}</span>
@@ -522,6 +548,52 @@ export class ModalSweeperControls {
     this.attachEvents();
   }
 
+  private updateDisplay(fromSlider = false): void {
+    const { n, m, l, calculatedEigenfrequency, noteInfo } = this.state;
+    const isPlayingSynth = this.audioEngine.synthesizer?.getIsPlaying() ?? false;
+
+    // Badges
+    const badgeN = this.element.querySelector('#badge-mode-n');
+    if (badgeN) badgeN.textContent = n.toString();
+    const badgeM = this.element.querySelector('#badge-mode-m');
+    if (badgeM) badgeM.textContent = m.toString();
+    const badgeL = this.element.querySelector('#badge-mode-l');
+    if (badgeL) badgeL.textContent = l.toString();
+
+    // Sliders
+    if (!fromSlider) {
+      const sliderN = this.element.querySelector('#slider-mode-n') as HTMLInputElement;
+      if (sliderN) sliderN.value = n.toString();
+      const sliderM = this.element.querySelector('#slider-mode-m') as HTMLInputElement;
+      if (sliderM) sliderM.value = m.toString();
+      const sliderL = this.element.querySelector('#slider-mode-l') as HTMLInputElement;
+      if (sliderL) sliderL.value = l.toString();
+    }
+
+    // Audition button
+    const btnAudition = this.element.querySelector('#btn-audition-eigenfrequency');
+    if (btnAudition) {
+      btnAudition.className = `glass-btn px-2.5 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+        isPlayingSynth ? 'glass-btn-active' : 'text-gray-200 hover:text-white'
+      }`;
+      btnAudition.innerHTML = `<span>${isPlayingSynth ? 'Stop Tone' : 'Play Tone'}</span>`;
+    }
+
+    // Preset cards
+    this.element.querySelectorAll('.btn-preset-card').forEach(btn => {
+      const presetId = btn.getAttribute('data-preset');
+      const p = ModalSweeperControls.PRESETS.find(pr => pr.id === presetId);
+      if (p) {
+        const isSelected = p.n === n && p.m === m && p.l === l && p.geometry === this.state.geometry;
+        btn.className = `btn-preset-card glass-panel p-2 rounded-2xl flex flex-col gap-0.5 text-left transition-all hover:border-slate-600 active:scale-[0.99] cursor-pointer ${
+          isSelected
+            ? 'glass-panel-accent border-cyan-500/60 shadow-sm'
+            : 'hover:border-white/20 bg-white/5 border-white/5'
+        }`;
+      }
+    });
+  }
+
   private attachEvents(): void {
     // 1. Sliders (n, m, l)
     const sliderN = this.element.querySelector('#slider-mode-n') as HTMLInputElement;
@@ -531,19 +603,19 @@ export class ModalSweeperControls {
     sliderN?.addEventListener('input', () => {
       this.state.n = parseInt(sliderN.value, 10);
       this.notifyStateChange();
-      this.render();
+      this.updateDisplay(true);
     });
 
     sliderM?.addEventListener('input', () => {
       this.state.m = parseInt(sliderM.value, 10);
       this.notifyStateChange();
-      this.render();
+      this.updateDisplay(true);
     });
 
     sliderL?.addEventListener('input', () => {
       this.state.l = parseInt(sliderL.value, 10);
       this.notifyStateChange();
-      this.render();
+      this.updateDisplay(true);
     });
 
     // 2. Stepper Buttons (+ / -)
@@ -606,7 +678,12 @@ export class ModalSweeperControls {
       } else {
         this.audioEngine.playFrequency(this.state.calculatedEigenfrequency);
       }
-      this.render();
+      this.updateDisplay();
+    });
+
+    // 8. Acoustic Studio Hub Switcher
+    this.element.querySelector('#hub-btn-freq')?.addEventListener('click', () => {
+      if (this.onSwitchMode) this.onSwitchMode('frequency');
     });
   }
 }

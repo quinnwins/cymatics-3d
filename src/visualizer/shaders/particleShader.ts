@@ -29,10 +29,10 @@ varying float vDepthFade;
 void main() {
     vec3 basePos = position;
     float baseR = length(basePos);
-    vec3 n = normalize(basePos);
+    vec3 n = baseR > 1e-5 ? basePos / baseR : vec3(0.0, 1.0, 0.0);
 
     // 1. Spatiotemporal Retarded-Time Audio Sample
-    float travelTime = baseR / uPropagationSpeed;
+    float travelTime = baseR / max(uPropagationSpeed, 0.001);
     float historyRow = fract(uHistoryHead - travelTime * 0.15);
     vec4 audioSample = texture2D(uAudioHistory, vec2(aParticleFreq, historyRow));
     float localAmp = audioSample.r;
@@ -109,7 +109,7 @@ void main() {
     if (r2 > 1.0) discard;
 
     // 1. Exact Spherical Normal Reconstruction
-    float zNorm = sqrt(1.0 - r2);
+    float zNorm = sqrt(max(0.0, 1.0 - r2));
     vec3 impostorNormal = vec3(pCoord.x, -pCoord.y, zNorm);
 
     // 2. View-Space Directional Lighting & Microfacet Specular
@@ -129,7 +129,7 @@ void main() {
     );
 
     float coreGaussian = exp(-r2 * 12.0);
-    float edgeAA = smoothstep(1.0, 0.82, sqrt(r2));
+    float edgeAA = 1.0 - smoothstep(0.82, 1.0, sqrt(r2));
 
     vec3 baseRgb = vColor.rgb * (0.65 + 0.75 * NdotL);
     vec3 finalRgb = baseRgb * chromaticAlpha + vec3(spec * 1.2 * vIntensity);

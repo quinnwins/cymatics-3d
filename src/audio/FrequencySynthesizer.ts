@@ -146,11 +146,12 @@ export class FrequencySynthesizer {
     // Heterodyne 11th Harmonic Beat Modulation
     if (isHeterodyne) {
       const beatFreq = Math.max(1, freqHz / 11.0);
-      if (!this.heterodyneLfo) {
+      if (!this.heterodyneLfo || !this.heterodyneGain) {
         this.heterodyneLfo = this.ctx.createOscillator();
         this.heterodyneGain = this.ctx.createGain();
         this.heterodyneLfo.frequency.setValueAtTime(beatFreq, now);
-        this.heterodyneGain.gain.setValueAtTime(0.35, now);
+        this.heterodyneGain.gain.setValueAtTime(0, now);
+        this.heterodyneGain.gain.setTargetAtTime(0.35, now, 0.04);
         this.heterodyneLfo.connect(this.heterodyneGain);
         this.heterodyneGain.connect(this.masterGain.gain);
         try {
@@ -160,8 +161,11 @@ export class FrequencySynthesizer {
         }
       } else {
         this.heterodyneLfo.frequency.setTargetAtTime(beatFreq, now, 0.05);
+        this.heterodyneGain.gain.cancelScheduledValues(now);
+        this.heterodyneGain.gain.setTargetAtTime(0.35, now, 0.04);
       }
     } else if (this.heterodyneLfo && this.heterodyneGain) {
+      this.heterodyneGain.gain.cancelScheduledValues(now);
       this.heterodyneGain.gain.setTargetAtTime(0, now, 0.05);
     }
   }

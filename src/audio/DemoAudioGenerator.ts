@@ -16,6 +16,7 @@ export class DemoAudioGenerator {
   private ctx: AudioContext;
   private masterGain: GainNode;
   private activeTrackId: string | null = null;
+  private lastTrackId: string = 'cosmic-odyssey';
   private isRunning = false;
   private stepTimer: number | null = null;
   private stepIndex = 0;
@@ -26,33 +27,37 @@ export class DemoAudioGenerator {
   public static readonly TRACKS: DemoTrack[] = [
     {
       id: 'cosmic-odyssey',
-      name: '🌌 Cosmic Odyssey',
-      genre: 'Ambient Space Synth',
+      name: 'Cosmic Odyssey',
+      genre: 'Ambient Synth',
       bpm: 90,
-      description: 'Deep sub-bass pulses, ethereal chords, and crystalline harmonic arpeggios.',
+      description: 'Deep sub-bass, atmospheric chords, and harmonic arpeggios.',
     },
     {
       id: 'cyber-pulse',
-      name: '⚡ Cyber Pulse',
-      genre: 'Synthwave / Electronic',
+      name: 'Cyber Pulse',
+      genre: 'Electronic',
       bpm: 124,
-      description: 'Punchy kick transients, driving bassline, and bright resonant leads.',
+      description: 'Punchy kick rhythm, driving bassline, and resonant synth leads.',
     },
     {
       id: 'solfeggio-528',
-      name: '💎 Solfeggio 528Hz Healing',
-      genre: 'Harmonic Meditation',
+      name: '528 Hz Ambient Drone',
+      genre: 'Harmonic Tone',
       bpm: 60,
-      description: 'Pure 528Hz transformation tone with singing bowl overtones and gentle wave modulation.',
+      description: '528 Hz pure tone with warm harmonic overtones and gentle modulation.',
     },
     {
       id: 'quantum-symphony',
-      name: '🔮 Quantum Symphony',
-      genre: 'Progressive Harmonic',
+      name: 'Harmonic Symphony',
+      genre: 'Acoustic Soundscape',
       bpm: 110,
-      description: 'Multi-harmonic orchestral pads and dynamic filter sweeps across the full spectrum.',
+      description: 'Layered melodic pads and dynamic frequency sweeps across the audio spectrum.',
     },
   ];
+
+  public getIsPlaying(): boolean {
+    return this.isRunning;
+  }
 
   constructor(audioContext: AudioContext, destination: AudioNode) {
     this.ctx = audioContext;
@@ -61,13 +66,15 @@ export class DemoAudioGenerator {
     this.masterGain.connect(destination);
   }
 
-  public play(trackId: string): void {
+  public play(trackId?: string): void {
+    const selectedId = trackId || this.lastTrackId || 'cosmic-odyssey';
     this.stop();
-    this.activeTrackId = trackId;
+    this.activeTrackId = selectedId;
+    this.lastTrackId = selectedId;
     this.isRunning = true;
     this.stepIndex = 0;
 
-    const track = DemoAudioGenerator.TRACKS.find(t => t.id === trackId) || DemoAudioGenerator.TRACKS[0];
+    const track = DemoAudioGenerator.TRACKS.find(t => t.id === selectedId) || DemoAudioGenerator.TRACKS[0];
     const intervalMs = (60 / track.bpm / 4) * 1000; // 16th notes
 
     this.stepTimer = window.setInterval(() => {
@@ -158,7 +165,7 @@ export class DemoAudioGenerator {
 
     // Hi-hat on offbeats
     if (step % 2 === 1) {
-      this.triggerHiHat(now, step % 4 === 2 ? 0.25 : 0.15);
+      this.triggerHiHat(now, step % 4 === 3 ? 0.25 : 0.15);
     }
 
     // 16th Bassline: Dm pentatonic (73.42, 87.31, 98.00, 110.00, 130.81)
@@ -473,7 +480,11 @@ export class DemoAudioGenerator {
     return this.isRunning;
   }
 
-  public getActiveTrackId(): string | null {
-    return this.activeTrackId;
+  public getActiveTrackId(): string {
+    return this.activeTrackId || this.lastTrackId || 'cosmic-odyssey';
+  }
+
+  public getLastTrackId(): string {
+    return this.lastTrackId;
   }
 }
