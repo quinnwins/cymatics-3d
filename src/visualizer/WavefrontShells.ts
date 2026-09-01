@@ -39,8 +39,8 @@ export class WavefrontShells {
       },
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
+      blending: THREE.NormalBlending,
+      side: THREE.FrontSide,
     });
 
     this.buildConcentricShells();

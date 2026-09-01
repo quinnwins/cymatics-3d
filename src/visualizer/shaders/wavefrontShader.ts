@@ -15,7 +15,7 @@ uniform float uWaveDamping;
 attribute float aShellIndex; // Concentric shell index [0..N-1]
 attribute float aShellRadius;
 
-varying vec3 vWorldNormal;
+varying vec3 vViewNormal;
 varying vec3 vViewPosition;
 varying vec2 vUv;
 varying float vDisplacement;
@@ -82,7 +82,7 @@ void main() {
     float slopeV = cymaticsDisp * 0.35;
     vec3 perturbedNormal = normalize(n - b1 * slopeU - b2 * slopeV);
 
-    vWorldNormal = normalize(normalMatrix * perturbedNormal);
+    vViewNormal = normalize(normalMatrix * perturbedNormal);
     vec4 mvPosition = modelViewMatrix * vec4(displacedPos, 1.0);
     vViewPosition = -mvPosition.xyz;
     vWorldPos = (modelMatrix * vec4(displacedPos, 1.0)).xyz;
@@ -102,7 +102,7 @@ uniform vec3 uCoreGlow;
 uniform vec3 uAccent;
 uniform vec4 uBandEnergies;
 
-varying vec3 vWorldNormal;
+varying vec3 vViewNormal;
 varying vec3 vViewPosition;
 varying vec2 vUv;
 varying float vDisplacement;
@@ -111,33 +111,30 @@ varying float vIntensity;
 varying vec3 vWorldPos;
 
 void main() {
-    vec3 N = normalize(vWorldNormal);
+    vec3 N = normalize(vViewNormal);
     vec3 V = normalize(vViewPosition);
 
-    // Microfacet GGX specular highlight on wave crests
-    vec3 lightDir = normalize(vec3(0.4, 0.9, 0.5));
-    vec3 H = normalize(lightDir + V);
-    float NdotH = max(dot(N, H), 0.0);
-    float spec = pow(NdotH, 36.0) * (0.8 + 1.2 * vIntensity);
+    // Propagating wave crest excitation (dynamic acoustic energy)
+    float waveCrest = smoothstep(0.02, 0.22, abs(vDisplacement) * 2.0);
 
-    // Physical Fresnel reflection on glancing angles
+    // Physical Fresnel limb-brightening: glancing edges glow as acoustic crests
     float NdotV = max(dot(N, V), 0.0);
-    float fresnel = pow(1.0 - NdotV, 3.0);
+    float rimFresnel = pow(1.0 - NdotV, 2.6);
 
     // Dynamic OKLab cosine palette color based on radial distance and displacement
     float colorT = vRadius * 0.12 - uTime * 0.08 + vDisplacement * 0.5;
     vec3 palColor = oklabCosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
     // Core glowing wave crests with Apple radiant glow shoulder
-    vec3 crestColor = mix(palColor, uCoreGlow, clamp(vDisplacement * 2.0, 0.0, 1.0));
-    vec3 finalRgb = appleRadiantGlow(crestColor, vIntensity * 0.8, 0.45);
-    finalRgb += fresnel * uAccent * 2.2 + vec3(spec * 1.5);
+    vec3 crestColor = mix(palColor, uCoreGlow, clamp(vDisplacement * 1.5, 0.0, 1.0));
+    vec3 finalRgb = appleRadiantGlow(crestColor, vIntensity * 0.35 + waveCrest * 0.25, 0.15);
+    finalRgb = mix(finalRgb, uAccent, rimFresnel * 0.7);
 
-    // Outer edge soft exponential distance decay
-    float alpha = clamp(0.12 + fresnel * 0.88 + abs(vDisplacement) * 1.4, 0.0, 0.96);
-    alpha *= exp(-0.05 * vRadius);
+    // Ethereal translucent shell: limb-brightened at glancing angles, clear through the core
+    float innerFade = smoothstep(0.6, 2.0, vRadius);
+    float alpha = clamp(0.12 + rimFresnel * 0.65 + waveCrest * 0.45, 0.0, 0.85);
+    alpha *= exp(-0.035 * vRadius) * innerFade;
 
     gl_FragColor = vec4(finalRgb, alpha);
 }
 `;
-

@@ -38,9 +38,15 @@ export class TherapyLabControls {
     this.container = document.createElement('div');
     this.container.id = 'therapy-lab-controls';
     this.container.className =
-      'w-full max-w-5xl mx-auto bg-slate-900/90 backdrop-blur-xl border border-slate-700/60 rounded-2xl p-3.5 md:p-4 shadow-2xl transition-all duration-300 flex flex-col gap-3';
+      'glass-panel p-3.5 sm:p-4 rounded-3xl flex flex-col gap-3 shadow-2xl border-white/10 backdrop-blur-2xl text-white select-none w-full transition-all duration-300';
 
+    this.preventEventBleeding();
     this.render();
+  }
+
+  private preventEventBleeding(): void {
+    this.container.addEventListener('wheel', e => e.stopPropagation(), { passive: false });
+    this.container.addEventListener('pointerdown', e => e.stopPropagation());
   }
 
   private render(): void {
@@ -48,116 +54,120 @@ export class TherapyLabControls {
     const profiles = Object.values(OncotripsyPhysics.CLINICAL_PROFILES);
 
     this.container.innerHTML = `
-      <!-- Top Title & Experiment Switcher -->
-      <div class="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-800 pb-2">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 via-amber-500 to-cyan-500 flex items-center justify-center text-base shadow-lg shadow-rose-500/20">
-            🎯
-          </div>
-          <div>
-            <h3 class="text-xs md:text-sm font-semibold text-slate-100 flex items-center gap-2">
-              Can We Cure Cancer with Frequency?
-              <span class="px-2 py-0.5 rounded-full text-[9px] font-mono bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                Frontier Oncology Lab
-              </span>
-            </h3>
-            <p class="text-[11px] text-slate-400">
-              Active cancellation, selective oncotripsy, vortex OAM, and acousto-immunotherapy
-            </p>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-1.5">
-          <!-- View Toggle -->
-          <div class="bg-slate-800/80 p-0.5 rounded-xl border border-slate-700/50 flex items-center gap-1 text-[11px]">
-            <button id="view-single-pair" class="px-2 py-1 rounded-lg transition-all ${
-              this.viewMode === 'co-culture-pair'
-                ? 'bg-cyan-500 text-slate-950 font-semibold shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }">
-              🔬 Single Pair
-            </button>
-            <button id="view-spheroid" class="px-2 py-1 rounded-lg transition-all ${
-              this.viewMode === 'spheroid-cluster'
-                ? 'bg-cyan-500 text-slate-950 font-semibold shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }">
-              🧫 3D Spheroid
-            </button>
+      <!-- Top Title & Controls Header -->
+      <div class="flex flex-col gap-2 border-b border-white/10 pb-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 via-amber-500 to-cyan-500 flex items-center justify-center text-base shadow-lg shadow-rose-500/20 shrink-0">
+              🎯
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <h3 class="text-xs sm:text-sm font-bold text-white">
+                  Cancer Frequency Lab
+                </h3>
+                <span class="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  Oncology
+                </span>
+              </div>
+              <p class="text-[10px] text-gray-400 font-medium">
+                Oncotripsy, Phase Cancellation & Vortex
+              </p>
+            </div>
           </div>
 
           <!-- Dynamic Hero Action Button -->
-          ${this.getHeroButtonHtml()}
+          <div class="shrink-0">
+            ${this.getHeroButtonHtml()}
+          </div>
+        </div>
+
+        <!-- View Toggle -->
+        <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-black/30 border-white/5 text-xs">
+          <button id="view-single-pair" class="flex-1 py-1 px-2 rounded-xl font-semibold transition-all cursor-pointer ${
+            this.viewMode === 'co-culture-pair'
+              ? 'glass-btn-active font-bold text-accent-cyan shadow-md'
+              : 'text-gray-400 hover:text-white'
+          }">
+            🔬 Single Pair
+          </button>
+          <button id="view-spheroid" class="flex-1 py-1 px-2 rounded-xl font-semibold transition-all cursor-pointer ${
+            this.viewMode === 'spheroid-cluster'
+              ? 'glass-btn-active font-bold text-accent-cyan shadow-md'
+              : 'text-gray-400 hover:text-white'
+          }">
+            🧫 3D Spheroid
+          </button>
         </div>
       </div>
 
       <!-- 7 Frontier Experiment Mode Tabs Carousel -->
-      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-        <button id="tab-phase-cancel" class="px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar flex-nowrap">
+        <button id="tab-phase-cancel" class="px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap shrink-0 ${
           this.currentExperiment === 'phase-cancel'
             ? 'bg-cyan-500 text-slate-950 font-semibold shadow-sm'
-            : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/40'
+            : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/40'
         }">
           🎧 Phase Cancel
         </button>
-        <button id="tab-oncotripsy" class="px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${
+        <button id="tab-oncotripsy" class="px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap shrink-0 ${
           this.currentExperiment === 'oncotripsy'
             ? 'bg-cyan-500 text-slate-950 font-semibold shadow-sm'
-            : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/40'
+            : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/40'
         }">
           💥 Oncotripsy Lysis
         </button>
-        <button id="tab-time-reversal" class="px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${
+        <button id="tab-time-reversal" class="px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap shrink-0 ${
           this.currentExperiment === 'time-reversal'
             ? 'bg-cyan-500 text-slate-950 font-semibold shadow-sm'
-            : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/40'
+            : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/40'
         }">
           🌊 Time-Reversal
         </button>
-        <button id="tab-vortex-torsion" class="px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${
+        <button id="tab-vortex-torsion" class="px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap shrink-0 ${
           this.currentExperiment === 'vortex-torsion'
             ? 'bg-cyan-500 text-slate-950 font-semibold shadow-sm'
-            : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/40'
+            : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/40'
         }">
           🌪️ Vortex OAM
         </button>
-        <button id="tab-sonodynamic-sdt" class="px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${
+        <button id="tab-sonodynamic-sdt" class="px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap shrink-0 ${
           this.currentExperiment === 'sonodynamic-sdt'
             ? 'bg-cyan-500 text-slate-950 font-semibold shadow-sm'
-            : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/40'
+            : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/40'
         }">
           💡 Sonodynamic SDT
         </button>
-        <button id="tab-calcium-piezo1" class="px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${
+        <button id="tab-calcium-piezo1" class="px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap shrink-0 ${
           this.currentExperiment === 'calcium-piezo1'
             ? 'bg-cyan-500 text-slate-950 font-semibold shadow-sm'
-            : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/40'
+            : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/40'
         }">
           ⚡ PIEZO1 Ca²⁺ Flux
         </button>
-        <button id="tab-immune-swarm" class="px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${
+        <button id="tab-immune-swarm" class="px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap shrink-0 ${
           this.currentExperiment === 'immune-swarm'
             ? 'bg-cyan-500 text-slate-950 font-semibold shadow-sm'
-            : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/40'
+            : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/40'
         }">
           🛡️ Immune T-Cell Swarm
         </button>
       </div>
 
       <!-- Clinical AFM Tumor Profile Selector Carousel -->
-      <div class="flex items-center gap-2 overflow-x-auto pb-0.5 text-xs">
-        <span class="text-[10px] font-medium text-slate-400 whitespace-nowrap">🧬 Clinical Tumor:</span>
-        <div class="flex items-center gap-1.5">
+      <div class="flex items-center gap-2 overflow-x-auto pb-1 text-xs no-scrollbar flex-nowrap">
+        <span class="text-[10px] md:text-[11px] font-semibold text-slate-300 whitespace-nowrap shrink-0">🧬 Clinical Tumor:</span>
+        <div class="flex items-center gap-1.5 shrink-0">
           ${profiles
             .map(
               p => `
-            <button data-tumor-id="${p.id}" class="btn-tumor-profile px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 whitespace-nowrap ${
+            <button data-tumor-id="${p.id}" class="btn-tumor-profile px-2.5 py-1 rounded-xl border transition-all flex items-center gap-1.5 whitespace-nowrap ${
                 this.currentTumorId === p.id
-                  ? 'bg-rose-500/20 border-rose-500/60 text-rose-200 font-semibold shadow-sm shadow-rose-500/20'
-                  : 'bg-slate-800/60 border-slate-700/50 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                  ? 'bg-rose-500/20 border-rose-500/80 text-rose-200 font-bold shadow-md shadow-rose-500/20 ring-1 ring-rose-500/40'
+                  : 'bg-slate-800/60 border-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-600'
               }">
-              <span class="w-2 h-2 rounded-full" style="background-color: #${p.colorHex.toString(16).padStart(6, '0')}"></span>
-              <span>${p.name}</span>
+              <span class="w-2 h-2 rounded-full shrink-0" style="background-color: #${p.colorHex.toString(16).padStart(6, '0')}"></span>
+              <span class="font-medium">${p.name}</span>
               <span class="text-[10px] font-mono text-slate-400">(${p.resonantFreqHz} Hz, ${p.youngsModulusKPa} kPa)</span>
             </button>
           `

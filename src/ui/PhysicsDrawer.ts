@@ -6,33 +6,45 @@ export class PhysicsDrawer {
 
   constructor(private visualizer: VisualizerEngine) {
     this.element = document.createElement('div');
-    this.element.className = 'glass-panel p-4 rounded-2xl flex flex-col gap-3.5 shadow-2xl w-64 md:w-72 border-white/10 transition-all duration-300';
+    this.element.className = 'glass-panel p-3.5 rounded-2xl flex flex-col gap-2.5 shadow-xl w-full border-white/10 backdrop-blur-xl transition-all duration-300 select-none';
     this.render();
     this.attachGlobalToggleListener();
+    this.preventEventBleeding();
   }
 
   public getElement(): HTMLElement {
     return this.element;
   }
 
+  public setOpen(open: boolean): void {
+    this.isOpen = open;
+    this.render();
+  }
+
+  public getIsOpen(): boolean {
+    return this.isOpen;
+  }
+
+  private preventEventBleeding(): void {
+    this.element.addEventListener('wheel', e => e.stopPropagation(), { passive: false });
+    this.element.addEventListener('pointerdown', e => e.stopPropagation());
+  }
+
   private render(): void {
-    if (!this.isOpen) {
-      this.element.style.display = 'none';
-      return;
-    }
-    this.element.style.display = 'flex';
-
     this.element.innerHTML = `
-      <!-- Header -->
-      <div class="flex items-center justify-between border-b border-white/10 pb-2">
+      <!-- Accordion Header -->
+      <button id="btn-toggle-accordion-physics" class="w-full flex items-center justify-between cursor-pointer group text-left">
         <div class="flex items-center gap-2">
-          <span class="text-sm font-bold text-accent-cyan">⚙️ Physics & Camera</span>
+          <span class="text-xs">⚙️</span>
+          <span class="text-xs font-bold text-accent-cyan tracking-wide">Physics & Camera Deck</span>
         </div>
-        <button id="btn-close-physics" class="text-gray-400 hover:text-white text-xs p-1">✕</button>
-      </div>
+        <span class="text-xs text-gray-400 group-hover:text-white transition-transform font-mono">
+          ${this.isOpen ? '▲' : '▼'}
+        </span>
+      </button>
 
-      <!-- Controls Form -->
-      <div class="flex flex-col gap-3 text-xs">
+      <!-- Collapsible Body -->
+      <div id="physics-body" class="${this.isOpen ? 'flex' : 'hidden'} flex-col gap-3 text-xs pt-2 border-t border-white/10">
         
         <!-- Wave Propagation Speed (c) -->
         <div class="flex flex-col gap-1">
@@ -47,7 +59,7 @@ export class PhysicsDrawer {
             max="12.0"
             step="0.2"
             value="${this.visualizer.waveSpeed}"
-            class="w-full cursor-pointer"
+            class="w-full cursor-pointer h-1.5 accent-accent-cyan"
           />
         </div>
 
@@ -64,7 +76,7 @@ export class PhysicsDrawer {
             max="0.35"
             step="0.01"
             value="${this.visualizer.waveDamping}"
-            class="w-full cursor-pointer"
+            class="w-full cursor-pointer h-1.5 accent-accent-cyan"
           />
         </div>
 
@@ -81,7 +93,7 @@ export class PhysicsDrawer {
             max="3.0"
             step="0.1"
             value="${this.visualizer.bloomStrength}"
-            class="w-full cursor-pointer"
+            class="w-full cursor-pointer h-1.5 accent-accent-cyan"
           />
         </div>
 
@@ -98,13 +110,13 @@ export class PhysicsDrawer {
             max="2.5"
             step="0.1"
             value="${this.visualizer.particleScale}"
-            class="w-full cursor-pointer"
+            class="w-full cursor-pointer h-1.5 accent-accent-cyan"
           />
         </div>
 
         <!-- Camera Perspective Mode -->
         <div class="flex flex-col gap-1.5 pt-1 border-t border-white/10">
-          <span class="text-gray-300 font-semibold">Camera View:</span>
+          <span class="text-gray-300 font-semibold text-[11px]">Camera View:</span>
           <div class="grid grid-cols-2 gap-1.5">
             ${[
               { id: 'autocam', label: '🎬 Cinematic' },
@@ -115,7 +127,7 @@ export class PhysicsDrawer {
               .map(
                 c => `
               <button data-camera="${c.id}" class="btn-cam-mode glass-btn py-1.5 px-2 rounded-lg text-[11px] font-medium transition-all ${
-                  this.visualizer.getCameraMode() === c.id ? 'glass-btn-active' : 'text-gray-400 hover:text-white'
+                  this.visualizer.getCameraMode() === c.id ? 'glass-btn-active font-bold' : 'text-gray-400 hover:text-white'
                 }">
                 ${c.label}
               </button>
@@ -132,9 +144,9 @@ export class PhysicsDrawer {
   }
 
   private attachEvents(): void {
-    // Close button
-    this.element.querySelector('#btn-close-physics')?.addEventListener('click', () => {
-      this.isOpen = false;
+    // Accordion Toggle
+    this.element.querySelector('#btn-toggle-accordion-physics')?.addEventListener('click', () => {
+      this.isOpen = !this.isOpen;
       this.render();
     });
 

@@ -54,6 +54,12 @@ export class VisualizerEngine {
   private cameraMode: CameraMode = 'autocam';
   private clock = new THREE.Clock();
 
+  // 6-DOF Harmonic Camera Choreography & Recoil Springs
+  private recoilOffset = new THREE.Vector3();
+  private recoilVelocity = new THREE.Vector3();
+  private lastShockwaveBirth = 0;
+  private lastAnimTime = 0;
+
   // Physics & Visual Tuning
   public waveSpeed = 6.0;
   public waveDamping = 0.12;
@@ -82,8 +88,8 @@ export class VisualizerEngine {
     this.renderer.setClearColor(0x02040a, 1.0);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.toneMapping = THREE.NoToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
     this.container.appendChild(this.renderer.domElement);
 
     // 2. Scene & Fog
@@ -331,19 +337,45 @@ export class VisualizerEngine {
     this.wavefrontShells.update(time, historyHead, vBands03, vBands45, vShockwaves);
     this.cymaticsMesh.update(time, vBands03, vBands45, fundamentalHz);
     this.particleNebula.update(time, historyHead, vBands03, vBands45, vShockwaves);
+    const dt = this.lastAnimTime > 0 ? Math.min(0.1, time - this.lastAnimTime) : 0.016;
+    this.lastAnimTime = time;
+
     this.sonicRibbon.update(time, historyHead, vBands03, vBands45);
     this.centralEmitter.update(time, bands.subBass, shockwaves.length > 0 ? shockwaves[0].strength : 0);
     this.volumetricChladni.update(time, vBands03, vBands45, fundamentalHz, this.camera);
-    this.gpuAcousticParticles.update(time, 0.016, vBands03, vBands45, vShockwaves, fundamentalHz);
-    this.chamberEnclosure.update(time, 0.016, vBands03, vBands45, this.camera);
-    this.bioAcousticResonator.update(time, 0.016, this.camera, vBands03);
-    this.acousticTherapyLab.update(time, 0.016, this.camera, vBands03);
-    this.nobelDiscoveryLab.update(time, 0.016, this.camera, vBands03);
+    this.gpuAcousticParticles.update(time, dt, vBands03, vBands45, vShockwaves, fundamentalHz);
+    this.chamberEnclosure.update(time, dt, vBands03, vBands45, this.camera);
+    this.bioAcousticResonator.update(time, dt, this.camera, vBands03);
+    this.acousticTherapyLab.update(time, dt, this.camera, vBands03);
+    this.nobelDiscoveryLab.update(time, dt, this.camera, vBands03);
 
     if (this.audioEngine.voiceBiometrics) {
       const voiceReport = this.audioEngine.voiceBiometrics.update();
-      this.vocalBiometricsLab.update(0.016, time, this.camera, voiceReport);
+      this.vocalBiometricsLab.update(dt, time, this.camera, voiceReport);
     }
+
+    // 6-DOF Harmonic Recoil Spring Dynamics (Triggered on Audio Shockwaves)
+    if (shockwaves.length > 0 && shockwaves[0].birthTime > this.lastShockwaveBirth) {
+      this.lastShockwaveBirth = shockwaves[0].birthTime;
+      const kickMag = Math.min(0.35, shockwaves[0].strength * 0.08);
+      // Push camera outward along viewing ray
+      const viewDir = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize();
+      this.recoilVelocity.addScaledVector(viewDir, kickMag * 22.0);
+    }
+
+    // Critically Damped Harmonic Return (zeta = 1.0, omega = 14 rad/s)
+    const omega = 14.0;
+    const springForceX = -omega * omega * this.recoilOffset.x - 2.0 * omega * this.recoilVelocity.x;
+    const springForceY = -omega * omega * this.recoilOffset.y - 2.0 * omega * this.recoilVelocity.y;
+    const springForceZ = -omega * omega * this.recoilOffset.z - 2.0 * omega * this.recoilVelocity.z;
+
+    this.recoilVelocity.x += springForceX * dt;
+    this.recoilVelocity.y += springForceY * dt;
+    this.recoilVelocity.z += springForceZ * dt;
+
+    this.recoilOffset.x += this.recoilVelocity.x * dt;
+    this.recoilOffset.y += this.recoilVelocity.y * dt;
+    this.recoilOffset.z += this.recoilVelocity.z * dt;
 
     // Camera handling
     if (this.cameraMode === 'autocam') {
@@ -353,11 +385,21 @@ export class VisualizerEngine {
       const isVoice = this.currentStyle === 'voice-biometrics';
       const isNobel = this.currentStyle === 'nobel-lab';
       const isSorter = isBio && this.bioAcousticResonator.getViewMode() === 'microfluidic-sorter';
-      const radius = isCymatics ? 9.6 : isSorter ? 12.5 : isTherapy ? 8.2 : isBio ? 6.8 : isVoice ? 7.6 : isNobel ? 7.8 : (9.5 + Math.sin(time * 0.15) * 1.5);
+      const radius = isCymatics ? 9.6 : isSorter ? 12.5 : isTherapy ? 8.2 : isBio ? 6.8 : isVoice ? 7.6 : isNobel ? 7.8 : 9.5;
       const targetY = (isCymatics || isBio || isTherapy || isVoice || isNobel) ? 0.45 : 0.0;
-      this.camera.position.x = Math.sin(time * 0.12 * this.autoRotateSpeed) * radius;
-      this.camera.position.z = Math.cos(time * 0.12 * this.autoRotateSpeed) * radius;
-      this.camera.position.y = (isCymatics ? 2.8 : isSorter ? 3.0 : isTherapy ? 2.2 : isBio ? 1.6 : isVoice ? 2.0 : isNobel ? 2.2 : 3.2) + Math.sin(time * 0.08) * 0.8;
+
+      // 6-DOF Harmonic Lissajous Path Choreography
+      const baseAngle = time * 0.10 * this.autoRotateSpeed;
+      const lissX = Math.sin(baseAngle) * radius + Math.sin(time * 0.23) * 0.25;
+      const lissZ = Math.cos(baseAngle) * radius + Math.cos(time * 0.19) * 0.25;
+      const baseHeight = isCymatics ? 2.8 : isSorter ? 3.0 : isTherapy ? 2.2 : isBio ? 1.6 : isVoice ? 2.0 : isNobel ? 2.2 : 3.2;
+      const lissY = baseHeight + Math.sin(time * 0.15) * 0.45 + Math.cos(time * 0.31) * 0.20;
+
+      this.camera.position.set(
+        lissX + this.recoilOffset.x,
+        lissY + this.recoilOffset.y,
+        lissZ + this.recoilOffset.z
+      );
       this.camera.lookAt(0, targetY, 0);
     } else {
       this.controls.update();

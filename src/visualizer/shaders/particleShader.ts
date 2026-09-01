@@ -75,12 +75,12 @@ void main() {
     vec3 palColor = cosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
     // Intensity boost on transient or heavy sub-bass
-    float intensity = clamp(localAmp * 2.5 + abs(totalDisp) * 0.8 + shockDisp * 1.5, 0.0, 3.5);
+    float intensity = clamp(localAmp * 1.8 + abs(totalDisp) * 0.6 + shockDisp * 1.2, 0.0, 2.5);
     vIntensity = intensity;
 
-    vec3 finalColor = palColor * (0.6 + 1.2 * intensity);
-    finalColor += uCoreGlow * (uBandEnergies.x * 1.5);
-    finalColor += uAccent * shockDisp;
+    vec3 finalColor = palColor * (0.55 + 0.65 * intensity);
+    finalColor += uCoreGlow * (uBandEnergies.x * 0.5);
+    finalColor += uAccent * (shockDisp * 0.6);
 
     vColor = vec4(finalColor, 1.0);
 
@@ -91,8 +91,8 @@ void main() {
     float zDist = -mvPosition.z;
     vDepthFade = smoothstep(0.4, 1.2, zDist);
 
-    // Point size with distance attenuation
-    gl_PointSize = clamp((2.5 + 6.0 * intensity + shockDisp * 8.0) * uParticleScale * (220.0 / max(zDist, 0.1)), 1.5, 64.0);
+    // Point size with distance attenuation and crisp holographic density
+    gl_PointSize = clamp((0.9 + 1.2 * intensity + shockDisp * 1.8) * uParticleScale * (85.0 / max(zDist, 0.1)), 1.0, 16.0);
 }
 `;
 
@@ -133,7 +133,8 @@ void main() {
 
     vec3 baseRgb = vColor.rgb * (0.65 + 0.75 * NdotL);
     vec3 finalRgb = baseRgb * chromaticAlpha + vec3(spec * 1.2 * vIntensity);
-    float finalAlpha = clamp(coreGaussian * edgeAA * vDepthFade, 0.0, 1.0);
+    float alphaScale = 0.12 + 0.55 * vIntensity;
+    float finalAlpha = clamp(coreGaussian * edgeAA * vDepthFade * alphaScale, 0.0, 1.0);
 
     gl_FragColor = vec4(finalRgb, finalAlpha);
 }

@@ -10,8 +10,8 @@ export class SonicRibbon {
   constructor(historyTexture: THREE.Texture, initialPalette: PalettePreset) {
     this.group = new THREE.Group();
 
-    // Dense grid for ribbon surface: segments U (angular) = 256, segments V (radial) = 128
-    const geo = new THREE.PlaneGeometry(1, 1, 256, 128);
+    // Dense grid for ribbon surface: segments U (longitudinal) = 180, segments V (transverse) = 24
+    const geo = new THREE.PlaneGeometry(1, 1, 180, 24);
 
     this.material = new THREE.ShaderMaterial({
       vertexShader: SONIC_RIBBON_VERTEX_SHADER,
@@ -32,11 +32,13 @@ export class SonicRibbon {
       },
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
       side: THREE.DoubleSide,
     });
 
     this.mesh = new THREE.Mesh(geo, this.material);
+    this.mesh.frustumCulled = false;
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 20.0);
     this.group.add(this.mesh);
   }
 

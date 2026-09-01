@@ -15,11 +15,17 @@ export class NobelTelemetryHUD {
   private container: HTMLElement;
   private isVisible = false;
 
-  constructor(parent: HTMLElement) {
+  constructor(parent?: HTMLElement) {
     this.container = document.createElement('div');
     this.container.id = 'nobel-telemetry-hud';
-    this.container.className = 'fixed top-20 right-6 z-30 max-w-sm w-80 glass-panel p-4 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl text-white pointer-events-none select-none transition-all duration-300 transform translate-x-0 opacity-100 hidden';
-    parent.appendChild(this.container);
+    this.container.className = 'w-full glass-panel p-3.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-xl text-white select-none transition-all duration-300 hidden';
+    if (parent) {
+      parent.appendChild(this.container);
+    }
+  }
+
+  public getElement(): HTMLElement {
+    return this.container;
   }
 
   public setVisible(visible: boolean) {

@@ -10,7 +10,13 @@ export class FrequencyLabControls {
 
   constructor(private audioEngine: AudioEngine) {
     this.element = document.createElement('div');
-    this.element.className = 'w-full flex flex-col items-center gap-2';
+    this.element.className = 'w-full flex flex-col gap-2.5';
+    this.preventEventBleeding();
+  }
+
+  private preventEventBleeding(): void {
+    this.element.addEventListener('wheel', e => e.stopPropagation(), { passive: false });
+    this.element.addEventListener('pointerdown', e => e.stopPropagation());
   }
 
   public getElement(): HTMLElement {
@@ -41,68 +47,78 @@ export class FrequencyLabControls {
     const sliderVal = this.hzToSlider(this.currentFreq);
 
     this.element.innerHTML = `
-      <div class="glass-panel w-full max-w-4xl p-4 md:p-5 rounded-3xl flex flex-col gap-3 shadow-2xl">
+      <div class="glass-panel w-full p-3.5 sm:p-4 rounded-3xl flex flex-col gap-3 shadow-2xl border border-white/10 backdrop-blur-2xl text-white select-none">
         
         <!-- Top Row: Audio Play, Frequency Readout, Note Badge, Waveform -->
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          
-          <!-- Sound Toggle & Frequency Display -->
-          <div class="flex items-center gap-3">
-            <button id="btn-freq-sound-toggle" class="w-11 h-11 rounded-2xl ${
+        <div class="flex flex-col gap-2.5 border-b border-white/10 pb-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-accent-cyan via-accent-blue to-accent-purple flex items-center justify-center shadow-lg shadow-accent-cyan/25 shrink-0">
+                🔬
+              </div>
+              <div>
+                <h3 class="text-xs sm:text-sm font-bold text-white">Frequency Lab</h3>
+                <p class="text-[10px] text-gray-400">Harmonic Synthesis & Overtone Engine</p>
+              </div>
+            </div>
+
+            <!-- Sound Toggle -->
+            <button id="btn-freq-sound-toggle" class="w-8 h-8 rounded-xl ${
               isPlaying
                 ? 'bg-gradient-to-tr from-accent-magenta to-accent-purple text-white shadow-lg shadow-accent-magenta/30 scale-105'
                 : 'bg-gradient-to-tr from-accent-cyan to-accent-blue text-white shadow-lg shadow-accent-cyan/30'
-            } flex items-center justify-center transition-all hover:scale-105 active:scale-95">
+            } flex items-center justify-center transition-all hover:scale-105 active:scale-95 shrink-0 cursor-pointer">
               ${
                 isPlaying
-                  ? `<svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`
-                  : `<svg class="w-5 h-5 fill-current ml-0.5" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>`
+                  ? `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`
+                  : `<svg class="w-4 h-4 fill-current ml-0.5" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>`
               }
             </button>
+          </div>
 
-            <div class="flex items-baseline gap-2">
+          <!-- Frequency Display & Waveform -->
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-baseline gap-1.5">
               <input
                 type="number"
                 id="freq-number-input"
                 min="1"
                 max="20000"
                 value="${this.currentFreq}"
-                class="w-24 md:w-28 bg-white/5 border border-white/10 rounded-xl px-2.5 py-1 text-lg md:text-xl font-bold font-mono text-accent-cyan text-right outline-none focus:border-accent-cyan/60"
+                class="w-20 bg-white/5 border border-white/10 rounded-xl px-2 py-1 text-sm font-bold font-mono text-accent-cyan text-right outline-none focus:border-accent-cyan/60"
               />
-              <span class="text-sm font-semibold text-gray-400">Hz</span>
+              <span class="text-xs font-semibold text-gray-400">Hz</span>
               
               <!-- Musical Note Badge -->
-              <div class="glass-panel px-2.5 py-1 rounded-xl flex items-center gap-1.5 ml-1 border-accent-blue/30">
-                <span class="text-sm font-bold text-accent-blue font-mono">${noteInfo.name}</span>
-                <span class="text-[10px] text-gray-400">${noteInfo.cents >= 0 ? '+' : ''}${noteInfo.cents}c</span>
+              <div class="glass-panel px-2 py-0.5 rounded-lg flex items-center gap-1 border-accent-blue/30 bg-black/40">
+                <span class="text-xs font-bold text-accent-blue font-mono">${noteInfo.name}</span>
+                <span class="text-[9px] text-gray-400 font-mono">${noteInfo.cents >= 0 ? '+' : ''}${noteInfo.cents}c</span>
               </div>
             </div>
-          </div>
 
-          <!-- Waveform & Harmonics Button -->
-          <div class="flex items-center gap-2">
-            <!-- Waveform Selector -->
-            <select id="waveform-select" class="glass-btn px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-200 outline-none cursor-pointer">
-              <option value="sine" ${waveform === 'sine' ? 'selected' : ''}>Pure Sine Tone</option>
-              <option value="triangle" ${waveform === 'triangle' ? 'selected' : ''}>Warm Triangle</option>
-              <option value="sawtooth" ${waveform === 'sawtooth' ? 'selected' : ''}>Bright Sawtooth</option>
-              <option value="square" ${waveform === 'square' ? 'selected' : ''}>Hollow Square</option>
-              <option value="organ" ${waveform === 'organ' ? 'selected' : ''}>Harmonic Organ</option>
-            </select>
+            <!-- Waveform Selector & Harmonics Button -->
+            <div class="flex items-center gap-1.5">
+              <select id="waveform-select" class="glass-btn px-2 py-1 rounded-xl text-xs font-semibold text-gray-200 bg-slate-900/90 border border-white/10 outline-none cursor-pointer">
+                <option value="sine" ${waveform === 'sine' ? 'selected' : ''}>Sine</option>
+                <option value="triangle" ${waveform === 'triangle' ? 'selected' : ''}>Triangle</option>
+                <option value="sawtooth" ${waveform === 'sawtooth' ? 'selected' : ''}>Saw</option>
+                <option value="square" ${waveform === 'square' ? 'selected' : ''}>Square</option>
+                <option value="organ" ${waveform === 'organ' ? 'selected' : ''}>Organ</option>
+              </select>
 
-            <!-- Harmonics Matrix Toggle -->
-            <button id="btn-toggle-harmonics" class="glass-btn px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 ${
-              this.showHarmonicsDrawer ? 'glass-btn-active' : 'text-gray-300 hover:text-white'
-            }">
-              <span>🌊</span>
-              <span>Overtones (${this.showHarmonicsDrawer ? 'Hide' : 'Show'})</span>
-            </button>
+              <button id="btn-toggle-harmonics" class="glass-btn px-2 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                this.showHarmonicsDrawer ? 'glass-btn-active font-bold text-accent-cyan' : 'text-gray-300 hover:text-white'
+              }">
+                <span>🌊</span>
+                <span>Overtones</span>
+              </button>
+            </div>
           </div>
         </div>
 
         <!-- Master Frequency Slider -->
-        <div class="flex flex-col gap-1.5 w-full">
-          <div class="flex justify-between text-[11px] text-gray-400 font-medium px-1">
+        <div class="flex flex-col gap-1 w-full">
+          <div class="flex justify-between text-[9px] md:text-[10px] text-gray-400 font-medium px-1 font-mono">
             <span>20 Hz (Deep Sub)</span>
             <span>250 Hz (Warm Bass)</span>
             <span>1,000 Hz (Vocal Mid)</span>
@@ -115,13 +131,13 @@ export class FrequencyLabControls {
             min="0"
             max="1000"
             value="${sliderVal}"
-            class="w-full cursor-pointer h-2"
+            class="w-full cursor-pointer h-2 accent-accent-cyan"
           />
         </div>
 
         <!-- Sacred Solfeggio & Harmonic Note Presets -->
-        <div class="flex flex-wrap items-center gap-1.5 pt-1">
-          <span class="text-[11px] text-gray-400 font-semibold mr-1">Quick Resonance:</span>
+        <div class="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar flex-nowrap">
+          <span class="text-[10px] md:text-[11px] text-gray-400 font-semibold whitespace-nowrap shrink-0">Quick Resonance:</span>
           ${[
             { hz: 432, name: '432 Hz', desc: 'Verdi Harmony' },
             { hz: 528, name: '528 Hz', desc: 'Transformation' },
@@ -132,8 +148,8 @@ export class FrequencyLabControls {
           ]
             .map(
               p => `
-            <button data-hz="${p.hz}" class="btn-solfeggio glass-btn px-2.5 py-1 rounded-lg text-xs font-medium ${
-                this.currentFreq === p.hz ? 'glass-btn-active text-accent-cyan' : 'text-gray-300 hover:text-white'
+            <button data-hz="${p.hz}" title="${p.name} - ${p.desc}" class="btn-solfeggio glass-btn px-2.5 py-1 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-all ${
+                this.currentFreq === p.hz ? 'glass-btn-active font-bold text-accent-cyan border-accent-cyan/60 shadow-md ring-1 ring-accent-cyan/40' : 'text-gray-300 hover:text-white'
               }">
               ${p.name}
             </button>
