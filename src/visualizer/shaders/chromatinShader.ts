@@ -132,13 +132,14 @@ varying float vPoreMask;
 varying float vAcousticStrain;
 
 void main() {
-    vec3 N = normalize(vWorldNormal);
-    vec3 V = normalize(uCameraPosition - vWorldPosition);
+    vec3 N = length(vWorldNormal) > 1e-5 ? normalize(vWorldNormal) : vec3(0.0, 1.0, 0.0);
+    vec3 toCam = uCameraPosition - vWorldPosition;
+    vec3 V = length(toCam) > 1e-5 ? normalize(toCam) : vec3(0.0, 0.0, 1.0);
     vec3 L = normalize(vec3(2.0, 4.0, 3.0));
 
     // Fresnel Translucency of Nuclear Envelope
     float nDotV = clamp(dot(N, V), 0.0, 1.0);
-    float fresnel = pow(1.0 - nDotV, 3.0);
+    float fresnel = pow(clamp(1.0 - nDotV, 0.0, 1.0), 3.0);
 
     // Nuclear Lamina Fibrous Mesh (Intermediate Filaments)
     vec2 grid = fract(vUv * 48.0) - 0.5;

@@ -63,4 +63,13 @@ export class SonicRibbon {
   public setVisible(visible: boolean): void {
     this.group.visible = visible;
   }
+
+  public setPropagationSpeed(speed: number): void {
+    this.material.uniforms.uPropagationSpeed.value = speed;
+  }
+
+  public dispose(): void {
+    this.mesh.geometry.dispose();
+    this.material.dispose();
+  }
 }

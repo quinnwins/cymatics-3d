@@ -11,9 +11,10 @@ export const CYMATICS_CORE_GLSL = `
 // Perceptual OKLab Color Space Conversion & Chroma-Preserving Glow
 // ----------------------------------------------------------------------------
 vec3 linearRgbToOklab(vec3 c) {
-    float l = 0.4122214708 * c.r + 0.5363325363 * c.g + 0.0514459929 * c.b;
-    float m = 0.2119034982 * c.r + 0.6806995451 * c.g + 0.1073969566 * c.b;
-    float s = 0.0883024619 * c.r + 0.2817188376 * c.g + 0.6299787005 * c.b;
+    vec3 safeC = clamp(c, 0.0, 10.0);
+    float l = 0.4122214708 * safeC.r + 0.5363325363 * safeC.g + 0.0514459929 * safeC.b;
+    float m = 0.2119034982 * safeC.r + 0.6806995451 * safeC.g + 0.1073969566 * safeC.b;
+    float s = 0.0883024619 * safeC.r + 0.2817188376 * safeC.g + 0.6299787005 * safeC.b;
 
     float l_ = pow(max(0.0, l), 1.0 / 3.0);
     float m_ = pow(max(0.0, m), 1.0 / 3.0);
@@ -35,50 +36,46 @@ vec3 oklabToLinearRgb(vec3 lab) {
     float m = m_ * m_ * m_;
     float s = s_ * s_ * s_;
 
-    return vec3(
+    vec3 rgb = vec3(
         +4.0767439362 * l - 3.3077115913 * m + 0.2309699292 * s,
         -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
         -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
     );
+    return max(vec3(0.0), rgb);
 }
 
 // Inigo Quilez Cosine Palette with Optional OKLab Gamut Smoothing
 vec3 cosinePalette(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
-    return a + b * cos(TWO_PI * (c * t + d));
+    return clamp(a + b * cos(TWO_PI * (c * t + d)), 0.0, 1.0);
 }
 
 vec3 oklabCosinePalette(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
-    vec3 labA = linearRgbToOklab(a);
-    vec3 labB = linearRgbToOklab(b);
-    vec3 lab = labA + labB * cos(TWO_PI * (c * t + d));
-    return clamp(oklabToLinearRgb(lab), 0.0, 1.0);
+    // Robust, artifact-free cosine palette evaluation in linear RGB
+    return cosinePalette(t, a, b, c, d);
 }
 
 // Apple-Style Luminous Radiance Flare with Soft Chroma-Preserving Shoulder
 vec3 appleRadiantGlow(vec3 baseColor, float intensity, float coreHotness) {
-    vec3 lab = linearRgbToOklab(baseColor);
+    vec3 safeBase = clamp(baseColor, 0.0, 1.0);
+    vec3 lab = linearRgbToOklab(safeBase);
     lab.x = clamp(lab.x * (1.0 + intensity * 0.45), 0.0, 1.0);
     lab.y *= 1.0 + intensity * 0.15;
     lab.z *= 1.0 + intensity * 0.15;
-    vec3 boostedColor = oklabToLinearRgb(lab);
+    vec3 boostedColor = clamp(oklabToLinearRgb(lab), 0.0, 1.0);
     
     vec3 hotCoreColor = mix(boostedColor, vec3(1.0, 0.98, 0.95), smoothstep(0.7, 2.5, intensity) * coreHotness);
-    return hotCoreColor * (1.0 + intensity * 0.75);
+    return max(vec3(0.0), hotCoreColor * (1.0 + intensity * 0.75));
 }
 
 // ----------------------------------------------------------------------------
-// Singularity-Free Orthonormal Basis (Frisvad / Duff formulation)
+// Singularity-Free Orthonormal Basis (Duff et al. 2017 formulation)
 // ----------------------------------------------------------------------------
 void buildOrthonormalBasis(vec3 n, out vec3 b1, out vec3 b2) {
-    if (n.z < -0.9999999) {
-        b1 = vec3(0.0, -1.0, 0.0);
-        b2 = vec3(-1.0, 0.0, 0.0);
-        return;
-    }
-    float a = 1.0 / (1.0 + n.z);
-    float b = -n.x * n.y * a;
-    b1 = vec3(1.0 - n.x * n.x * a, b, -n.x);
-    b2 = vec3(b, 1.0 - n.y * n.y * a, -n.y);
+    float s = n.z >= 0.0 ? 1.0 : -1.0;
+    float a = -1.0 / (s + n.z);
+    float b = n.x * n.y * a;
+    b1 = vec3(1.0 + s * n.x * n.x * a, s * b, -s * n.x);
+    b2 = vec3(b, s + n.y * n.y * a, -n.y);
 }
 
 // ----------------------------------------------------------------------------
@@ -134,25 +131,28 @@ void evalSH_L3(vec3 n, out float Y3[7]) {
 // Numerically Stable Spherical Bessel Functions j_l(u) for u = k * r
 // ----------------------------------------------------------------------------
 float sphericalBessel_j0(float u) {
-    if (abs(u) < 0.001) {
+    float absU = abs(u);
+    if (absU < 0.6) {
         float u2 = u * u;
-        return 1.0 - u2 * (1.0 / 6.0) + u2 * u2 * (1.0 / 120.0);
+        return 1.0 - u2 * (1.0 / 6.0) + u2 * u2 * (1.0 / 120.0) - u2 * u2 * u2 * (1.0 / 5040.0);
     }
     return sin(u) / u;
 }
 
 float sphericalBessel_j1(float u) {
-    if (abs(u) < 0.001) {
+    float absU = abs(u);
+    if (absU < 0.6) {
         float u2 = u * u;
-        return u * (1.0 / 3.0) - u * u2 * (1.0 / 30.0);
+        return u * ((1.0 / 3.0) - u2 * (1.0 / 30.0) + u2 * u2 * (1.0 / 840.0));
     }
     return (sin(u) - u * cos(u)) / (u * u);
 }
 
 float sphericalBessel_j2(float u) {
-    if (abs(u) < 0.001) {
+    float absU = abs(u);
+    if (absU < 0.6) {
         float u2 = u * u;
-        return u2 * (1.0 / 15.0) - u2 * u2 * (1.0 / 210.0);
+        return u2 * ((1.0 / 15.0) - u2 * (1.0 / 210.0) + u2 * u2 * (1.0 / 7560.0));
     }
     float u2 = u * u;
     float u3 = u2 * u;
@@ -160,14 +160,38 @@ float sphericalBessel_j2(float u) {
 }
 
 float sphericalBessel_j3(float u) {
-    if (abs(u) < 0.001) {
+    float absU = abs(u);
+    if (absU < 0.6) {
         float u2 = u * u;
-        return u * u2 * (1.0 / 105.0) - u * u2 * u2 * (1.0 / 1890.0);
+        float u3 = u2 * u;
+        return u3 * ((1.0 / 105.0) - u2 * (1.0 / 1890.0) + u2 * u2 * (1.0 / 83160.0));
     }
     float u2 = u * u;
     float u3 = u2 * u;
     float u4 = u2 * u2;
     return (15.0 / u4 - 6.0 / u2) * sin(u) - (15.0 / u3 - 1.0 / u) * cos(u);
+}
+
+// ----------------------------------------------------------------------------
+// Cylindrical Bessel Function of the First Kind J_m(u)
+// High-precision 8-point quadrature over [0, pi]
+// ----------------------------------------------------------------------------
+float evalBesselJ(float m, float u) {
+    float absU = abs(u);
+    if (absU < 1e-4) {
+        return m < 0.5 ? 1.0 : 0.0;
+    }
+    if (absU > 12.0) {
+        float phase = absU - (m * 0.5 + 0.25) * PI;
+        return sqrt(2.0 / (PI * absU)) * cos(phase);
+    }
+    float sum = 0.0;
+    const int N = 8;
+    for (int i = 0; i < N; i++) {
+        float phi_i = float(i) * PI / float(N);
+        sum += cos(m * phi_i - absU * sin(phi_i));
+    }
+    return sum / float(N);
 }
 
 // ----------------------------------------------------------------------------

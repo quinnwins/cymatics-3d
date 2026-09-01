@@ -102,4 +102,11 @@ export class WavefrontShells {
   public setVisible(visible: boolean): void {
     this.group.visible = visible;
   }
+
+  public dispose(): void {
+    for (const mesh of this.shells) {
+      mesh.geometry.dispose();
+    }
+    this.material.dispose();
+  }
 }

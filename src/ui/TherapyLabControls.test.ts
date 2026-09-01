@@ -3,10 +3,11 @@ import { OncotripsyPhysics } from '../math/OncotripsyPhysics';
 import { TherapyExperiment } from '../visualizer/AcousticTherapyLab';
 
 describe('TherapyLab Modalities & Simulation Logic', () => {
-  it('defines all 7 clinical and biophysical therapy modalities', () => {
+  it('defines all 8 clinical and biophysical therapy modalities', () => {
     const modalities: TherapyExperiment[] = [
       'phase-cancel',
       'oncotripsy',
+      'histotripsy',
       'time-reversal',
       'vortex-torsion',
       'sonodynamic-sdt',
@@ -14,9 +15,10 @@ describe('TherapyLab Modalities & Simulation Logic', () => {
       'immune-swarm',
     ];
 
-    expect(modalities).toHaveLength(7);
+    expect(modalities).toHaveLength(8);
     expect(modalities).toContain('phase-cancel');
     expect(modalities).toContain('oncotripsy');
+    expect(modalities).toContain('histotripsy');
     expect(modalities).toContain('time-reversal');
     expect(modalities).toContain('vortex-torsion');
     expect(modalities).toContain('sonodynamic-sdt');
@@ -24,9 +26,9 @@ describe('TherapyLab Modalities & Simulation Logic', () => {
     expect(modalities).toContain('immune-swarm');
   });
 
-  it('provides all 4 clinical AFM cancer profiles with accurate stiffness & resonance', () => {
+  it('provides all 5 clinical AFM cancer profiles with accurate stiffness & resonance', () => {
     const profiles = Object.values(OncotripsyPhysics.CLINICAL_PROFILES);
-    expect(profiles).toHaveLength(4);
+    expect(profiles).toHaveLength(5);
 
     profiles.forEach(p => {
       expect(p.id).toBeDefined();

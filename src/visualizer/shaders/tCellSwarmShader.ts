@@ -133,12 +133,12 @@ void main() {
     }
 
     float nDotV = clamp(dot(N, V), 0.0, 1.0);
-    float fresnel = pow(1.0 - nDotV, 3.2);
+    float fresnel = pow(clamp(1.0 - nDotV, 0.0, 1.0), 3.2);
 
     vec3 finalRgb = tCellColor * (0.65 + fresnel * 1.8);
     float alpha = clamp(0.75 + fresnel * 0.25 + vSynapseActive * 0.2, 0.0, 0.98);
 
-    gl_FragColor = vec4(finalRgb, alpha);
+    gl_FragColor = vec4(clamp(finalRgb, 0.0, 10.0), alpha);
 }
 `;
 

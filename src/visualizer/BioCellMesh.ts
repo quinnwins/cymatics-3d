@@ -92,12 +92,13 @@ export class BioCellMesh {
         varying vec3 vNormal;
         varying vec3 vViewPosition;
         void main() {
-          vec3 N = normalize(vNormal);
-          vec3 V = normalize(vViewPosition);
-          float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.5);
+          vec3 N = length(vNormal) > 1e-5 ? normalize(vNormal) : vec3(0.0, 1.0, 0.0);
+          vec3 V = length(vViewPosition) > 1e-5 ? normalize(vViewPosition) : vec3(0.0, 0.0, 1.0);
+          float NdotV = clamp(dot(N, V), 0.0, 1.0);
+          float fresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), 2.5);
           float pulse = sin(uTime * 4.0) * 0.15 + 0.85 + uAudioBass * 0.5;
           vec3 finalRgb = uColor * pulse + vec3(fresnel * 0.8);
-          gl_FragColor = vec4(finalRgb, 0.95);
+          gl_FragColor = vec4(clamp(finalRgb, 0.0, 10.0), 0.95);
         }
       `,
       uniforms: {

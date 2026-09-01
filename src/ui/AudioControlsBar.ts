@@ -16,11 +16,13 @@ export class AudioControlsBar {
     private onScreenshot?: () => void,
     private onExport?: () => void
   ) {
-    this.element = document.createElement('div');
+    this.element = typeof document !== 'undefined' ? document.createElement('div') : ({} as HTMLElement);
     this.element.className = 'w-full flex flex-col items-center gap-3';
-    this.initGlobalListeners();
+    if (typeof window !== 'undefined') {
+      this.initGlobalListeners();
+    }
     this.unsubscribe = this.audioEngine.subscribe(() => {
-      this.render();
+      this.update();
     });
   }
 
@@ -52,131 +54,230 @@ export class AudioControlsBar {
     return this.element;
   }
 
+  private isScrubbing = false;
+
+  private formatTime(sec: number): string {
+    if (!sec || isNaN(sec) || !isFinite(sec) || sec < 0) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+
   public render(): void {
+    if (!this.element || typeof this.element.querySelector !== 'function') return;
+
     const isPlaying = this.audioEngine.getIsPlaying();
     const tracks = DemoAudioGenerator.TRACKS;
     const currentTrackId = this.audioEngine.getActiveTrackId();
     const loadedFileName = this.audioEngine.getLoadedFileName();
     const isMicActive = this.audioEngine.isMicrophoneActive();
+    const currentTime = this.audioEngine.getCurrentTime();
+    const duration = this.audioEngine.getDuration();
+    const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
+    const isFileMode = this.audioEngine.getMode() === 'file-upload';
 
     this.element.innerHTML = `
-      <div class="glass-panel px-4 py-2 rounded-2xl flex flex-wrap items-center justify-between gap-2.5 md:gap-3 shadow-xl border border-white/10 max-w-3xl w-full mx-auto select-none">
+      <div class="glass-panel px-4 py-2.5 rounded-2xl flex flex-col gap-2 shadow-xl border border-white/10 max-w-3xl w-full mx-auto select-none backdrop-blur-xl">
         
-        <!-- Left: Play/Pause & Track Selector -->
-        <div class="flex items-center gap-2.5 flex-1 min-w-[180px]">
-          <!-- Play / Pause Button -->
-          <button id="btn-play-pause" title="${isPlaying ? 'Pause audio' : 'Play audio'}" class="w-9 h-9 rounded-xl ${
-            isPlaying
-              ? 'bg-cyan-400 text-slate-950 font-bold hover:bg-cyan-300'
-              : 'bg-slate-800 text-white border border-slate-700 hover:bg-slate-700'
-          } flex items-center justify-center transition-all active:scale-95 shrink-0 cursor-pointer shadow-sm">
-            ${
+        <!-- Main Transport Row -->
+        <div class="flex flex-wrap items-center justify-between gap-2.5 md:gap-3 w-full">
+          <!-- Left: Play/Pause & Track Selector -->
+          <div class="flex items-center gap-2.5 flex-1 min-w-[180px]">
+            <!-- Play / Pause Button -->
+            <button id="btn-play-pause" title="${isPlaying ? 'Pause audio' : 'Play audio'}" class="w-9 h-9 rounded-xl ${
               isPlaying
-                ? `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`
-                : `<svg class="w-4 h-4 fill-current ml-0.5" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>`
-            }
-          </button>
-
-          <!-- Track Dropdown / Loaded File Info -->
-          <div class="flex flex-col flex-1 min-w-0">
-            <div class="flex items-center gap-1.5">
+                ? 'bg-cyan-400 text-slate-950 font-bold hover:bg-cyan-300'
+                : 'bg-slate-800 text-white border border-slate-700 hover:bg-slate-700'
+            } flex items-center justify-center transition-all active:scale-95 shrink-0 cursor-pointer shadow-sm">
               ${
-                loadedFileName
-                  ? `<div class="text-xs font-semibold text-cyan-400 truncate max-w-[180px]">${loadedFileName}</div>`
-                  : isMicActive
-                  ? `<div class="text-xs font-semibold text-rose-400 flex items-center gap-1.5">
-                      <span class="w-2 h-2 rounded-full bg-rose-400"></span>
-                      <span>Microphone Active</span>
-                    </div>`
-                  : `<select id="track-select" class="bg-slate-900 text-gray-200 text-xs font-medium rounded-xl px-2.5 py-1 border border-white/10 outline-none focus:border-cyan-400 cursor-pointer hover:bg-slate-800 transition-colors w-full max-w-[190px]">
-                      ${tracks
-                        .map(
-                          t => `
-                        <option value="${t.id}" class="bg-slate-900 text-gray-100" ${t.id === currentTrackId ? 'selected' : ''}>
-                          ${t.name} (${t.bpm} BPM)
-                        </option>
-                      `
-                        )
-                        .join('')}
-                    </select>`
+                isPlaying
+                  ? `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`
+                  : `<svg class="w-4 h-4 fill-current ml-0.5" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>`
               }
+            </button>
+
+            <!-- Track Dropdown / Loaded File Info -->
+            <div class="flex flex-col flex-1 min-w-0">
+              <div class="flex items-center gap-1.5">
+                ${
+                  loadedFileName
+                    ? `<div class="flex items-center gap-1.5 min-w-0">
+                        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0"></span>
+                        <div class="text-xs font-semibold text-cyan-400 truncate max-w-[170px] sm:max-w-[220px]" title="${loadedFileName}">${loadedFileName}</div>
+                        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shrink-0 font-bold">CUSTOM</span>
+                      </div>`
+                    : isMicActive
+                    ? `<div class="text-xs font-semibold text-rose-400 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-rose-400 animate-ping"></span>
+                        <span>Microphone Active</span>
+                      </div>`
+                    : `<select id="track-select" class="bg-slate-900 text-gray-200 text-xs font-medium rounded-xl px-2.5 py-1 border border-white/10 outline-none focus:border-cyan-400 cursor-pointer hover:bg-slate-800 transition-colors w-full max-w-[190px]">
+                        ${tracks
+                          .map(
+                            t => `
+                          <option value="${t.id}" class="bg-slate-900 text-gray-100" ${t.id === currentTrackId ? 'selected' : ''}>
+                            ${t.name} (${t.bpm} BPM)
+                          </option>
+                        `
+                          )
+                          .join('')}
+                      </select>`
+                }
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Input Options, Utility Actions & Volume Controls -->
+          <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            
+            <!-- File Upload Button -->
+            <label class="btn-icon p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium" title="Upload audio file (MP3, WAV, FLAC)">
+              <svg class="w-3.5 h-3.5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span class="hidden sm:inline text-[11px]">Upload</span>
+              <input type="file" id="file-input" accept="audio/*" class="hidden" />
+            </label>
+
+            <!-- Microphone Toggle -->
+            <button id="btn-mic" class="btn-icon p-2 rounded-xl ${
+              isMicActive
+                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5'
+            } transition-all flex items-center gap-1 text-xs font-medium cursor-pointer" title="Toggle microphone">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              <span class="hidden sm:inline text-[11px]">Mic</span>
+            </button>
+
+            <!-- Separator between Inputs and Utilities -->
+            <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block"></div>
+
+            <!-- Screenshot Button -->
+            <button id="btn-screenshot" class="btn-screenshot btn-icon p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium" title="Save screenshot (PNG)">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+              <span class="hidden md:inline text-[11px]">Snapshot</span>
+            </button>
+
+            <!-- Export Data Button -->
+            <button id="btn-export-dossier" class="btn-icon p-2 rounded-xl bg-white/5 hover:bg-white/10 text-cyan-300 hover:text-cyan-200 border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium" title="Export simulation data (JSON/Markdown)">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span class="hidden md:inline text-[11px]">Export</span>
+            </button>
+
+            <!-- Separator before Volume -->
+            <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block"></div>
+
+            <!-- Volume Controls -->
+            <div class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1.5 rounded-xl border border-white/5">
+              <!-- Mute/Unmute -->
+              <button id="btn-mute" class="text-gray-400 hover:text-white transition-colors cursor-pointer p-0.5" title="Mute/Unmute">
+                ${
+                  this.audioEngine.getIsMuted()
+                    ? `<svg class="w-3.5 h-3.5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`
+                    : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`
+                }
+              </button>
+
+              <!-- Volume Slider -->
+              <input 
+                id="volume-slider" 
+                type="range" 
+                min="0" 
+                max="1" 
+                step="0.01" 
+                value="${this.audioEngine.getMasterVolume()}"
+                class="w-12 sm:w-16 md:w-20" 
+              />
             </div>
           </div>
         </div>
 
-        <!-- Right: Input Options, Utility Actions & Volume Controls -->
-        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          
-          <!-- File Upload Button -->
-          <label class="btn-icon p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium" title="Upload audio file (MP3, WAV, FLAC)">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <span class="hidden sm:inline text-[11px]">Upload</span>
-            <input type="file" id="file-input" accept="audio/*" class="hidden" />
-          </label>
-
-          <!-- Microphone Toggle -->
-          <button id="btn-mic" class="btn-icon p-2 rounded-xl ${
-            isMicActive
-              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-              : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5'
-          } transition-all flex items-center gap-1 text-xs font-medium cursor-pointer" title="Toggle microphone">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-            <span class="hidden sm:inline text-[11px]">Mic</span>
-          </button>
-
-          <!-- Separator between Inputs and Utilities -->
-          <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block"></div>
-
-          <!-- Screenshot Button -->
-          <button id="btn-screenshot" class="btn-screenshot btn-icon p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium" title="Save screenshot (PNG)">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
-            </svg>
-            <span class="hidden md:inline text-[11px]">Snapshot</span>
-          </button>
-
-          <!-- Export Data Button -->
-          <button id="btn-export-dossier" class="btn-icon p-2 rounded-xl bg-white/5 hover:bg-white/10 text-cyan-300 hover:text-cyan-200 border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium" title="Export simulation data (JSON/Markdown)">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            <span class="hidden md:inline text-[11px]">Export</span>
-          </button>
-
-          <!-- Separator before Volume -->
-          <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block"></div>
-
-          <!-- Volume Controls -->
-          <div class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1.5 rounded-xl border border-white/5">
-            <!-- Mute/Unmute -->
-            <button id="btn-mute" class="text-gray-400 hover:text-white transition-colors cursor-pointer p-0.5" title="Mute/Unmute">
-              ${
-                this.audioEngine.getIsMuted()
-                  ? `<svg class="w-3.5 h-3.5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`
-                  : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`
-              }
-            </button>
-
-            <!-- Volume Slider -->
-            <input 
-              id="volume-slider" 
-              type="range" 
-              min="0" 
-              max="1" 
-              step="0.01" 
-              value="${this.audioEngine.getMasterVolume()}"
-              class="w-12 sm:w-16 md:w-20" 
-            />
-          </div>
-        </div>
+        <!-- Interactive Audio Timeline Scrubber Bar (Visible for custom uploaded audio & media) -->
+        ${
+          isFileMode
+            ? `
+            <div class="flex items-center gap-2.5 w-full pt-1 border-t border-white/10">
+              <span id="label-current-time" class="text-[10px] font-mono font-bold text-cyan-400 shrink-0 w-8 text-right">
+                ${this.formatTime(currentTime)}
+              </span>
+              <div class="relative flex-1 flex items-center group py-0.5">
+                <input
+                  type="range"
+                  id="timeline-scrubber"
+                  min="0"
+                  max="${duration > 0 ? duration : 100}"
+                  step="0.05"
+                  value="${currentTime}"
+                  class="w-full cursor-pointer h-1.5 rounded-full bg-slate-800 accent-cyan-400 focus:outline-none"
+                  style="background: linear-gradient(to right, #22d3ee ${progressPct}%, rgba(255, 255, 255, 0.12) ${progressPct}%);"
+                  title="Drag or click to seek audio track"
+                />
+              </div>
+              <span id="label-duration" class="text-[10px] font-mono font-medium text-slate-400 shrink-0 w-8 text-left">
+                ${this.formatTime(duration)}
+              </span>
+            </div>
+          `
+            : ''
+        }
 
       </div>
     `;
 
     this.attachEvents();
+  }
+
+  private lastMode?: string;
+  private lastLoadedFileName?: string | null;
+  private lastIsPlaying?: boolean;
+  private lastIsMicActive?: boolean;
+
+  public update(): void {
+    if (!this.element || typeof this.element.querySelector !== 'function') return;
+
+    const mode = this.audioEngine.getMode();
+    const loadedFileName = this.audioEngine.getLoadedFileName();
+    const isPlaying = this.audioEngine.getIsPlaying();
+    const isMicActive = this.audioEngine.isMicrophoneActive();
+
+    if (
+      mode !== this.lastMode ||
+      loadedFileName !== this.lastLoadedFileName ||
+      isPlaying !== this.lastIsPlaying ||
+      isMicActive !== this.lastIsMicActive
+    ) {
+      this.lastMode = mode;
+      this.lastLoadedFileName = loadedFileName;
+      this.lastIsPlaying = isPlaying;
+      this.lastIsMicActive = isMicActive;
+      this.render();
+      return;
+    }
+
+    if (mode === 'file-upload') {
+      const curTime = this.audioEngine.getCurrentTime();
+      const dur = this.audioEngine.getDuration();
+      const curLabel = this.element.querySelector('#label-current-time');
+      const durLabel = this.element.querySelector('#label-duration');
+      const scrubber = this.element.querySelector('#timeline-scrubber') as HTMLInputElement;
+
+      if (durLabel) durLabel.textContent = this.formatTime(dur);
+
+      if (!this.isScrubbing) {
+        if (curLabel) curLabel.textContent = this.formatTime(curTime);
+        if (scrubber) {
+          scrubber.max = (dur > 0 ? dur : 100).toString();
+          scrubber.value = curTime.toString();
+          const pct = dur > 0 ? (curTime / dur) * 100 : 0;
+          scrubber.style.background = `linear-gradient(to right, #22d3ee ${pct}%, rgba(255, 255, 255, 0.12) ${pct}%)`;
+        }
+      }
+    }
   }
 
   private attachEvents(): void {
@@ -239,6 +340,31 @@ export class AudioControlsBar {
       const slider = e.target as HTMLInputElement;
       this.audioEngine.setMasterVolume(parseFloat(slider.value));
     });
+
+    // Interactive Audio Timeline Scrubber
+    const scrubber = this.element.querySelector('#timeline-scrubber') as HTMLInputElement;
+    if (scrubber) {
+      scrubber.addEventListener('pointerdown', () => {
+        this.isScrubbing = true;
+      });
+      scrubber.addEventListener('input', () => {
+        this.isScrubbing = true;
+        const val = parseFloat(scrubber.value);
+        const dur = this.audioEngine.getDuration();
+        const curLabel = this.element.querySelector('#label-current-time');
+        if (curLabel) curLabel.textContent = this.formatTime(val);
+        const pct = dur > 0 ? (val / dur) * 100 : 0;
+        scrubber.style.background = `linear-gradient(to right, #22d3ee ${pct}%, rgba(255, 255, 255, 0.12) ${pct}%)`;
+      });
+      scrubber.addEventListener('change', () => {
+        const val = parseFloat(scrubber.value);
+        this.audioEngine.seek(val);
+        this.isScrubbing = false;
+      });
+      scrubber.addEventListener('pointerup', () => {
+        this.isScrubbing = false;
+      });
+    }
   }
 }
 

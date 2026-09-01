@@ -81,12 +81,13 @@ varying float vHarmonicWave;
 #define PI 3.14159265358979323846
 
 void main() {
-    vec3 N = normalize(vWorldNormal) * (gl_FrontFacing ? 1.0 : -1.0);
-    vec3 V = normalize(uCameraPosition - vWorldPos);
+    vec3 N = length(vWorldNormal) > 1e-5 ? normalize(vWorldNormal) : vec3(0.0, 1.0, 0.0);
+    vec3 toCam = uCameraPosition - vWorldPos;
+    vec3 V = length(toCam) > 1e-5 ? normalize(toCam) : vec3(0.0, 0.0, 1.0);
 
-    // 1. Chromatic Fresnel Optical Dispersion
-    float NdotV = max(dot(N, V), 0.0);
-    float fresnel = pow(1.0 - NdotV, 2.8);
+    // 1. Chromatic Fresnel Optical Dispersion (symmetric for double-sided translucent membrane)
+    float NdotV = clamp(abs(dot(N, V)), 0.0, 1.0);
+    float fresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), 2.8);
 
     // 2. Golden Spiral Interference Caustic Contours
     float spiralCoord = vUv.x * 24.0 * PHI - vUv.y * 12.0 - uTime * 2.2;

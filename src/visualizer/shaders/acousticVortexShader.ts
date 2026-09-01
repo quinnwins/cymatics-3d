@@ -60,7 +60,7 @@ void main() {
 
     vec4 worldPos = modelMatrix * vec4(pos, 1.0);
     vWorldPosition = worldPos.xyz;
-    vWorldNormal = normalize(normalMatrix * normal);
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
 
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
 }
@@ -96,11 +96,12 @@ vec3 phaseColorRamp(float t) {
 }
 
 void main() {
-    vec3 N = normalize(vWorldNormal);
-    vec3 V = normalize(uCameraPosition - vWorldPosition);
+    vec3 N = length(vWorldNormal) > 1e-5 ? normalize(vWorldNormal) : vec3(0.0, 1.0, 0.0);
+    vec3 toCam = uCameraPosition - vWorldPosition;
+    vec3 V = length(toCam) > 1e-5 ? normalize(toCam) : vec3(0.0, 0.0, 1.0);
 
-    float nDotV = clamp(dot(N, V), 0.0, 1.0);
-    float fresnel = pow(1.0 - nDotV, uFresnelPower);
+    float nDotV = clamp(abs(dot(N, V)), 0.0, 1.0);
+    float fresnel = pow(clamp(1.0 - nDotV, 0.0, 1.0), uFresnelPower);
 
     vec3 phaseColor = phaseColorRamp(vPhase);
     float coreNullMask = smoothstep(0.05, 0.35, vRadialDist);

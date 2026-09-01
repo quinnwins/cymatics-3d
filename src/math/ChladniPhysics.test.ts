@@ -47,5 +47,19 @@ describe('ChladniPhysics - 3D Modal Physics & Gor\'kov Suite', () => {
       const pSph = ChladniPhysics.sphericalPressure(0.4, 0.3, 0.5, 2, 1, 2);
       expect(Number.isFinite(pSph)).toBe(true);
     });
+
+    it('computes finite Gor\'kov force vectors in cylindrical and spherical geometries', () => {
+      const gCyl = ChladniPhysics.computeGorkovForce(0.3, 0.1, 0.2, 2, 1, 1, 'cylindrical', 'normal');
+      expect(Number.isFinite(gCyl.fx)).toBe(true);
+      expect(Number.isFinite(gCyl.fy)).toBe(true);
+      expect(Number.isFinite(gCyl.fz)).toBe(true);
+      expect(Number.isFinite(gCyl.potential)).toBe(true);
+
+      const gSph = ChladniPhysics.computeGorkovForce(0.2, 0.3, 0.1, 2, 1, 1, 'spherical', 'normal');
+      expect(Number.isFinite(gSph.fx)).toBe(true);
+      expect(Number.isFinite(gSph.fy)).toBe(true);
+      expect(Number.isFinite(gSph.fz)).toBe(true);
+      expect(Number.isFinite(gSph.potential)).toBe(true);
+    });
   });
 });

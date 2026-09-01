@@ -190,10 +190,10 @@ void main() {
     float dist = length(coord);
     if (dist > 0.5) discard;
 
-    float cloud = pow(1.0 - smoothstep(0.0, 0.5, dist), 1.8);
+    float cloud = pow(clamp(1.0 - smoothstep(0.0, 0.5, dist), 0.0, 1.0), 1.8);
     vec3 finalColor = vSaspColor * cloud * 1.4;
     float alpha = (1.0 - vNormalizedLife) * cloud * 0.4;
 
-    gl_FragColor = vec4(finalColor, alpha);
+    gl_FragColor = vec4(clamp(finalColor, 0.0, 10.0), alpha);
 }
 `;

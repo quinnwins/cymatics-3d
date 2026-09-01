@@ -61,4 +61,20 @@ describe('NobelBiophysics Mathematical Engine', () => {
     expect(cleared.saspCytokineConcentrationPgMl).toBeLessThan(50.0);
     expect(cleared.isZombieCellCleared).toBe(true);
   });
+
+  it('converges to theoretical steady-state p53 concentration under sustained acoustic activation', () => {
+    let p53 = 5.0;
+    const dt = 0.1;
+    const acousticPressureKPa = 150.0;
+    const unfurl = 0.8;
+
+    // Numerical integration over time
+    for (let t = 0; t < 1000; t++) {
+      const res = NobelBiophysics.calculateMechanogenomics(acousticPressureKPa, unfurl, dt, p53);
+      p53 = res.p53ProteinConcentrationNM;
+    }
+
+    expect(p53).toBeGreaterThan(45.0);
+    expect(p53).toBeLessThanOrEqual(65.0);
+  });
 });

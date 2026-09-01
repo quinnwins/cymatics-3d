@@ -18,7 +18,7 @@ describe('OncotripsyPhysics - Clinical AFM Elastography & Oncotripsy', () => {
 
   describe('Clinical Tumor AFM Profiles & Selective Strain Mismatch', () => {
     it('demonstrates selective rupture across all clinical tumor types at their resonance', () => {
-      const tumorKeys = ['u87-mg', 'panc-1', 'mda-mb-231', 'saos-2'];
+      const tumorKeys = ['u87-mg', 'panc-1', 'mda-mb-231', 'hep-g2', 'saos-2'];
 
       for (const key of tumorKeys) {
         const tumor = OncotripsyPhysics.CLINICAL_PROFILES[key];

@@ -36,17 +36,21 @@ export class HistoryTexture {
 
   public pushSpectralFrame(fftData: Float32Array, transientOnset: number, pitchHz: number): number {
     const rowOffset = this.writeHead * this.width * 4;
-    const pitchNorm = Math.min(1.0, pitchHz / 4000);
+    const safePitchHz = Number.isFinite(pitchHz) ? Math.max(0, pitchHz) : 0;
+    const pitchNorm = Math.min(1.0, safePitchHz / 4000);
+    const safeTransient = Number.isFinite(transientOnset) ? Math.max(0, Math.min(1.0, transientOnset)) : 0;
 
     for (let i = 0; i < this.width; i++) {
       const idx = rowOffset + i * 4;
-      const db = fftData[i] ?? -100;
+      const rawDb = fftData[i];
+      const db = Number.isFinite(rawDb) ? rawDb : -100;
       // Convert dB to normalized power scale
       const mag = db > -90 ? Math.pow(10, (db + 10) / 45) : 0.0;
+      const safeMag = Number.isFinite(mag) ? Math.max(0.0, Math.min(2.5, mag)) : 0.0;
 
-      this.data[idx + 0] = Math.min(2.5, mag);               // R: Spectral magnitude
+      this.data[idx + 0] = safeMag;                          // R: Spectral magnitude
       this.data[idx + 1] = Math.sin((i / this.width) * 12.0); // G: Phase factor
-      this.data[idx + 2] = transientOnset;                   // B: Shock impulse
+      this.data[idx + 2] = safeTransient;                    // B: Shock impulse
       this.data[idx + 3] = pitchNorm;                        // A: Pitch factor
     }
 

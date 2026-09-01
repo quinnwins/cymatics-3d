@@ -29,9 +29,12 @@ describe('BioAcousticPhysics - Cellular Biomechanics & Acoustophoresis', () => {
     });
 
     it('verifies softened cancer cell contrast is shifted lower/negative (antinode migrant)', () => {
-      const phiCancer = BioAcousticPhysics.calculateAcousticContrast(1045.0, 4.38e-10);
-      const phiHealthy = BioAcousticPhysics.calculateAcousticContrast(1080.0, 4.02e-10);
+      const cancer = BioAcousticPhysics.SPECIMENS['malignant-cancer'];
+      const healthy = BioAcousticPhysics.SPECIMENS['healthy-somatic'];
+      const phiCancer = BioAcousticPhysics.calculateAcousticContrast(cancer.densityKgM3, cancer.compressibilityPa);
+      const phiHealthy = BioAcousticPhysics.calculateAcousticContrast(healthy.densityKgM3, healthy.compressibilityPa);
       expect(phiCancer).toBeLessThan(phiHealthy);
+      expect(phiCancer).toBeLessThan(0);
     });
   });
 
