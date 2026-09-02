@@ -915,7 +915,7 @@ export class CymaticsControls {
                   }"
                 >
                   <div class="flex items-center gap-2 min-w-0">
-                    <span class="text-xs ${isCurrent ? 'text-cyan-400' : 'text-gray-500'} font-mono">${isCurrent && isPlaying ? '▶' : '♪'}</span>
+                    <span class="text-xs ${isCurrent ? 'text-cyan-400' : 'text-gray-500'} font-mono">${isCurrent && isPlaying ? '<span class="inline-flex items-end gap-0.5 h-3 w-3"><span class="w-0.5 bg-cyan-400 h-full animate-pulse"></span><span class="w-0.5 bg-cyan-400 h-2/3 animate-bounce"></span><span class="w-0.5 bg-cyan-400 h-4/5 animate-pulse"></span></span>' : '♪'}</span>
                     <div class="min-w-0">
                       <div class="text-[11px] font-bold ${isCurrent ? 'text-cyan-300' : 'text-slate-200'} truncate">${t.name}</div>
                       <div class="text-[9px] text-gray-400 truncate">${t.genre} • ${t.bpm} BPM</div>
