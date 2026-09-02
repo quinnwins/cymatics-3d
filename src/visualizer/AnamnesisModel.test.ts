@@ -96,7 +96,11 @@ describe('AnamnesisModel', () => {
     model.reset({ identity: 'silence', title: 'Silence', source: 'test' });
 
     const silent = new Float32Array(FFT_BINS);
-    expect(model.ingest({ timeSeconds: 0, spectrum: silent, bands: bands() })).toBeNull();
+    expect(model.ingest({
+      timeSeconds: 0,
+      spectrum: silent,
+      bands: { subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, high: 0, rms: 0 },
+    })).toBeNull();
     expect(model.getStats().moments).toBe(0);
 
     const audible = spectrumFor([220, 330]);
