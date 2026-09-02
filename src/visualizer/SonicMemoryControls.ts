@@ -65,16 +65,14 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
   root.querySelector<HTMLButtonElement>('[data-close]')!.onclick = () => setOpen(false);
 
   let immersive = false;
-  let styleVisible = true;
-  let dropletVisible = true;
+  let contextVisible = true;
   const setImmersive = (enabled: boolean): void => {
     immersive = enabled;
     document.body.classList.toggle('soundform-immersive', immersive);
   };
   const syncVisibility = (): void => {
-    const visible = styleVisible && dropletVisible;
-    root.style.display = visible ? '' : 'none';
-    if (!visible && immersive) setImmersive(false);
+    root.style.display = contextVisible ? '' : 'none';
+    if (!contextVisible && immersive) setImmersive(false);
   };
   const update = (): void => {
     const settings = memory.getSettings();
@@ -138,16 +136,11 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
   window.addEventListener(TEMPORAL_MEMORY_EVENT, update);
   window.addEventListener('visual-style-changed', event => {
     const mode = (event as CustomEvent<{ style?: string }>).detail?.style;
-    styleVisible = mode === 'cymatics';
-    syncVisibility();
-  });
-  window.addEventListener('cymatics-layers-changed', event => {
-    const layers = (event as CustomEvent<{ droplet?: boolean }>).detail;
-    dropletVisible = layers?.droplet !== false;
+    contextVisible = mode === 'cymatics' || mode === 'cymatics-2d';
     syncVisibility();
   });
   window.addEventListener('keydown', event => {
-    if (editable(event.target) || !styleVisible || !dropletVisible) return;
+    if (editable(event.target) || !contextVisible) return;
     if (event.key.toLowerCase() === 'm') memory.toggleEnabled();
     if (event.key.toLowerCase() === 'f') memory.toggleFrozen();
     if (event.key.toLowerCase() === 'i') root.querySelector<HTMLButtonElement>('[data-action="immersive"]')!.click();
