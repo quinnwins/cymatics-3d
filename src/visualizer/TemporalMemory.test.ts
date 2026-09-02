@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { TemporalMemoryController } from './TemporalMemory';
 
 describe('TemporalMemoryController', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it('clamps its public controls to stable rendering ranges', () => {
     const controller = new TemporalMemoryController();
 
