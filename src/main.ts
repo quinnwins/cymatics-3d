@@ -447,24 +447,18 @@ class App {
       this.leftSidebarRoot.appendChild(this.nobelDiscoveryControls.getElement());
     }
 
-    // Mount right sidebar: In Music Studio, mount Resonator Shapes exclusively; mount PhysicsDrawer in lab modes
+    // Mount right sidebar: Physics & Optics Deck on top above fold, Resonator Shape / Telemetry below
     this.rightSidebarRoot.innerHTML = '';
+    this.rightSidebarRoot.appendChild(this.physicsDrawer.getElement());
 
-    if (this.currentMode === 'music' || this.currentMode === 'cymatics') {
-      this.rightSidebarRoot.appendChild(this.modalSweeperControls.getElement());
-    } else if (this.currentMode === 'frequency' || this.currentMode === 'modal') {
-      this.rightSidebarRoot.appendChild(this.physicsDrawer.getElement());
+    if (this.currentMode === 'music' || this.currentMode === 'cymatics' || this.currentMode === 'frequency' || this.currentMode === 'modal') {
       this.rightSidebarRoot.appendChild(this.modalSweeperControls.getElement());
     } else if (this.currentMode === 'voice') {
-      this.rightSidebarRoot.appendChild(this.physicsDrawer.getElement());
       this.rightSidebarRoot.appendChild(this.voiceTelemetryHUD.getElement());
       this.voiceTelemetryHUD.setVisible(true);
     } else if (this.currentMode === 'nobel') {
-      this.rightSidebarRoot.appendChild(this.physicsDrawer.getElement());
       this.rightSidebarRoot.appendChild(this.nobelTelemetryHUD.getElement());
       this.nobelTelemetryHUD.setVisible(true);
-    } else {
-      this.rightSidebarRoot.appendChild(this.physicsDrawer.getElement());
     }
   }
 

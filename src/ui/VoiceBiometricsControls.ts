@@ -204,12 +204,13 @@ export class VoiceBiometricsControls {
             
             <select
               id="voice-preset-select"
-              class="w-full bg-slate-900/90 text-gray-100 text-xs font-semibold rounded-2xl px-3 py-2 border border-white/10 outline-none focus:border-cyan-400 cursor-pointer hover:bg-slate-800 transition-colors shadow-inner"
+              aria-label="Voice Archetype Profile"
+              class="glass-select w-full cursor-pointer"
             >
               ${profiles
                 .map(
                   (p) => `
-                <option value="${p.id}" class="bg-slate-900 text-gray-100" ${p.id === this.activeProfile.id ? 'selected' : ''}>
+                <option value="${p.id}" ${p.id === this.activeProfile.id ? 'selected' : ''}>
                   ${p.name} (${p.category.toUpperCase()})
                 </option>
               `

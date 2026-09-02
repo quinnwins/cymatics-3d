@@ -753,7 +753,7 @@ export class CymaticsControls {
                     : 'bg-purple-900/40 text-purple-300 border border-purple-500/40'
                 }"
               >
-                <span>${this.state.trappingMode === 'nodes' ? '🎯 Trapping: Nodal Lines (Sand Focus)' : '⚡ Trapping: Antinodes (Inverse Focus)'}</span>
+                <span>${this.state.trappingMode === 'nodes' ? 'Trapping: Nodal Lines (Sand Focus)' : 'Trapping: Antinodes (Inverse Focus)'}</span>
               </button>
             </div>
           </div>
@@ -1106,11 +1106,11 @@ export class CymaticsControls {
               <div class="flex items-center justify-between pt-1 border-t border-white/5">
                 <div class="flex items-center gap-1.5">
                   <span class="text-[10px] text-slate-300 font-medium">Wave:</span>
-                  <select id="cym-synth-waveform-select" class="bg-slate-900 border border-white/10 text-[10px] font-semibold text-cyan-300 px-2 py-0.5 rounded-lg outline-none cursor-pointer">
-                    <option value="sine" ${this.customWaveform === 'sine' ? 'selected' : ''}>Sine ∿</option>
-                    <option value="triangle" ${this.customWaveform === 'triangle' ? 'selected' : ''}>Triangle ◬</option>
-                    <option value="sawtooth" ${this.customWaveform === 'sawtooth' ? 'selected' : ''}>Sawtooth ⧘</option>
-                    <option value="square" ${this.customWaveform === 'square' ? 'selected' : ''}>Square ⊓</option>
+                  <select id="cym-synth-waveform-select" aria-label="Synthesizer Waveform" class="glass-select glass-select-sm text-cyan-300 cursor-pointer">
+                    <option value="sine" ${this.customWaveform === 'sine' ? 'selected' : ''}>Sine</option>
+                    <option value="triangle" ${this.customWaveform === 'triangle' ? 'selected' : ''}>Triangle</option>
+                    <option value="sawtooth" ${this.customWaveform === 'sawtooth' ? 'selected' : ''}>Sawtooth</option>
+                    <option value="square" ${this.customWaveform === 'square' ? 'selected' : ''}>Square</option>
                     <option value="organ" ${this.customWaveform === 'organ' ? 'selected' : ''}>Organ</option>
                   </select>
                 </div>

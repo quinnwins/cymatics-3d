@@ -19,11 +19,11 @@ async function runLiveAppleMusicTest() {
     const results = await connector.searchTracks(query, 5);
 
     if (results.length === 0) {
-      console.error(`❌ FAILED: No results returned for "${query}"`);
+      console.error(`[ERROR] FAILED: No results returned for "${query}"`);
       process.exit(1);
     }
 
-    console.log(`✅ Returned ${results.length} tracks. Top result:`);
+    console.log(`[SUCCESS] Returned ${results.length} tracks. Top result:`);
     const topTrack = results[0];
     console.log(`   - Title: ${topTrack.title}`);
     console.log(`   - Artist: ${topTrack.artist}`);
@@ -34,7 +34,7 @@ async function runLiveAppleMusicTest() {
 
     // 2. Perform live network request to verify Apple CDN Audio Stream
     if (!topTrack.previewUrl) {
-      console.error(`❌ FAILED: previewUrl missing for ${topTrack.title}`);
+      console.error(`[ERROR] FAILED: previewUrl missing for ${topTrack.title}`);
       process.exit(1);
     }
 
@@ -49,16 +49,16 @@ async function runLiveAppleMusicTest() {
     console.log(`   -> Content-Length: ${headRes.headers.get('content-length')} bytes`);
 
     if (headRes.status !== 200 && headRes.status !== 206) {
-      console.error(`❌ FAILED: Apple CDN returned non-200/206 status: ${headRes.status}`);
+      console.error(`[ERROR] FAILED: Apple CDN returned non-200/206 status: ${headRes.status}`);
       process.exit(1);
     }
 
     const audioBytes = await headRes.arrayBuffer();
     if (audioBytes.byteLength === 0) {
-      console.error(`❌ FAILED: Received 0 audio bytes from Apple CDN`);
+      console.error(`[ERROR] FAILED: Received 0 audio bytes from Apple CDN`);
       process.exit(1);
     }
-    console.log(`✅ Successfully received ${audioBytes.byteLength} audio bytes from Apple Music CDN!\n`);
+    console.log(`[SUCCESS] Successfully received ${audioBytes.byteLength} audio bytes from Apple Music CDN!\n`);
   }
 
   console.log('=== ALL LIVE APPLE MUSIC PLAYBACK VERIFICATIONS PASSED (100% SUCCESS) ===');

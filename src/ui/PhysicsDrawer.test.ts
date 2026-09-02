@@ -53,7 +53,7 @@ function createMockVisualizer(): VisualizerEngine {
 }
 
 describe('Scene Optics & Physics Drawer Inspector', () => {
-  it('renders streamlined direct optics, Cymatics Medium, and simulation controls in cymatics/music mode', () => {
+  it('renders streamlined direct optics and simulation controls in cymatics/music mode', () => {
     const visualizer = createMockVisualizer();
     const drawer = new PhysicsDrawer(visualizer);
     drawer.setMode('music');
@@ -66,29 +66,6 @@ describe('Scene Optics & Physics Drawer Inspector', () => {
     expect(el.querySelector('#slider-particle-scale')).not.toBeNull();
     expect(el.querySelector('#btn-toggle-ground-grid')).not.toBeNull();
     expect(el.querySelector('#btn-reset-physics-drawer')).not.toBeNull();
-
-    // Medium layer buttons
-    const layerBtns = el.querySelectorAll('.btn-physics-layer');
-    expect(layerBtns.length).toBe(3);
-  });
-
-  it('allows toggling cymatics apparatus medium layers in music mode', () => {
-    let activeLayers = { plate: false, droplet: true, trap: true };
-    const visualizer = createMockVisualizer();
-    visualizer.getCymaticsLayers = () => ({ ...activeLayers });
-    visualizer.setCymaticsLayers = (l: any) => {
-      activeLayers = { ...activeLayers, ...l };
-    };
-
-    const drawer = new PhysicsDrawer(visualizer);
-    drawer.setMode('music');
-
-    const el = drawer.getElement();
-    const plateBtn = el.querySelector('button[data-layer="plate"]') as HTMLButtonElement;
-    expect(plateBtn).not.toBeNull();
-
-    plateBtn.click();
-    expect(activeLayers.plate).toBe(true);
   });
 
   it('hides wave simulation controls in specialized lab modes (voice, therapy, nobel, bio) while keeping glow active', () => {

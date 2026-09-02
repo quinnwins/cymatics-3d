@@ -187,5 +187,42 @@ describe('AudioControlsBar UI - Universal Master Transport & Telemetry Dock', ()
       expect(marqueeContainer.classList.contains('has-overflow')).toBe(false);
       expect(marqueeContent.style.getPropertyValue('--marquee-distance')).toBe('');
     });
+
+    it('should equip buttons and sliders with data-tooltip attributes instead of relying on native browser tooltips', () => {
+      controlsBar.setMode('music');
+      const el = controlsBar.getElement();
+
+      const playBtn = el.querySelector('#btn-play-pause');
+      const snapBtn = el.querySelector('#btn-screenshot');
+      const exportBtn = el.querySelector('#btn-export-dossier');
+      const scrubber = el.querySelector('#dock-timeline-scrubber');
+      const volSlider = el.querySelector('#volume-slider');
+
+      expect(playBtn?.getAttribute('data-tooltip')).toBe('Play Master Audio');
+      expect(snapBtn?.getAttribute('data-tooltip')).toBe('Capture Screenshot (PNG)');
+      expect(exportBtn?.getAttribute('data-tooltip')).toBe('Export Simulation Report & Data');
+      expect(scrubber?.getAttribute('data-tooltip')).toBeDefined();
+      expect(volSlider?.getAttribute('data-tooltip')).toContain('Volume:');
+    });
+
+    it('should render streaming track with 2-line title and source badge without truncation overlap', () => {
+      vi.spyOn(audioEngine, 'getActiveStreamingTrack').mockReturnValue({
+        id: 'am-cornfield',
+        title: 'Cornfield Chase (Interstellar)',
+        artist: 'Hans Zimmer',
+        source: 'apple-music',
+        album: 'Interstellar (Original Motion Picture Soundtrack)',
+        durationMs: 126000,
+        artworkUrl: 'https://example.com/art.jpg',
+        previewUrl: 'https://example.com/preview.m4a',
+        hasDirectAudio: true,
+      });
+
+      controlsBar.setMode('music');
+      const el = controlsBar.getElement();
+
+      expect(el.textContent).toContain('Cornfield Chase (Interstellar) — Hans Zimmer');
+      expect(el.textContent).toContain('• Apple Music');
+    });
   });
 });

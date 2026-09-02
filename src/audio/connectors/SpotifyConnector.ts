@@ -124,7 +124,7 @@ export class SpotifyConnector implements StreamingConnector {
   public static readonly CURATED_CATEGORIES: StreamingGenreCategory[] = [
     {
       id: 'spotify-electronic',
-      label: '⚡ Cyberpunk & Electronic',
+      label: 'Cyberpunk & Electronic',
       tracks: [
         {
           id: 'spotify-curated-1',
@@ -133,7 +133,7 @@ export class SpotifyConnector implements StreamingConnector {
           album: 'Lies',
           artworkUrl: 'https://i.scdn.co/image/ab67616d0000b273e925b6a798f46e8c07886470',
           durationMs: 270000,
-          previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/b8/b6/2d/b8b62d3c-9bc2-6a6c-4ec7-99e5a87be971/mzaf_17208447814421272787.plus.aac.p.m4a',
+          previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/a3/51/9f/a3519fb3-9f7a-e017-50b6-19ca4263cc27/mzaf_359563965774919295.plus.aac.p.m4a',
           spotifyUri: 'spotify:track:4jflX03pG1g1F3XwZtJk1E',
           source: 'spotify',
           genre: 'Cyberpunk Bass',
@@ -147,7 +147,7 @@ export class SpotifyConnector implements StreamingConnector {
           album: 'OutRun',
           artworkUrl: 'https://i.scdn.co/image/ab67616d0000b273cfad7755b7c89f53eec0efbf',
           durationMs: 258000,
-          previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/0d/95/67/0d95679a-e9fa-c4a0-5309-586b66b453e0/mzaf_671846506305716766.plus.aac.p.m4a',
+          previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/d2/45/fb/d245fbf9-8570-fdc0-5e6b-aa528c130486/mzaf_11947081694159530687.plus.aac.p.m4a',
           spotifyUri: 'spotify:track:0rQur0v28YjPkWfD4wN92X',
           source: 'spotify',
           genre: 'Synthwave',
@@ -158,7 +158,7 @@ export class SpotifyConnector implements StreamingConnector {
     },
     {
       id: 'spotify-ambient',
-      label: '🌌 Deep Space & Solfeggio',
+      label: 'Deep Space & Solfeggio',
       tracks: [
         {
           id: 'spotify-curated-3',
@@ -167,7 +167,7 @@ export class SpotifyConnector implements StreamingConnector {
           album: 'Harmonic Geometry Vol. 1',
           artworkUrl: 'https://i.scdn.co/image/ab67616d0000b2736b70b34d7efd072fbe987bb2',
           durationMs: 360000,
-          previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/c3/ef/aa/c3efaa17-91fb-2615-585a-0639e3ec0192/mzaf_9453912959146194723.plus.aac.p.m4a',
+          previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/65/69/07/656907c9-eb54-c59c-72b9-dad8489a0165/mzaf_3316991574698499044.plus.aac.p.m4a',
           spotifyUri: 'spotify:track:5k7e9xY3u4Z6b3k2a1v9q0',
           source: 'spotify',
           genre: 'Solfeggio 432 Hz',
@@ -181,7 +181,7 @@ export class SpotifyConnector implements StreamingConnector {
           album: 'Interstellar Soundscape',
           artworkUrl: 'https://i.scdn.co/image/ab67616d0000b273cfb3952f440539c3e2f5bdfb',
           durationMs: 240000,
-          previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/05/88/02/05880299-ff3d-4c3e-d9cf-e17f4dc1f1ad/mzaf_10014761413144882195.plus.aac.p.m4a',
+          previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview122/v4/0a/f8/a4/0af8a484-0f1e-f61b-e77d-62a7b1a2170f/mzaf_2548049012645223964.plus.aac.p.m4a',
           spotifyUri: 'spotify:track:1vB6m6p4Kk5yGg4G6H5j2',
           source: 'spotify',
           genre: 'Cinematic Ambient',
@@ -192,7 +192,7 @@ export class SpotifyConnector implements StreamingConnector {
     },
     {
       id: 'spotify-vocal',
-      label: '🎙️ Vocal Resonance',
+      label: 'Vocal Resonance',
       tracks: [
         {
           id: 'spotify-curated-5',
@@ -201,7 +201,7 @@ export class SpotifyConnector implements StreamingConnector {
           album: 'Chant Gregorien',
           artworkUrl: 'https://i.scdn.co/image/ab67616d0000b2735749f7d4615a133dfd2a588b',
           durationMs: 180000,
-          previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/15/45/b5/1545b53d-2402-4ae0-449e-ec8ba7e72b4f/mzaf_10927902914838618774.plus.aac.p.m4a',
+          previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/Music2/v4/93/b4/13/93b41396-c74f-d9a1-90f4-ed4e5942cb2f/mzaf_7745405453229957538.plus.aac.p.m4a',
           spotifyUri: 'spotify:track:7w8e2u4p2m8b2x1v5y8w9',
           source: 'spotify',
           genre: 'Choral Harmonics',
@@ -222,6 +222,22 @@ export class SpotifyConnector implements StreamingConnector {
 
   public getAllCuratedTracks(): StreamingTrack[] {
     return SpotifyConnector.CURATED_CATEGORIES.flatMap(c => c.tracks);
+  }
+
+  /**
+   * Resolves a fresh playable preview URL if the static stream expired
+   */
+  public async resolveFreshPreviewUrl(track: StreamingTrack): Promise<string | undefined> {
+    try {
+      const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(`${track.title} ${track.artist}`)}&entity=song&limit=1`);
+      const data = await res.json();
+      if (data && data.results && data.results[0] && data.results[0].previewUrl) {
+        return data.results[0].previewUrl;
+      }
+      return track.previewUrl;
+    } catch {
+      return track.previewUrl;
+    }
   }
 
   // --- Session & PKCE Management ---
@@ -411,7 +427,39 @@ export class SpotifyConnector implements StreamingConnector {
       }
     }
 
-    // Default zero-auth search across curated crate
+    // Universal high-speed zero-auth catalog search fallback
+    try {
+      const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(trimmed)}&entity=song&limit=${Math.min(limit, 30)}`;
+      const res = await fetch(searchUrl, { signal: this.currentAbortController.signal });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.results) && data.results.length > 0) {
+          return data.results
+            .filter((item: any) => item.previewUrl && item.trackName)
+            .map((item: any) => {
+              const rawArt = item.artworkUrl100 || item.artworkUrl60 || '';
+              const highResArtwork = rawArt.replace(/\/\d+x\d+bb\./, '/600x600bb.');
+              return {
+                id: `spotify-search-${item.trackId}`,
+                title: item.trackName,
+                artist: item.artistName || 'Unknown Artist',
+                album: item.collectionName || item.trackName,
+                artworkUrl: highResArtwork || rawArt,
+                durationMs: item.trackTimeMillis || 30000,
+                previewUrl: item.previewUrl,
+                spotifyUri: `spotify:track:${item.trackId}`,
+                source: 'spotify' as const,
+                genre: item.primaryGenreName || 'Music',
+                hasDirectAudio: true,
+              };
+            });
+        }
+      }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return [];
+    }
+
+    // Default zero-auth fallback across curated crate
     return this.getAllCuratedTracks().filter(
       t =>
         t.title.toLowerCase().includes(trimmed.toLowerCase()) ||

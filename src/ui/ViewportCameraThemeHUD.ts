@@ -100,11 +100,11 @@ export class ViewportCameraThemeHUD {
         ? this.visualizer.getCameraMode()
         : 'autocam';
 
-    const cameraOptions: { id: CameraMode; label: string; icon: string; title: string }[] = [
-      { id: 'autocam', label: 'Cinematic', icon: '🎬', title: 'Cinematic auto-rotating camera' },
-      { id: 'orbit', label: 'Free Orbit', icon: '🌐', title: 'Free 360° mouse & touch orbit' },
-      { id: 'emitter-lock', label: 'Focus Center', icon: '🎯', title: 'Lock focus on acoustic center' },
-      { id: 'top-down', label: 'Top-Down', icon: '📐', title: 'Top-down orthogonal perspective' },
+    const cameraOptions: { id: CameraMode; label: string; title: string }[] = [
+      { id: 'autocam', label: 'Cinematic', title: 'Cinematic auto-rotating camera' },
+      { id: 'orbit', label: 'Free Orbit', title: 'Free 360° mouse & touch orbit' },
+      { id: 'emitter-lock', label: 'Focus Center', title: 'Lock focus on acoustic center' },
+      { id: 'top-down', label: 'Top-Down', title: 'Top-down orthogonal perspective' },
     ];
 
     let paletteHtml = '';
@@ -112,17 +112,17 @@ export class ViewportCameraThemeHUD {
       paletteHtml = `
         <!-- Theme Palette Dropdown -->
         <div class="flex items-center gap-1.5 shrink-0">
-          <span class="text-xs" aria-hidden="true">🎨</span>
+          <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
           <select
             id="viewport-theme-selector"
             aria-label="Visualizer Color Theme Palette"
             title="Switch color palette"
-            class="h-7 px-2 rounded-xl text-[11px] font-semibold text-slate-200 bg-slate-900/80 border border-white/10 hover:border-cyan-400/50 shadow-sm outline-none cursor-pointer transition-colors"
+            class="glass-select glass-select-sm cursor-pointer"
           >
             ${palettes
               .map(
                 p => `
-              <option value="${p.id}" class="bg-slate-900 text-gray-100" ${p.id === this.currentPaletteId ? 'selected' : ''}>${p.name}</option>
+              <option value="${p.id}" ${p.id === this.currentPaletteId ? 'selected' : ''}>${p.name}</option>
             `
               )
               .join('')}
@@ -148,7 +148,7 @@ export class ViewportCameraThemeHUD {
         <div id="hud-optics-popover" class="glass-panel absolute top-full right-0 mt-2 p-3 sm:p-3.5 rounded-2xl w-68 sm:w-76 flex flex-col gap-2.5 shadow-2xl border border-white/10 backdrop-blur-2xl z-40 transition-all duration-200">
           <div class="flex items-center justify-between pb-1.5 border-b border-white/10">
             <div class="flex items-center gap-1.5">
-              <span class="text-xs">✨</span>
+              <svg class="w-3.5 h-3.5 text-cyan-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4h-7m-4 0H3m14 8h-3m-4 0H3m18 8h-9m-4 0H3m11-16v4m-8 4v4m10 4v4"/></svg>
               <span class="text-xs font-bold text-slate-200 tracking-wide">Scene Optics & Visuals</span>
             </div>
             <button id="btn-close-hud-optics" class="text-slate-400 hover:text-white text-xs p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer" aria-label="Close optics flyout">✕</button>
@@ -305,17 +305,17 @@ export class ViewportCameraThemeHUD {
 
         <!-- Camera Perspective Dropdown -->
         <div class="flex items-center gap-1.5 shrink-0">
-          <span class="text-xs" aria-hidden="true">🎥</span>
+          <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
           <select
             id="viewport-camera-selector"
             aria-label="Camera Perspective Mode"
             title="Switch camera viewport perspective"
-            class="h-7 px-2 rounded-xl text-[11px] font-semibold text-slate-200 bg-slate-900/80 border border-white/10 hover:border-cyan-400/50 shadow-sm outline-none cursor-pointer transition-colors"
+            class="glass-select glass-select-sm cursor-pointer"
           >
             ${cameraOptions
               .map(
                 cam => `
-              <option value="${cam.id}" class="bg-slate-900 text-gray-100" ${cam.id === activeCameraMode ? 'selected' : ''}>${cam.icon} ${cam.label}</option>
+              <option value="${cam.id}" ${cam.id === activeCameraMode ? 'selected' : ''}>${cam.label}</option>
             `
               )
               .join('')}
@@ -325,7 +325,7 @@ export class ViewportCameraThemeHUD {
         <!-- Vertical Divider -->
         <div class="w-px h-4 bg-white/10 shrink-0" aria-hidden="true"></div>
 
-        <!-- ✨ Optics & Visuals Flyout Trigger Button -->
+        <!-- Optics & Visuals Flyout Trigger Button -->
         <button
           id="btn-toggle-hud-optics"
           title="Adjust visual optics, glow & particle fidelity"
@@ -334,7 +334,7 @@ export class ViewportCameraThemeHUD {
             this.isOpticsOpen ? 'glass-btn-active font-bold text-cyan-300' : 'text-slate-300 hover:text-white'
           }"
         >
-          <span>✨ Optics</span>
+          <span>Optics</span>
           <span class="text-[9px] font-mono opacity-80">${this.isOpticsOpen ? '▲' : '▼'}</span>
         </button>
       </div>

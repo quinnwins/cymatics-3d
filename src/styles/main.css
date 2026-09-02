@@ -204,6 +204,42 @@
   box-shadow: 0 2px 8px -1px rgba(0, 0, 0, 0.4), 0 0 12px -2px var(--accent-cyan-glow), inset 0 1px 0 0 rgba(255, 255, 255, 0.2) !important;
 }
 
+/* --- Apple/Linear-Grade Micro-Tooltips --- */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px) scale(0.96);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #f1f5f9;
+  background: rgba(10, 15, 29, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.55rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: opacity 140ms var(--spring-snappy), transform 140ms var(--spring-snappy);
+  z-index: 100;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
 /* --- High-Ergonomics Range Sliders --- */
 input[type="range"] {
   -webkit-appearance: none;
@@ -215,7 +251,8 @@ input[type="range"] {
   background: rgba(255, 255, 255, 0.10);
   outline: none;
   cursor: pointer;
-  margin: 4px 0;
+  margin: 0;
+  padding: 0;
   position: relative;
   box-sizing: border-box;
   flex-shrink: 1;
@@ -529,8 +566,8 @@ body.is-grabbing {
 }
 
 .marquee-container.has-overflow {
-  mask-image: linear-gradient(to right, black calc(100% - 12px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, black calc(100% - 12px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 6px, black calc(100% - 12px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 6px, black calc(100% - 12px), transparent 100%);
 }
 
 .marquee-content {
@@ -567,3 +604,86 @@ body.is-grabbing {
     animation: none !important;
   }
 }
+
+/* --- High-Fidelity Glass Select Dropdowns --- */
+select.glass-select,
+.glass-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: var(--surface-glass-l2, rgba(8, 13, 24, 0.90));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 0.875rem 0.875rem;
+  padding: 0.375rem 2.25rem 0.375rem 0.75rem;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.10));
+  border-radius: 0.75rem;
+  color: #f1f5f9;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--highlight-specular), 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, color 120ms ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+select.glass-select:hover,
+.glass-select:hover {
+  background-color: rgba(15, 23, 42, 0.96);
+  border-color: var(--border-hover, rgba(255, 255, 255, 0.22));
+  color: #ffffff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  box-shadow: var(--highlight-specular), 0 4px 12px rgba(0, 0, 0, 0.45), 0 0 12px -2px var(--accent-cyan-glow, rgba(34, 211, 238, 0.35));
+}
+
+select.glass-select:focus,
+select.glass-select:focus-visible,
+.glass-select:focus,
+.glass-select:focus-visible {
+  outline: none;
+  border-color: #38bdf8;
+  background-color: rgba(15, 23, 42, 0.98);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25), 0 0 16px -2px var(--accent-cyan-glow, rgba(34, 211, 238, 0.4));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+select.glass-select:disabled,
+.glass-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Compact Glass Select Variant for tight bars & HUDs */
+select.glass-select-sm,
+.glass-select-sm {
+  height: 1.875rem;
+  padding: 0.25rem 1.85rem 0.25rem 0.625rem;
+  font-size: 0.6875rem;
+  border-radius: 0.625rem;
+  background-position: right 0.55rem center;
+  background-size: 0.75rem 0.75rem;
+}
+
+/* High-contrast dark option popup styling */
+select.glass-select option,
+.glass-select option {
+  background-color: #0b1120;
+  color: #f1f5f9;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+select.glass-select option:checked,
+.glass-select option:checked {
+  background-color: #1e293b;
+  color: #38bdf8;
+  font-weight: 700;
+}
+

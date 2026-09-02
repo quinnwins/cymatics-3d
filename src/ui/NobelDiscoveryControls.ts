@@ -192,7 +192,7 @@ export class NobelDiscoveryControls {
                 ? `
               <div class="flex items-center gap-2">
                 <label class="text-xs text-slate-300 whitespace-nowrap">Select Virus:</label>
-                <select id="select-virus-species" class="w-full bg-slate-900 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white">
+                <select id="select-virus-species" aria-label="Select Virus Species" class="glass-select w-full cursor-pointer">
                   ${viruses
                     .map(
                       (v) => `

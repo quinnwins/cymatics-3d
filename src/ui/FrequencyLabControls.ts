@@ -281,12 +281,12 @@ export class FrequencyLabControls {
             </div>
 
             <!-- Waveform Selector Chips -->
-            <select id="waveform-select" aria-label="Oscillator Waveform Shape" class="glass-btn px-2 py-1 rounded-xl text-xs font-semibold text-slate-200 bg-slate-950 border border-white/10 outline-none cursor-pointer">
-              <option value="sine" ${waveform === 'sine' ? 'selected' : ''}>Sine (~)</option>
-              <option value="triangle" ${waveform === 'triangle' ? 'selected' : ''}>Triangle (/\)</option>
-              <option value="sawtooth" ${waveform === 'sawtooth' ? 'selected' : ''}>Saw (/\_)</option>
-              <option value="square" ${waveform === 'square' ? 'selected' : ''}>Square (⎍)</option>
-              <option value="organ" ${waveform === 'organ' ? 'selected' : ''}>Organ (𝅘𝅥𝅯)</option>
+            <select id="waveform-select" aria-label="Oscillator Waveform Shape" class="glass-select glass-select-sm cursor-pointer">
+              <option value="sine" ${waveform === 'sine' ? 'selected' : ''}>Sine</option>
+              <option value="triangle" ${waveform === 'triangle' ? 'selected' : ''}>Triangle</option>
+              <option value="sawtooth" ${waveform === 'sawtooth' ? 'selected' : ''}>Sawtooth</option>
+              <option value="square" ${waveform === 'square' ? 'selected' : ''}>Square</option>
+              <option value="organ" ${waveform === 'organ' ? 'selected' : ''}>Organ</option>
             </select>
           </div>
         </div>

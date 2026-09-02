@@ -171,7 +171,7 @@ export class MusicLibraryCard {
               }"
               title="Studio Demo Tracks"
             >
-              <span>🎵 Tracks</span>
+              <span>Tracks</span>
             </button>
             <button
               id="tab-source-apple"
@@ -181,7 +181,7 @@ export class MusicLibraryCard {
               }"
               title="Apple Music Catalog"
             >
-              <span>🍏 Apple</span>
+              <span>Apple</span>
             </button>
             <button
               id="tab-source-spotify"
@@ -191,7 +191,7 @@ export class MusicLibraryCard {
               }"
               title="Spotify Web & Analysis"
             >
-              <span>🟢 Spotify</span>
+              <span>Spotify</span>
             </button>
             <button
               id="tab-source-upload"
@@ -201,7 +201,7 @@ export class MusicLibraryCard {
               }"
               title="Custom Audio File Upload"
             >
-              <span>📂 File</span>
+              <span>File</span>
             </button>
             <button
               id="tab-source-mic"
@@ -211,7 +211,7 @@ export class MusicLibraryCard {
               }"
               title="Live Microphone Input"
             >
-              <span>🎙️ Mic</span>
+              <span>Mic</span>
             </button>
           </div>
         </div>
@@ -393,7 +393,7 @@ export class MusicLibraryCard {
               }"
               title="${isAuthorized ? 'Connected to Apple Music Account' : 'Account & Developer Settings'}"
             >
-              <span>${isAuthorized ? '✓ Linked' : '⚙️ Setup'}</span>
+              <span>${isAuthorized ? '✓ Linked' : 'Setup'}</span>
             </button>
           </div>
 
@@ -407,7 +407,7 @@ export class MusicLibraryCard {
               <button id="btn-close-apple-dev" class="text-xs text-slate-400 hover:text-white px-1.5 py-0.5 rounded hover:bg-white/10 cursor-pointer">✕</button>
             </div>
             <p class="text-[10px] text-slate-300 leading-relaxed">
-              ✨ <strong class="text-white">Instant Mode Active:</strong> You can search and play 100M+ songs right now with zero login!
+              <strong class="text-white">Instant Mode Active:</strong> You can search and play 100M+ songs right now with zero login!
             </p>
             <p class="text-[9px] text-slate-400 leading-relaxed">
               Optional: Enter an Apple Developer Token (MusicKit JS JWT) if you want to link your personal subscriber account:
@@ -436,10 +436,10 @@ export class MusicLibraryCard {
           <div class="flex items-center gap-1 overflow-x-auto pb-1 custom-scrollbar text-[10px]">
             ${[
               { id: 'all', label: isAuthorized ? 'My Library' : 'All Curated' },
-              { id: 'trending', label: '🔥 Trending' },
-              { id: 'ambient', label: '🌌 Ambient' },
-              { id: 'classical', label: '🎻 Classical' },
-              { id: 'electronic', label: '⚡ Electronic' },
+              { id: 'trending', label: 'Trending' },
+              { id: 'ambient', label: 'Ambient' },
+              { id: 'classical', label: 'Classical' },
+              { id: 'electronic', label: 'Electronic' },
             ]
               .map(
                 c => `
@@ -568,7 +568,7 @@ export class MusicLibraryCard {
               }"
               title="${isAuth ? 'Connected to Spotify Account' : 'Account & Developer Settings'}"
             >
-              <span>${isAuth ? '✓ Connected' : '⚙️ Setup'}</span>
+              <span>${isAuth ? '✓ Connected' : 'Setup'}</span>
             </button>
           </div>
 
@@ -582,7 +582,7 @@ export class MusicLibraryCard {
               <button id="btn-close-spotify-dev" class="text-xs text-slate-400 hover:text-white px-1.5 py-0.5 rounded hover:bg-white/10 cursor-pointer">✕</button>
             </div>
             <p class="text-[10px] text-slate-300 leading-relaxed">
-              ✨ <strong class="text-white">Instant Mode Active:</strong> Curated tracks and synthetic analysis work right now with zero login!
+              <strong class="text-white">Instant Mode Active:</strong> Curated tracks and synthetic analysis work right now with zero login!
             </p>
             <p class="text-[9px] text-slate-400 leading-relaxed">
               Optional: Enter a Spotify Client ID to log in via PKCE and stream from your user account:
@@ -610,9 +610,9 @@ export class MusicLibraryCard {
           <div class="flex items-center gap-1 overflow-x-auto pb-1 custom-scrollbar text-[10px]">
             ${[
               { id: 'all', label: 'All Curated' },
-              { id: 'spotify-electronic', label: '⚡ Cyberpunk' },
-              { id: 'spotify-ambient', label: '🌌 Solfeggio' },
-              { id: 'spotify-vocal', label: '🎙️ Vocal' },
+              { id: 'spotify-electronic', label: 'Cyberpunk' },
+              { id: 'spotify-ambient', label: 'Solfeggio' },
+              { id: 'spotify-vocal', label: 'Vocal' },
             ]
               .map(
                 c => `
@@ -820,7 +820,7 @@ export class MusicLibraryCard {
 
         <!-- Plain-Language Friendly Feedback Tip -->
         <div class="p-2.5 rounded-xl bg-cyan-950/30 border border-cyan-500/20 flex items-start gap-2 text-[10px] text-cyan-200/90">
-          <span class="text-cyan-400 text-xs mt-0.5">💡</span>
+          <svg class="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
           <span>Tip: Use headphones while the microphone is active to prevent acoustic echo and feedback loops.</span>
         </div>
       </div>

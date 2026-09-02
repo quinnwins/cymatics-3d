@@ -99,16 +99,19 @@ describe('Layout & Workstation System Test Suite', () => {
       expect(rightChildren[1]).toBe(modalSweeperControls.getElement());
     });
 
-    it('mounts Resonator Shapes Deck (ModalSweeperControls) exclusively in right sidebar for Music Studio without PhysicsDrawer', () => {
+    it('mounts Optics (PhysicsDrawer) on top and Resonator Shapes (ModalSweeperControls) below in right sidebar for Music Studio', () => {
       const rightSidebar = document.createElement('div');
 
-      // In Music Studio, right sidebar has Resonator Shapes exclusively
+      // In Music Studio, right sidebar has Optics on top and Resonator Shapes below
+      physicsDrawer.setMode('music');
       modalSweeperControls.setMode('music');
+      rightSidebar.appendChild(physicsDrawer.getElement());
       rightSidebar.appendChild(modalSweeperControls.getElement());
 
       const rightChildren = Array.from(rightSidebar.children);
-      expect(rightChildren.length).toBe(1);
-      expect(rightChildren[0]).toBe(modalSweeperControls.getElement());
+      expect(rightChildren.length).toBe(2);
+      expect(rightChildren[0]).toBe(physicsDrawer.getElement());
+      expect(rightChildren[1]).toBe(modalSweeperControls.getElement());
     });
 
     it('ensures Shape Deck is collapsible to preserve vertical viewport space', () => {

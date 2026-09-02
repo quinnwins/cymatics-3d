@@ -697,7 +697,10 @@ export class ModalSweeperControls {
             }
           </div>
 
-          <!-- Wave Presets Section -->
+          ${
+            !isMusicMode
+              ? `
+          <!-- Wave Presets Section (Frequencies Lab Mode Only) -->
           <div class="flex flex-col gap-1.5 pt-2 border-t border-white/10">
             <div class="flex items-center justify-between">
               <span class="text-[10px] font-bold text-slate-300">1-Click Standing Wave Presets:</span>
@@ -728,6 +731,9 @@ export class ModalSweeperControls {
               }).join('')}
             </div>
           </div>
+          `
+              : ''
+          }
 
         </div>
       </div>
