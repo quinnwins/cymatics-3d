@@ -200,8 +200,11 @@ export function compareChromaCircular(
     }
   }
 
-  // Report the signed shortest interval in semitones.
-  const signedShift = bestShift > 6 ? bestShift - 12 : bestShift;
+  // bestShift rotates the previous chroma toward the current chroma. Report
+  // the inverse rotation so the interval reads from the earlier phrase to its
+  // return: C returning in D is +2, not -2.
+  const returnShift = (12 - bestShift) % 12;
+  const signedShift = returnShift > 6 ? returnShift - 12 : returnShift;
   return { similarity: clamp(best), transposition: signedShift };
 }
 

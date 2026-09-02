@@ -83,12 +83,12 @@ const CONTRAST = [
 describe('AnamnesisModel', () => {
   beforeEach(() => localStorage.clear());
 
-  it('finds the strongest circular chroma alignment and reports transposition', () => {
-    const c = [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0];
-    const d = [0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0];
-    const comparison = compareChromaCircular(c, d);
+  it('finds the strongest circular chroma alignment and reports the return direction', () => {
+    const previousC = [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0];
+    const currentD = [0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0];
+    const comparison = compareChromaCircular(currentD, previousC);
     expect(comparison.similarity).toBeCloseTo(1, 6);
-    expect(Math.abs(comparison.transposition)).toBe(2);
+    expect(comparison.transposition).toBe(2);
   });
 
   it('keeps silence empty and samples audible observations on a stable cadence', () => {
@@ -171,7 +171,7 @@ describe('AnamnesisModel', () => {
 
     const threads = model.getThreads();
     expect(threads.length).toBeGreaterThan(0);
-    expect(threads.some(thread => Math.abs(thread.transposition) === 2)).toBe(true);
+    expect(threads.some(thread => thread.transposition === 2)).toBe(true);
   });
 
   it('marks abrupt structural change as more novel than stable continuation', () => {

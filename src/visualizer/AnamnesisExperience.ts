@@ -20,6 +20,13 @@ export const ANAMNESIS_TOGGLE_EVENT = 'soundform-anamnesis-toggle';
 export const ANAMNESIS_STATE_EVENT = 'soundform-anamnesis-state';
 export const ANAMNESIS_RETURN_EVENT = 'soundform-anamnesis-return';
 
+export function canControlAnamnesisPlayback(
+  mode: AudioInputMode,
+  viewingRelic = false
+): boolean {
+  return mode !== 'microphone' && !viewingRelic;
+}
+
 interface RuntimeControls {
   target: THREE.Vector3;
   update(): void;
@@ -151,6 +158,8 @@ export class AnamnesisExperience {
   private contextVisible = true;
   private sessionIdentity = '';
   private sessionElapsed = 0;
+  private savedRelicId: string | null = null;
+  private lastSavedFingerprint = '';
   private viewingRelic: MemoryRelic | null = null;
   private latestLivePoints: readonly MemoryPoint[] = [];
   private lastUiUpdate = -Infinity;
@@ -229,6 +238,8 @@ export class AnamnesisExperience {
     if (this.sessionIdentity && this.model.getStats().moments >= 16) this.saveRelic(false);
     this.sessionIdentity = meta.identity;
     this.sessionElapsed = 0;
+    this.savedRelicId = null;
+    this.lastSavedFingerprint = '';
     this.viewingRelic = null;
     this.model.reset(meta);
     this.latestLivePoints = [];
@@ -280,8 +291,22 @@ export class AnamnesisExperience {
       if (showMessage) this.showTemporaryMessage('THE RELIC NEEDS A FEW MORE MOMENTS', 2.5);
       return null;
     }
+    const fingerprint = this.getRelicFingerprint();
+    if (fingerprint === this.lastSavedFingerprint) {
+      if (showMessage) this.showTemporaryMessage('THIS RELIC IS ALREADY KEPT', 2.5);
+      return this.savedRelicId
+        ? this.store.list().find(item => item.id === this.savedRelicId) || null
+        : null;
+    }
+
     const relic = this.model.toRelic();
+    // One live listening session owns one relic. Later autosaves update that
+    // relic as the performance grows instead of flooding the twelve-slot
+    // archive with timestamp variants of the same memory.
+    if (this.savedRelicId) relic.id = this.savedRelicId;
     this.store.save(relic);
+    this.savedRelicId = relic.id;
+    this.lastSavedFingerprint = fingerprint;
     if (showMessage) this.showTemporaryMessage('THIS MEMORY NOW LIVES HERE', 3.5);
     this.renderArchive();
     return relic;
@@ -310,6 +335,8 @@ export class AnamnesisExperience {
   public clearLiveMemory(): void {
     const meta = this.model.getMeta();
     this.model.reset(meta);
+    this.savedRelicId = null;
+    this.lastSavedFingerprint = '';
     this.latestLivePoints = [];
     this.viewingRelic = null;
     this.field.setData([], []);
@@ -514,7 +541,7 @@ export class AnamnesisExperience {
       #anamnesis-hud .ana-stats{display:flex;justify-content:center;gap:20px;color:#94a3b8;font:9px ui-monospace,SFMono-Regular,monospace;text-transform:uppercase;letter-spacing:.09em}
       #anamnesis-hud .ana-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:16px}
       #anamnesis-hud button{border:1px solid #94a3b82e;background:#050a14b8;color:#cbd5e1;border-radius:999px;padding:9px 13px;font:700 8px ui-monospace,SFMono-Regular,monospace;letter-spacing:.12em;cursor:pointer;backdrop-filter:blur(14px)}
-      #anamnesis-hud button:hover{border-color:#67e8f977;color:#fff;background:#0e1b2fcb}#anamnesis-hud button[data-primary]{border-color:#67e8f955;color:#cffafe}
+      #anamnesis-hud button:hover{border-color:#67e8f977;color:#fff;background:#0e1b2fcb}#anamnesis-hud button[data-primary]{border-color:#67e8f955;color:#cffafe}#anamnesis-hud button:disabled{opacity:.42;cursor:default;border-color:#94a3b81f;color:#64748b;background:#03071188}
       #anamnesis-hud .ana-archive{margin:18px auto 0;width:min(520px,100%);max-height:40vh;overflow:auto;border:1px solid #94a3b821;border-radius:18px;background:#030711dc;padding:8px;text-align:left}
       #anamnesis-hud .ana-relic{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px;border-radius:12px}.ana-relic+.ana-relic{border-top:1px solid #94a3b817}.ana-relic strong{display:block;font-size:10px}.ana-relic small{display:block;margin-top:3px;color:#64748b;font:8px ui-monospace}.ana-relic nav{display:flex;gap:5px;align-items:center}.ana-relic button{padding:7px 9px}
       #anamnesis-whisper{position:fixed;z-index:90;top:clamp(70px,12vh,130px);left:50%;transform:translate(-50%,-12px);opacity:0;pointer-events:none;color:#e0f2fe;text-align:center;font:700 9px/1.5 ui-monospace,SFMono-Regular,monospace;letter-spacing:.18em;text-shadow:0 2px 18px #000,0 0 28px #22d3ee88;transition:opacity .6s ease,transform .6s ease;max-width:calc(100vw - 40px)}
@@ -560,6 +587,14 @@ export class AnamnesisExperience {
 
     this.root.querySelector<HTMLButtonElement>('[data-action="close"]')!.onclick = () => this.setExpanded(false);
     this.root.querySelector<HTMLButtonElement>('[data-action="play"]')!.onclick = () => {
+      const mode = this.audio.getMode();
+      if (!canControlAnamnesisPlayback(mode, Boolean(this.viewingRelic))) {
+        this.showTemporaryMessage(
+          mode === 'microphone' ? 'MICROPHONE REMAINS LIVE' : 'RETURN TO LIVE TO CONTROL PLAYBACK',
+          2.5
+        );
+        return;
+      }
       this.audio.togglePlayPause();
       this.renderUi(this.visualTime);
     };
@@ -604,7 +639,15 @@ export class AnamnesisExperience {
     this.root.querySelector<HTMLElement>('[data-moments]')!.textContent = `${stats.moments} moments`;
     this.root.querySelector<HTMLElement>('[data-echoes]')!.textContent = `${stats.echoes} returns`;
     this.root.querySelector<HTMLElement>('[data-families]')!.textContent = `${stats.families} families`;
-    this.root.querySelector<HTMLButtonElement>('[data-action="play"]')!.textContent = this.audio.getIsPlaying() ? 'PAUSE' : 'RESUME';
+    const playButton = this.root.querySelector<HTMLButtonElement>('[data-action="play"]')!;
+    const mode = this.audio.getMode();
+    const playbackControllable = canControlAnamnesisPlayback(mode, Boolean(this.viewingRelic));
+    playButton.disabled = !playbackControllable;
+    playButton.textContent = mode === 'microphone'
+      ? 'LIVE INPUT'
+      : this.viewingRelic
+        ? 'RELIC VIEW'
+        : this.audio.getIsPlaying() ? 'PAUSE' : 'RESUME';
     this.root.querySelector<HTMLButtonElement>('[data-action="live"]')!.hidden = !this.viewingRelic;
 
     let thought = 'LISTEN UNTIL THE MUSIC RECOGNIZES ITSELF';
@@ -704,6 +747,19 @@ export class AnamnesisExperience {
 
   private activePoints(): readonly MemoryPoint[] {
     return this.viewingRelic?.points || this.latestLivePoints;
+  }
+
+  private getRelicFingerprint(): string {
+    const points = this.model.getPoints();
+    const stats = this.model.getStats();
+    const last = points[points.length - 1];
+    return [
+      this.sessionIdentity,
+      stats.moments,
+      stats.echoes,
+      last?.id ?? -1,
+      (last?.timeSeconds ?? 0).toFixed(3),
+    ].join('|');
   }
 
   private showTemporaryMessage(message: string, seconds: number): void {

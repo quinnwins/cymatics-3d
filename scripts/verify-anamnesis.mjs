@@ -213,14 +213,30 @@ async function main() {
 
     const relicProof = await page.evaluate(() => {
       const experience = window.__anamnesis;
-      const relic = experience.saveRelic(false);
-      if (!relic) return { saved: false };
-      const viewed = experience.viewRelic(relic.id);
+      const first = experience.saveRelic(false);
+      const second = experience.saveRelic(false);
+      window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+      if (!first || !second) return { saved: false };
+      const stored = JSON.parse(localStorage.getItem('soundform.anamnesis.relics.v1') || '[]');
+      const viewed = experience.viewRelic(first.id);
       const viewing = experience.getState().viewingRelic;
       experience.returnToLive();
-      return { saved: true, viewed, viewing, id: relic.id };
+      return {
+        saved: true,
+        viewed,
+        viewing,
+        sameId: first.id === second.id,
+        storedCount: stored.length,
+        id: first.id,
+      };
     });
-    if (!relicProof.saved || !relicProof.viewed || !relicProof.viewing) {
+    if (
+      !relicProof.saved
+      || !relicProof.viewed
+      || !relicProof.viewing
+      || !relicProof.sameId
+      || relicProof.storedCount !== 1
+    ) {
       throw new Error(`Memory relic lifecycle failed: ${JSON.stringify(relicProof)}`);
     }
 
