@@ -1,6 +1,5 @@
-import {
-  TEMPORAL_MEDIA,
-  TEMPORAL_MEMORY_EVENT,
+import { TEMPORAL_MEDIA, TEMPORAL_MEMORY_EVENT } from './TemporalMemory';
+import type {
   TemporalMediumId,
   TemporalMemoryController,
 } from './TemporalMemory';
@@ -24,7 +23,7 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
       <i></i><span><b>SONIC MEMORY</b><small>center now · edge past</small></span><em>LIVE</em>
     </button>
     <section class="sm-panel" hidden>
-      <header><span><b>Sound becomes space and memory</b><small>Older spectral moments live farther from the emitter.</small></span><button data-close>×</button></header>
+      <header><span><b>Sound becomes space and memory</b><small>Older spectral moments live farther from the emitter.</small></span><button data-close aria-label="Close Sonic Memory controls">×</button></header>
       <div class="sm-actions">
         <button data-action="enabled"></button><button data-action="freeze"></button>
         <button data-action="immersive">Immersive view</button><button data-action="capture">Capture frame</button>
@@ -33,7 +32,7 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
       <label>Propagation <output data-value="propagation"></output><input data-control="propagation" type="range" min="0.35" max="2.5" step="0.05"></label>
       <label>Presence <output data-value="gain"></output><input data-control="gain" type="range" min="0.35" max="2.2" step="0.05"></label>
       <label>Spatial twist <output data-value="warp"></output><input data-control="warp" type="range" min="0" max="2.5" step="0.05"></label>
-      <div class="sm-row"><select data-control="medium"></select><button data-action="age"></button></div>
+      <div class="sm-row"><select data-control="medium" aria-label="Propagation medium"></select><button data-action="age"></button></div>
       <footer><span data-value="medium"></span><button data-action="reset">Reset</button></footer>
     </section>
   `;
@@ -43,26 +42,40 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
   style.textContent = `
     #sonic-memory-control{position:fixed;z-index:86;left:50%;bottom:86px;transform:translateX(-50%);font:11px Inter,system-ui;color:#e2e8f0;pointer-events:none;filter:drop-shadow(0 18px 40px #0008)}
     #sonic-memory-control *{box-sizing:border-box}#sonic-memory-control button,#sonic-memory-control input,#sonic-memory-control select{font:inherit}
-    #sonic-memory-control .sm-pill,#sonic-memory-control .sm-panel{pointer-events:auto;border:1px solid #94a3b833;background:linear-gradient(145deg,#08101eeF,#080c18d9);backdrop-filter:blur(22px);box-shadow:inset 0 1px #fff1,0 18px 55px #0006}
-    .sm-pill{height:46px;min-width:226px;padding:7px 10px;border-radius:99px;display:flex;align-items:center;gap:10px;color:#f8fafc;cursor:pointer}.sm-pill:hover{border-color:#67e8f980!important;transform:translateY(-1px)}
+    #sonic-memory-control .sm-pill,#sonic-memory-control .sm-panel{pointer-events:auto;border:1px solid #94a3b833;background:linear-gradient(145deg,#08101eef,#080c18d9);backdrop-filter:blur(22px);box-shadow:inset 0 1px #fff1,0 18px 55px #0006}
+    .sm-pill{height:46px;min-width:226px;padding:7px 10px;border-radius:99px;display:flex;align-items:center;gap:10px;color:#f8fafc;cursor:pointer;transition:.2s ease}.sm-pill:hover{border-color:#67e8f980!important;transform:translateY(-1px)}
     .sm-pill>i{width:29px;height:29px;border-radius:50%;background:radial-gradient(circle,#fff 0 5%,#60a5fa 7% 10%,#22d3ee22 30%,transparent 64%);box-shadow:0 0 18px #22d3ee55;animation:smPulse 2.4s ease-in-out infinite}.sm-pill>span{display:flex;flex-direction:column;text-align:left}.sm-pill b{font-size:9px;letter-spacing:.16em}.sm-pill small{margin-top:3px;color:#94a3b8;font-size:9px}.sm-pill em{margin-left:auto;padding:4px 7px;border:1px solid #22d3ee44;border-radius:99px;color:#67e8f9;font-size:8px;font-style:normal;font-weight:800;letter-spacing:.1em}
     .sm-panel{position:absolute;left:50%;bottom:56px;width:min(326px,calc(100vw - 22px));transform:translateX(-50%);padding:15px;border-radius:22px}.sm-panel header{display:flex;gap:10px;margin-bottom:12px}.sm-panel header span{display:flex;flex-direction:column;gap:4px}.sm-panel header b{font-size:12px}.sm-panel header small{color:#94a3b8;line-height:1.35}.sm-panel header button{margin-left:auto;border:0;background:#fff1;color:#94a3b8;border-radius:8px;width:25px;height:25px;cursor:pointer}
-    .sm-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:9px}.sm-actions button,.sm-row button{height:33px;border:1px solid #94a3b829;border-radius:10px;background:#0f172acc;color:#cbd5e1;font-weight:650;cursor:pointer}.sm-actions button[aria-pressed=true],.sm-row button[aria-pressed=true]{border-color:#67e8f966;background:linear-gradient(135deg,#06b6d433,#6366f133);color:#cffafe}
+    .sm-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:9px}.sm-actions button,.sm-row button{height:33px;border:1px solid #94a3b829;border-radius:10px;background:#0f172acc;color:#cbd5e1;font-weight:650;cursor:pointer}.sm-actions button:hover,.sm-row button:hover{border-color:#67e8f966;color:#fff}.sm-actions button[aria-pressed=true],.sm-row button[aria-pressed=true]{border-color:#67e8f966;background:linear-gradient(135deg,#06b6d433,#6366f133);color:#cffafe}
     .sm-panel label{display:grid;grid-template-columns:1fr auto;gap:6px;padding:7px 0;color:#cbd5e1}.sm-panel output{color:#67e8f9;font:9px ui-monospace}.sm-panel input{grid-column:1/3;width:100%;accent-color:#22d3ee}.sm-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}.sm-row select{height:40px;border:1px solid #94a3b829;border-radius:10px;padding:0 9px;background:#0f172acc;color:#e2e8f0}.sm-row button{height:40px}
     .sm-panel footer{display:flex;justify-content:space-between;gap:8px;margin-top:11px;padding-top:10px;border-top:1px solid #94a3b81f;color:#64748b;font-size:8px}.sm-panel footer button{border:0;background:none;color:#94a3b8;cursor:pointer}
-    body.soundform-immersive #header-root,body.soundform-immersive #left-sidebar-root,body.soundform-immersive #right-sidebar-root,body.soundform-immersive #bottom-transport-root{opacity:0!important;pointer-events:none!important}body.soundform-immersive #app{padding:0!important}body.soundform-immersive #sonic-memory-control{bottom:24px}
+    body.soundform-immersive #header-root,body.soundform-immersive #left-sidebar-root,body.soundform-immersive #right-sidebar-root,body.soundform-immersive #bottom-transport-root{opacity:0!important;pointer-events:none!important;transition:opacity .24s ease}body.soundform-immersive #app{padding:0!important}body.soundform-immersive #sonic-memory-control{bottom:24px}
     #sonic-memory-control.sm-frozen .sm-pill em{color:#f9a8d4;border-color:#f472b644}#sonic-memory-control.sm-off .sm-pill em{color:#94a3b8;border-color:#94a3b833}
-    @keyframes smPulse{50%{transform:scale(1.08);box-shadow:0 0 25px #a78bfa66}}@media(max-width:760px){#sonic-memory-control{bottom:74px}.sm-pill{min-width:190px}.sm-pill small{display:none}}
+    @keyframes smPulse{50%{transform:scale(1.08);box-shadow:0 0 25px #a78bfa66}}@media(max-width:760px){#sonic-memory-control{bottom:74px}.sm-pill{min-width:190px}.sm-pill small{display:none}}@media(prefers-reduced-motion:reduce){.sm-pill>i{animation:none}}
   `;
   document.head.appendChild(style);
 
   const pill = root.querySelector<HTMLButtonElement>('.sm-pill')!;
   const panel = root.querySelector<HTMLElement>('.sm-panel')!;
-  const setOpen = (open: boolean): void => { pill.setAttribute('aria-expanded', String(open)); panel.hidden = !open; };
+  const setOpen = (open: boolean): void => {
+    pill.setAttribute('aria-expanded', String(open));
+    panel.hidden = !open;
+  };
   pill.onclick = () => setOpen(pill.getAttribute('aria-expanded') !== 'true');
   root.querySelector<HTMLButtonElement>('[data-close]')!.onclick = () => setOpen(false);
 
   let immersive = false;
+  let styleVisible = true;
+  let dropletVisible = true;
+  const setImmersive = (enabled: boolean): void => {
+    immersive = enabled;
+    document.body.classList.toggle('soundform-immersive', immersive);
+  };
+  const syncVisibility = (): void => {
+    const visible = styleVisible && dropletVisible;
+    root.style.display = visible ? '' : 'none';
+    if (!visible && immersive) setImmersive(false);
+  };
   const update = (): void => {
     const settings = memory.getSettings();
     root.classList.toggle('sm-frozen', settings.frozen);
@@ -86,6 +99,7 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
     const select = root.querySelector<HTMLSelectElement>('[data-control="medium"]')!;
     select.value = settings.medium;
     root.querySelector<HTMLElement>('[data-value="medium"]')!.textContent = `${medium.name} · ${medium.speedMs.toLocaleString()} m/s · M memory · F freeze · I immersive`;
+    syncVisibility();
   };
 
   const mediumSelect = root.querySelector<HTMLSelectElement>('[data-control="medium"]')!;
@@ -105,26 +119,35 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
   bind('warp', value => memory.setWarp(value));
 
   root.querySelector<HTMLButtonElement>('[data-action="immersive"]')!.onclick = () => {
-    immersive = !immersive;
-    document.body.classList.toggle('soundform-immersive', immersive);
+    setImmersive(!immersive);
     update();
   };
   root.querySelector<HTMLButtonElement>('[data-action="capture"]')!.onclick = () => {
     const canvas = document.querySelector<HTMLCanvasElement>('#canvas-container canvas');
     if (!canvas) return;
-    const link = document.createElement('a');
-    link.download = `soundform-sonic-memory-${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    try {
+      const link = document.createElement('a');
+      link.download = `soundform-sonic-memory-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (error) {
+      console.warn('Sonic Memory frame capture failed', error);
+    }
   };
 
   window.addEventListener(TEMPORAL_MEMORY_EVENT, update);
   window.addEventListener('visual-style-changed', event => {
     const mode = (event as CustomEvent<{ style?: string }>).detail?.style;
-    root.style.display = mode === 'cymatics' || mode === 'cymatics-2d' ? '' : 'none';
+    styleVisible = mode === 'cymatics';
+    syncVisibility();
+  });
+  window.addEventListener('cymatics-layers-changed', event => {
+    const layers = (event as CustomEvent<{ droplet?: boolean }>).detail;
+    dropletVisible = layers?.droplet !== false;
+    syncVisibility();
   });
   window.addEventListener('keydown', event => {
-    if (editable(event.target)) return;
+    if (editable(event.target) || !styleVisible || !dropletVisible) return;
     if (event.key.toLowerCase() === 'm') memory.toggleEnabled();
     if (event.key.toLowerCase() === 'f') memory.toggleFrozen();
     if (event.key.toLowerCase() === 'i') root.querySelector<HTMLButtonElement>('[data-action="immersive"]')!.click();
