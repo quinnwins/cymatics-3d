@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   apply:
-    if: github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]' && contains(github.event.head_commit.message, '[apply]')
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -64,9 +64,8 @@ jobs:
               archive.extractall(root)
           PY
 
-          # A GitHub Actions token should not be responsible for modifying the
-          # repository's permanent workflow policy. That one small change is
-          # applied separately after this atomic source commit.
+          # Keep the permanent CI workflow out of this one-use bot commit.
+          # It is applied separately through the repository connector.
           git checkout -- .github/workflows/validate.yml
           rm -rf scripts/.anamnesis-payload
 
