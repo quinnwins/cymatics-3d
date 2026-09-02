@@ -20,12 +20,15 @@ import { WaveformType } from '../audio/FrequencySynthesizer';
 import { EngineMode } from './Header';
 
 export class AudioControlsBar {
+  public static readonly SPEED_PRESETS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+
   private element: HTMLElement;
   private currentEngineMode: EngineMode = 'music';
   private hasInitGlobalListeners = false;
   private unsubscribe?: () => void;
   private animFrameId: number | null = null;
   private isScrubbing = false;
+  private isSpeedMenuOpen = false;
   private resizeObserver: ResizeObserver | null = null;
 
   // Real-time telemetry state
@@ -37,6 +40,7 @@ export class AudioControlsBar {
     mode: string;
     isPlaying: boolean;
     isMuted: boolean;
+    playbackSpeed: number;
     activeTrackId: string;
     loadedFileName: string | null;
     streamingTrackId?: string;
@@ -81,9 +85,29 @@ export class AudioControlsBar {
     this.dispose();
   }
 
+  private onPointerDownGlobal = (e: PointerEvent): void => {
+    if (this.isSpeedMenuOpen) {
+      const speedWrapper = this.element.querySelector('#dock-speed-wrapper');
+      if (speedWrapper && !speedWrapper.contains(e.target as Node)) {
+        this.isSpeedMenuOpen = false;
+        this.render();
+      }
+    }
+  };
+
+  private onKeyDownGlobal = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape' && this.isSpeedMenuOpen) {
+      this.isSpeedMenuOpen = false;
+      this.render();
+    }
+  };
+
   private initGlobalListeners(): void {
     if (this.hasInitGlobalListeners) return;
     this.hasInitGlobalListeners = true;
+
+    window.addEventListener('pointerdown', this.onPointerDownGlobal);
+    window.addEventListener('keydown', this.onKeyDownGlobal);
 
     window.addEventListener('frequency-changed', ((e: CustomEvent<{ frequency: number }>) => {
       if (e.detail?.frequency && e.detail.frequency !== this.currentFreq) {
@@ -102,6 +126,10 @@ export class AudioControlsBar {
   public dispose(): void {
     if (this.hasInitGlobalListeners) {
       this.hasInitGlobalListeners = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('pointerdown', this.onPointerDownGlobal);
+        window.removeEventListener('keydown', this.onKeyDownGlobal);
+      }
     }
   }
 
@@ -157,6 +185,7 @@ export class AudioControlsBar {
   private onAudioEngineUpdate(): void {
     const isPlaying = this.audioEngine.getIsPlaying();
     const isMuted = this.audioEngine.getIsMuted();
+    const speed = this.audioEngine.getPlaybackSpeed();
     const activeTrackId = this.audioEngine.getActiveTrackId();
     const loadedFileName = this.audioEngine.getLoadedFileName();
     const streamingTrack = this.audioEngine.getActiveStreamingTrack();
@@ -168,6 +197,7 @@ export class AudioControlsBar {
       this.lastRenderState.mode !== mode ||
       this.lastRenderState.isPlaying !== isPlaying ||
       this.lastRenderState.isMuted !== isMuted ||
+      this.lastRenderState.playbackSpeed !== speed ||
       this.lastRenderState.activeTrackId !== activeTrackId ||
       this.lastRenderState.loadedFileName !== loadedFileName ||
       this.lastRenderState.streamingTrackId !== streamingTrack?.id ||
@@ -214,6 +244,7 @@ export class AudioControlsBar {
 
     const isPlaying = this.audioEngine.getIsPlaying();
     const isMuted = this.audioEngine.getIsMuted();
+    const speed = this.audioEngine.getPlaybackSpeed();
     const volume = this.audioEngine.getMasterVolume();
     const loadedFileName = this.audioEngine.getLoadedFileName();
     const streamingTrack = this.audioEngine.getActiveStreamingTrack();
@@ -229,6 +260,7 @@ export class AudioControlsBar {
       mode: this.currentEngineMode,
       isPlaying,
       isMuted,
+      playbackSpeed: speed,
       activeTrackId: currentTrackId,
       loadedFileName,
       streamingTrackId: streamingTrack?.id,
@@ -448,8 +480,65 @@ export class AudioControlsBar {
         <!-- Center: Interactive Audio Timeline Scrubber or Mode Telemetry -->
         ${centerContentHtml}
 
-        <!-- Right: Global Utilities (Snapshot, Export) & Master Volume -->
+        <!-- Right: Global Utilities (Speed, Snapshot, Export) & Master Volume -->
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <!-- Sound Playback Speed Selector -->
+          <div class="relative shrink-0" id="dock-speed-wrapper">
+            <button
+              id="btn-speed"
+              type="button"
+              aria-haspopup="true"
+              aria-expanded="${this.isSpeedMenuOpen}"
+              aria-label="Sound Playback Speed: ${speed}x"
+              data-tooltip="Sound Speed: ${speed}×"
+              class="p-1.5 sm:p-2 rounded-xl ${
+                speed !== 1.0
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/50 shadow-sm shadow-cyan-500/20 ring-1 ring-cyan-400/30'
+                  : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border-white/5 hover:border-white/15'
+              } border cursor-pointer transition-all active:scale-95 flex items-center gap-1 text-xs font-semibold shrink-0"
+            >
+              <svg class="w-3.5 h-3.5 ${speed !== 1.0 ? 'text-cyan-300' : 'text-gray-400'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m12 14 4-4"/>
+                <path d="M3.34 19a10 10 0 1 1 17.32 0"/>
+              </svg>
+              <span id="dock-speed-label" class="font-mono text-[11px] sm:text-xs font-bold tabular-nums">${speed}×</span>
+            </button>
+
+            ${
+              this.isSpeedMenuOpen
+                ? `
+              <div
+                id="dock-speed-menu"
+                class="absolute bottom-full mb-2 right-0 glass-panel border border-white/15 rounded-xl p-1.5 shadow-2xl backdrop-blur-2xl flex flex-col gap-1 z-50 min-w-[125px] bg-slate-900/95 text-xs animate-in fade-in zoom-in-95 duration-150"
+                role="menu"
+                aria-label="Select Sound Speed"
+              >
+                <div class="px-2 py-1 text-[10px] font-mono text-slate-400 border-b border-white/10 uppercase tracking-wider">
+                  Sound Speed
+                </div>
+                ${AudioControlsBar.SPEED_PRESETS.map(
+                  preset => `
+                  <button
+                    type="button"
+                    data-speed="${preset}"
+                    class="speed-option-btn flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-mono transition-colors cursor-pointer ${
+                      Math.abs(speed - preset) < 0.001
+                        ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30'
+                        : 'text-gray-300 hover:text-white hover:bg-white/10 border border-transparent'
+                    }"
+                    role="menuitem"
+                  >
+                    <span>${preset}×${preset === 1.0 ? ' <span class="text-[10px] text-slate-400 font-sans font-normal">(Normal)</span>' : ''}</span>
+                    ${Math.abs(speed - preset) < 0.001 ? '<svg class="w-3.5 h-3.5 text-cyan-400 ml-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+                  </button>
+                `
+                ).join('')}
+              </div>
+            `
+                : ''
+            }
+          </div>
+
           <!-- Screenshot Snapshot Button -->
           <button
             id="btn-screenshot"
@@ -544,6 +633,25 @@ export class AudioControlsBar {
         this.audioEngine.togglePlayPause();
       }
       this.render();
+    });
+
+    // Sound Speed Button & Popover Selection Handlers
+    const speedBtn = this.element.querySelector('#btn-speed');
+    speedBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.isSpeedMenuOpen = !this.isSpeedMenuOpen;
+      this.render();
+    });
+
+    const speedOptionBtns = this.element.querySelectorAll<HTMLButtonElement>('.speed-option-btn');
+    speedOptionBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const speedVal = parseFloat(btn.getAttribute('data-speed') || '1.0');
+        this.audioEngine.setPlaybackSpeed(speedVal);
+        this.isSpeedMenuOpen = false;
+        this.render();
+      });
     });
 
     // Timeline Scrubber Handlers (Zero-Lag Real-Time Seeking)

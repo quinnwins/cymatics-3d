@@ -316,7 +316,7 @@ export class MusicLibraryCard {
               class="btn-track-card p-2 rounded-xl flex items-center justify-between transition-all cursor-pointer ${
                 t.id === currentTrackId && !loadedFileName && !isMicActive && this.audioEngine.getMode() === 'demo-track'
                   ? 'bg-cyan-500/20 border border-cyan-400/50 shadow-sm ring-1 ring-cyan-400/30'
-                  : 'bg-slate-950/60 border border-white/5 hover:bg-slate-900/80 hover:border-white/15'
+                  : 'bg-slate-950/40 border border-white/5 hover:bg-white/[0.06] hover:border-white/15'
               }"
             >
               <div class="flex items-center gap-2 min-w-0">
@@ -334,14 +334,14 @@ export class MusicLibraryCard {
                 <div class="flex flex-col text-left min-w-0">
                   <span class="text-[11px] font-semibold truncate ${
                     t.id === currentTrackId && !loadedFileName && !isMicActive && this.audioEngine.getMode() === 'demo-track'
-                      ? 'text-cyan-300'
+                      ? 'text-cyan-300 font-bold'
                       : 'text-slate-200'
                   }">${t.name}</span>
                   <span class="text-[9px] text-slate-400 font-mono">${t.genre} • ${t.bpm} BPM</span>
                 </div>
               </div>
               <div class="flex items-center gap-1 shrink-0">
-                <span class="text-[8px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-900 text-cyan-400/80 border border-white/10">${t.category}</span>
+                <span class="text-[8px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-900/80 text-cyan-400/90 border border-white/10">${t.category}</span>
               </div>
             </button>
           `

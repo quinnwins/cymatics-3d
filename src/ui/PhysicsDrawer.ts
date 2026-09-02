@@ -1,4 +1,5 @@
-import { VisualizerEngine } from '../visualizer/VisualizerEngine';
+import { VisualizerEngine, CameraMode } from '../visualizer/VisualizerEngine';
+import { ColorPalettes } from '../visualizer/ColorPalettes';
 import { EngineMode } from './Header';
 
 export class PhysicsDrawer {
@@ -39,7 +40,118 @@ export class PhysicsDrawer {
   }
 
   public syncState(): void {
-    this.render();
+    this.syncValuesFromVisualizer(false);
+  }
+
+  public syncValuesFromVisualizer(skipFocused = true): void {
+    if (!this.visualizer) return;
+
+    // Wave Speed
+    const speedSlider = this.element.querySelector('#slider-wave-speed') as HTMLInputElement | null;
+    const speedVal = this.element.querySelector('#val-wave-speed');
+    if (speedSlider) {
+      if (!skipFocused || document.activeElement !== speedSlider) {
+        speedSlider.value = this.visualizer.waveSpeed.toString();
+      }
+      const pct = Math.round(((this.visualizer.waveSpeed - 1.0) / 11.0) * 100);
+      speedSlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
+    }
+    if (speedVal) {
+      speedVal.textContent = this.visualizer.waveSpeed.toFixed(1);
+    }
+
+    // Wave Damping
+    const dampingSlider = this.element.querySelector('#slider-wave-damping') as HTMLInputElement | null;
+    const dampingVal = this.element.querySelector('#val-wave-damping');
+    if (dampingSlider) {
+      if (!skipFocused || document.activeElement !== dampingSlider) {
+        dampingSlider.value = this.visualizer.waveDamping.toString();
+      }
+      const pct = Math.round(((this.visualizer.waveDamping - 0.02) / 0.33) * 100);
+      dampingSlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
+    }
+    if (dampingVal) {
+      dampingVal.textContent = this.visualizer.waveDamping.toFixed(2);
+    }
+
+    // Bloom Strength
+    const bloomSlider = this.element.querySelector('#slider-bloom') as HTMLInputElement | null;
+    const bloomVal = this.element.querySelector('#val-bloom');
+    if (bloomSlider) {
+      if (!skipFocused || document.activeElement !== bloomSlider) {
+        bloomSlider.value = this.visualizer.bloomStrength.toString();
+      }
+      const pct = Math.round(((this.visualizer.bloomStrength - 0.05) / 0.95) * 100);
+      bloomSlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
+    }
+    if (bloomVal) {
+      bloomVal.textContent = this.visualizer.bloomStrength.toFixed(2);
+    }
+
+    // Particle Density
+    const densitySlider = this.element.querySelector('#slider-particle-density') as HTMLInputElement | null;
+    const densityVal = this.element.querySelector('#val-particle-density');
+    if (densitySlider) {
+      if (!skipFocused || document.activeElement !== densitySlider) {
+        densitySlider.value = this.visualizer.particleDensity.toString();
+      }
+      const pct = Math.round(((this.visualizer.particleDensity - 16384) / (262144 - 16384)) * 100);
+      densitySlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
+    }
+    if (densityVal) {
+      densityVal.textContent = `${Math.round(this.visualizer.particleDensity / 1024)}k`;
+    }
+
+    // Particle Scale
+    const scaleSlider = this.element.querySelector('#slider-particle-scale') as HTMLInputElement | null;
+    const scaleVal = this.element.querySelector('#val-particle-scale');
+    if (scaleSlider) {
+      if (!skipFocused || document.activeElement !== scaleSlider) {
+        scaleSlider.value = this.visualizer.particleScale.toString();
+      }
+      const pct = Math.round(((this.visualizer.particleScale - 0.4) / 1.6) * 100);
+      scaleSlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
+    }
+    if (scaleVal) {
+      scaleVal.textContent = `${this.visualizer.particleScale.toFixed(1)}×`;
+    }
+
+    // Camera Perspective Dropdown
+    const cameraSelect = this.element.querySelector('#select-camera-mode') as HTMLSelectElement | null;
+    if (cameraSelect) {
+      const activeMode =
+        this.visualizer && typeof this.visualizer.getCameraMode === 'function'
+          ? this.visualizer.getCameraMode()
+          : 'autocam';
+      if (!skipFocused || document.activeElement !== cameraSelect) {
+        cameraSelect.value = activeMode;
+      }
+    }
+
+    // Color Palette Dropdown
+    const paletteSelect = this.element.querySelector('#select-color-palette') as HTMLSelectElement | null;
+    if (paletteSelect) {
+      const activePalette =
+        this.visualizer && typeof this.visualizer.getCurrentPaletteId === 'function'
+          ? this.visualizer.getCurrentPaletteId()
+          : 'cosmic-nebula';
+      if (!skipFocused || document.activeElement !== paletteSelect) {
+        paletteSelect.value = activePalette;
+      }
+    }
+
+    // Floor Grid Toggle Button
+    const gridBtn = this.element.querySelector('#btn-toggle-ground-grid') as HTMLButtonElement | null;
+    if (gridBtn) {
+      const isGrid = !!(this.visualizer.getGroundGridVisible && this.visualizer.getGroundGridVisible());
+      gridBtn.setAttribute('aria-checked', String(isGrid));
+      gridBtn.className = `px-2.5 py-1 rounded-xl text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+        isGrid
+          ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/60 shadow-sm font-bold ring-1 ring-cyan-400/40'
+          : 'bg-slate-900/80 text-slate-400 hover:text-white border border-white/10 hover:border-white/20'
+      }`;
+      gridBtn.innerHTML = `<span>${isGrid ? '✓ On' : 'Off'}</span>`;
+    }
   }
 
   public resetDefaults(): void {
@@ -70,7 +182,7 @@ export class PhysicsDrawer {
     window.dispatchEvent(new CustomEvent('camera-mode-changed', { detail: { mode: 'autocam' } }));
     window.dispatchEvent(new CustomEvent('palette-changed', { detail: { paletteId: 'cosmic-nebula' } }));
     window.dispatchEvent(new CustomEvent('optics-reset'));
-    this.render();
+    this.syncValuesFromVisualizer(false);
   }
 
   private preventEventBleeding(): void {
@@ -89,6 +201,23 @@ export class PhysicsDrawer {
     const showGlowControl = true; // Universal bloom across all modes
 
     const headerTitle = isSpecializedLab ? 'Scene Optics' : 'Scene Optics & Physics';
+
+    const cameraOptions: { id: CameraMode; label: string; title: string }[] = [
+      { id: 'autocam', label: 'Cinematic', title: 'Cinematic auto-rotating camera' },
+      { id: 'orbit', label: 'Free Orbit', title: 'Free 360° mouse & touch orbit' },
+      { id: 'emitter-lock', label: 'Focus Center', title: 'Lock focus on acoustic center' },
+      { id: 'top-down', label: 'Top-Down', title: 'Top-down orthogonal perspective' },
+    ];
+
+    const palettes = Object.values(ColorPalettes.PALETTES);
+    const activeCameraMode =
+      this.visualizer && typeof this.visualizer.getCameraMode === 'function'
+        ? this.visualizer.getCameraMode()
+        : 'autocam';
+    const activePaletteId =
+      this.visualizer && typeof this.visualizer.getCurrentPaletteId === 'function'
+        ? this.visualizer.getCurrentPaletteId()
+        : 'cosmic-nebula';
 
     // Calculations for slider filled gradients
     const waveSpeedPct = Math.round(((this.visualizer.waveSpeed - 1.0) / 11.0) * 100);
@@ -112,48 +241,62 @@ export class PhysicsDrawer {
       <!-- Main Collapsible Body (Streamlined Direct Controls) -->
       <div id="physics-body" class="${this.isOpen ? 'flex' : 'hidden'} flex-col gap-3 text-xs pt-2.5 border-t border-white/10">
 
-        ${
-          showWaveControls
-            ? `
-        <!-- Cymatics Apparatus Medium Layers -->
-        <div class="flex flex-col gap-1.5 bg-slate-950/50 p-2.5 rounded-2xl border border-white/5">
-          <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Cymatics Medium</div>
-          <div class="grid grid-cols-3 gap-1">
-            <button
-              data-layer="plate"
-              class="btn-physics-layer px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                this.visualizer.getCymaticsLayers && this.visualizer.getCymaticsLayers().plate
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-sm font-bold ring-1 ring-cyan-400/30'
-                  : 'bg-slate-900/60 border border-white/5 hover:border-white/20 text-slate-400'
-              }"
-            >
-              <span>${this.visualizer.getCymaticsLayers && this.visualizer.getCymaticsLayers().plate ? '✓ Plate' : 'Plate'}</span>
-            </button>
-            <button
-              data-layer="droplet"
-              class="btn-physics-layer px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                this.visualizer.getCymaticsLayers && this.visualizer.getCymaticsLayers().droplet
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-sm font-bold ring-1 ring-cyan-400/30'
-                  : 'bg-slate-900/60 border border-white/5 hover:border-white/20 text-slate-400'
-              }"
-            >
-              <span>${this.visualizer.getCymaticsLayers && this.visualizer.getCymaticsLayers().droplet ? '✓ Droplet' : 'Droplet'}</span>
-            </button>
-            <button
-              data-layer="trap"
-              class="btn-physics-layer px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                this.visualizer.getCymaticsLayers && this.visualizer.getCymaticsLayers().trap
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-sm font-bold ring-1 ring-cyan-400/30'
-                  : 'bg-slate-900/60 border border-white/5 hover:border-white/20 text-slate-400'
-              }"
-            >
-              <span>${this.visualizer.getCymaticsLayers && this.visualizer.getCymaticsLayers().trap ? '✓ Trap' : 'Trap'}</span>
-            </button>
+        <!-- Viewport Perspective & Color Theme Group (Universal Across All Pages) -->
+        <div class="flex flex-col gap-2.5 bg-slate-950/40 p-2.5 rounded-2xl border border-white/5">
+          <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Perspective & Theme</div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <!-- Camera View Dropdown -->
+            <div class="flex flex-col gap-1 min-w-0">
+              <label for="select-camera-mode" class="text-[10px] font-medium text-slate-300 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5 text-cyan-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+                <span class="truncate">Camera</span>
+              </label>
+              <select
+                id="select-camera-mode"
+                aria-label="Camera Perspective View"
+                title="Switch camera viewport perspective"
+                class="glass-select glass-select-sm w-full cursor-pointer text-xs"
+              >
+                ${cameraOptions
+                  .map(
+                    cam => `
+                  <option value="${cam.id}" ${cam.id === activeCameraMode ? 'selected' : ''}>${cam.label}</option>
+                `
+                  )
+                  .join('')}
+              </select>
+            </div>
+
+            <!-- Color Palette Theme Dropdown -->
+            <div class="flex flex-col gap-1 min-w-0">
+              <label for="select-color-palette" class="text-[10px] font-medium text-slate-300 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5 text-cyan-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+                <span class="truncate">Color Theme</span>
+              </label>
+              <select
+                id="select-color-palette"
+                aria-label="Visualizer Color Theme Palette"
+                title="Switch color palette"
+                class="glass-select glass-select-sm w-full cursor-pointer text-xs"
+              >
+                ${palettes
+                  .map(
+                    p => `
+                  <option value="${p.id}" ${p.id === activePaletteId ? 'selected' : ''}>${p.name}</option>
+                `
+                  )
+                  .join('')}
+              </select>
+            </div>
           </div>
         </div>
 
+        ${
+          showWaveControls
+            ? `
         <!-- Simulation Physics Group -->
-        <div class="flex flex-col gap-2.5 bg-slate-950/50 p-2.5 rounded-2xl border border-white/5">
+        <div class="flex flex-col gap-2.5 bg-slate-950/40 p-2.5 rounded-2xl border border-white/5">
           <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Acoustic Physics</div>
           
           <!-- Wave Propagation Speed (c) -->
@@ -199,7 +342,7 @@ export class PhysicsDrawer {
         }
 
         <!-- Optics & Rendering Fidelity Group -->
-        <div class="flex flex-col gap-2.5 bg-slate-950/50 p-2.5 rounded-2xl border border-white/5">
+        <div class="flex flex-col gap-2.5 bg-slate-950/40 p-2.5 rounded-2xl border border-white/5">
           <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Optics & Particles</div>
 
           ${
@@ -318,21 +461,32 @@ export class PhysicsDrawer {
       this.render();
     });
 
-    // Cymatics Medium Layer Toggles
-    this.element.querySelectorAll('.btn-physics-layer').forEach(btn => {
-      btn.addEventListener('click', e => {
-        const target = e.currentTarget as HTMLElement;
-        const layer = target.getAttribute('data-layer') as 'plate' | 'droplet' | 'trap';
-        if (layer && typeof this.visualizer.getCymaticsLayers === 'function') {
-          const current = this.visualizer.getCymaticsLayers();
-          const updated = { ...current, [layer]: !current[layer] };
-          if (typeof this.visualizer.setCymaticsLayers === 'function') {
-            this.visualizer.setCymaticsLayers(updated);
-          }
-          this.render();
-          window.dispatchEvent(new CustomEvent('cymatics-layers-changed', { detail: updated }));
-        }
-      });
+    // Camera Perspective Dropdown Event
+    const cameraSelect = this.element.querySelector('#select-camera-mode') as HTMLSelectElement | null;
+    cameraSelect?.addEventListener('change', e => {
+      const target = (e.target as HTMLSelectElement).value as CameraMode;
+      if (target && this.visualizer && typeof this.visualizer.setCameraMode === 'function') {
+        this.visualizer.setCameraMode(target);
+        window.dispatchEvent(
+          new CustomEvent('camera-mode-changed', {
+            detail: { mode: target },
+          })
+        );
+      }
+    });
+
+    // Color Theme Palette Dropdown Event
+    const paletteSelect = this.element.querySelector('#select-color-palette') as HTMLSelectElement | null;
+    paletteSelect?.addEventListener('change', e => {
+      const target = (e.target as HTMLSelectElement).value;
+      if (target && this.visualizer && typeof this.visualizer.setPalette === 'function') {
+        this.visualizer.setPalette(target);
+        window.dispatchEvent(
+          new CustomEvent('palette-changed', {
+            detail: { paletteId: target },
+          })
+        );
+      }
     });
 
     // Wave Speed
@@ -344,7 +498,7 @@ export class PhysicsDrawer {
       if (label) label.textContent = val.toFixed(1);
       const pct = Math.round(((val - 1.0) / 11.0) * 100);
       speedSlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
-      window.dispatchEvent(new CustomEvent('optics-value-changed'));
+      window.dispatchEvent(new CustomEvent('optics-value-changed', { detail: { source: 'physics-drawer' } }));
     });
 
     // Wave Damping
@@ -356,7 +510,7 @@ export class PhysicsDrawer {
       if (label) label.textContent = val.toFixed(2);
       const pct = Math.round(((val - 0.02) / 0.33) * 100);
       dampingSlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
-      window.dispatchEvent(new CustomEvent('optics-value-changed'));
+      window.dispatchEvent(new CustomEvent('optics-value-changed', { detail: { source: 'physics-drawer' } }));
     });
 
     // Bloom Strength
@@ -371,7 +525,7 @@ export class PhysicsDrawer {
       if (label) label.textContent = val.toFixed(2);
       const pct = Math.round(((val - 0.05) / 0.95) * 100);
       bloomSlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
-      window.dispatchEvent(new CustomEvent('optics-value-changed'));
+      window.dispatchEvent(new CustomEvent('optics-value-changed', { detail: { source: 'physics-drawer' } }));
     });
 
     // Particle Density
@@ -390,7 +544,7 @@ export class PhysicsDrawer {
       const pct = Math.round(((val - 16384) / (262144 - 16384)) * 100);
       densitySlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
       window.dispatchEvent(new CustomEvent('particle-density-changed', { detail: { density: val } }));
-      window.dispatchEvent(new CustomEvent('optics-value-changed'));
+      window.dispatchEvent(new CustomEvent('optics-value-changed', { detail: { source: 'physics-drawer' } }));
     });
 
     // Particle Scale
@@ -408,7 +562,7 @@ export class PhysicsDrawer {
       if (label) label.textContent = `${val.toFixed(1)}×`;
       const pct = Math.round(((val - 0.4) / 1.6) * 100);
       scaleSlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
-      window.dispatchEvent(new CustomEvent('optics-value-changed'));
+      window.dispatchEvent(new CustomEvent('optics-value-changed', { detail: { source: 'physics-drawer' } }));
     });
 
     // Ground Grid Toggle Button
@@ -417,8 +571,8 @@ export class PhysicsDrawer {
       if (typeof this.visualizer.setGroundGridVisible === 'function') {
         this.visualizer.setGroundGridVisible(!current);
       }
-      this.render();
-      window.dispatchEvent(new CustomEvent('optics-value-changed'));
+      this.syncValuesFromVisualizer(false);
+      window.dispatchEvent(new CustomEvent('optics-value-changed', { detail: { source: 'physics-drawer' } }));
     });
 
     // Reset Defaults Button
@@ -428,20 +582,29 @@ export class PhysicsDrawer {
   }
 
   private attachGlobalListeners(): void {
-    window.addEventListener('optics-value-changed', () => {
-      this.render();
+    window.addEventListener('camera-mode-changed', () => {
+      this.syncValuesFromVisualizer(true);
     });
 
+    window.addEventListener('palette-changed', () => {
+      this.syncValuesFromVisualizer(true);
+    });
+
+    window.addEventListener('optics-value-changed', ((e: CustomEvent<{ source?: string }>) => {
+      if (e.detail?.source === 'physics-drawer') return;
+      this.syncValuesFromVisualizer(true);
+    }) as EventListener);
+
     window.addEventListener('optics-reset', () => {
-      this.render();
+      this.syncValuesFromVisualizer(false);
     });
 
     window.addEventListener('cymatics-layers-changed', () => {
-      this.render();
+      this.syncValuesFromVisualizer(false);
     });
 
     window.addEventListener('visual-style-changed', () => {
-      this.render();
+      this.syncValuesFromVisualizer(false);
     });
   }
 }

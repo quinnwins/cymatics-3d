@@ -180,10 +180,14 @@ export class CymaticsPlateMesh {
     this.group.add(this.transducerStand);
   }
 
-  private isAutoModal = false;
+  private isAutoModal = true;
+  private smoothedModes: THREE.Vector3 = new THREE.Vector3(2.0, 3.0, 1.0);
 
   public setAutoModal(auto: boolean): void {
     this.isAutoModal = auto;
+    if (auto) {
+      this.smoothedModes.copy(this.modes);
+    }
   }
 
   public getAutoModal(): boolean {
@@ -195,8 +199,8 @@ export class CymaticsPlateMesh {
     bands: THREE.Vector4,
     highs: THREE.Vector2,
     fundamentalHz: number,
-    _dt: number,
-    _camera: THREE.Camera
+    dt: number = 0.016,
+    _camera?: THREE.Camera
   ): void {
     if (!this.group.visible) return;
 
@@ -215,8 +219,18 @@ export class CymaticsPlateMesh {
       const dynamicN = Math.max(1.0, Math.min(8.0, baseHarmonic + bands.x * 2.2 + bands.y * 1.5));
       const dynamicM = Math.max(1.0, Math.min(8.0, baseHarmonic * 1.15 + bands.z * 2.5 + highs.x * 1.8));
 
-      u.uModes.value.set(dynamicN, dynamicM, 1.0);
+      // Framerate-independent continuous modal ballistics (120Hz/60Hz consistency)
+      const clampedDt = Math.max(0.001, Math.min(dt || 0.016, 0.1));
+      const factor = 1.0 - Math.exp(-8.0 * clampedDt);
+
+      this.smoothedModes.x += (dynamicN - this.smoothedModes.x) * factor;
+      this.smoothedModes.y += (dynamicM - this.smoothedModes.y) * factor;
+      this.smoothedModes.z = 1.0;
+
+      u.uModes.value.copy(this.smoothedModes);
+      this.modes.copy(this.smoothedModes);
     } else {
+      this.smoothedModes.copy(this.modes);
       u.uModes.value.copy(this.modes);
     }
 
@@ -236,6 +250,7 @@ export class CymaticsPlateMesh {
   public setModes(n: number, m: number, l: number = 1.0): void {
     this.isAutoModal = false;
     this.modes.set(n, m, l);
+    this.smoothedModes.set(n, m, l);
     this.plateMaterial.uniforms.uModes.value.copy(this.modes);
     this.dustMaterial.uniforms.uModes.value.copy(this.modes);
   }

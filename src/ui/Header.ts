@@ -189,8 +189,8 @@ export class Header {
           <!-- Right Sidebar Toggle -->
           <button
             id="btn-toggle-right-sidebar"
-            aria-label="${this.isRightSidebarOpen ? 'Hide optics and telemetry sidebar' : 'Show optics and telemetry sidebar'}"
-            title="${this.isRightSidebarOpen ? 'Hide optics and telemetry sidebar' : 'Show optics and telemetry sidebar'}"
+            aria-label="${this.isRightSidebarOpen ? 'Hide optics and shapes sidebar' : 'Show optics and shapes sidebar'}"
+            title="${this.isRightSidebarOpen ? 'Hide optics and shapes sidebar' : 'Show optics and shapes sidebar'}"
             class="glass-btn px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               this.isRightSidebarOpen ? 'glass-btn-active' : 'text-slate-400 hover:text-white'
             }"

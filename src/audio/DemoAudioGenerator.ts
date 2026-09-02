@@ -30,6 +30,7 @@ export class DemoAudioGenerator {
 
   // Active voice nodes for cleanup and memory safety
   private activeNodes: (AudioNode & { stop?: (when?: number) => void })[] = [];
+  private playbackSpeed: number = 1.0;
 
   public static readonly TRACKS: DemoTrack[] = [
     // Category 1: Cosmic & Ambient
@@ -207,6 +208,30 @@ export class DemoAudioGenerator {
     }
   }
 
+  public getPlaybackSpeed(): number {
+    return this.playbackSpeed;
+  }
+
+  public setPlaybackSpeed(speed: number): void {
+    const clamped = Math.max(0.25, Math.min(4.0, speed));
+    if (this.playbackSpeed === clamped) return;
+    this.playbackSpeed = clamped;
+
+    if (this.isRunning && this.activeTrackId) {
+      if (this.stepTimer !== null) {
+        clearInterval(this.stepTimer);
+        this.stepTimer = null;
+      }
+      const track = DemoAudioGenerator.TRACKS.find(t => t.id === this.activeTrackId) || DemoAudioGenerator.TRACKS[0];
+      const intervalMs = (60 / (track.bpm * this.playbackSpeed) / 4) * 1000;
+      this.stepTimer = window.setInterval(() => {
+        if (!this.isRunning) return;
+        this.tickStep(track.id, this.stepIndex);
+        this.stepIndex = (this.stepIndex + 1) % 64;
+      }, intervalMs);
+    }
+  }
+
   public play(trackId?: string): void {
     const selectedId = trackId || this.lastTrackId || 'cosmic-odyssey';
     this.stop();
@@ -216,7 +241,7 @@ export class DemoAudioGenerator {
     this.stepIndex = 0;
 
     const track = DemoAudioGenerator.TRACKS.find(t => t.id === selectedId) || DemoAudioGenerator.TRACKS[0];
-    const intervalMs = (60 / track.bpm / 4) * 1000; // 16th notes
+    const intervalMs = (60 / (track.bpm * this.playbackSpeed) / 4) * 1000; // 16th notes scaled by playbackSpeed
 
     this.stepTimer = window.setInterval(() => {
       if (!this.isRunning) return;

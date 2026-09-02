@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 import { DemoAudioGenerator } from '../audio/DemoAudioGenerator';
 import { AudioEngine } from '../audio/AudioEngine';
 import { ModalSweeperControls } from './ModalSweeperControls';
@@ -61,6 +63,27 @@ describe('Layout & Workstation System Test Suite', () => {
     const ids = tracks.map(t => t.id);
     const uniqueIds = new Set(ids);
     expect(uniqueIds.size).toBe(tracks.length);
+  });
+
+  it('ensures left and right sidebars have identical balanced widths in index.html layout', () => {
+    const htmlPath = path.resolve(__dirname, '../../index.html');
+    const html = fs.readFileSync(htmlPath, 'utf-8');
+
+    // Extract class list of left and right sidebars
+    const leftMatch = html.match(/id="left-sidebar-root"[^>]*class="([^"]+)"/);
+    const rightMatch = html.match(/id="right-sidebar-root"[^>]*class="([^"]+)"/);
+
+    expect(leftMatch).not.toBeNull();
+    expect(rightMatch).not.toBeNull();
+
+    const leftClasses = leftMatch![1].split(/\s+/);
+    const rightClasses = rightMatch![1].split(/\s+/);
+
+    const extractWidthClasses = (classes: string[]) =>
+      classes.filter(c => c.startsWith('w-') || c.includes(':w-')).sort();
+
+    expect(extractWidthClasses(leftClasses)).toEqual(extractWidthClasses(rightClasses));
+    expect(extractWidthClasses(leftClasses)).toEqual(['md:w-84', 'sm:w-80', 'w-72']);
   });
 
   describe('Right Sidebar Architecture & Uniformity', () => {

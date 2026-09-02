@@ -282,44 +282,62 @@ void main() {
 
     // 1. Physical Chladni standing wave modal value at this coordinate
     float chladni1 = cos(nMode * PI * p.x) * cos(mMode * PI * p.y) - 0.72 * cos(mMode * PI * p.x) * cos(nMode * PI * p.y);
-    float bessel1 = evalBesselJ(mMode, nMode * PI * r * 1.6) * cos(mMode * theta);
-    float modalVal = mix(chladni1, bessel1, uChamberType);
+    float n2 = mMode + 1.0;
+    float m2 = nMode + 2.0;
+    float chladni2 = cos(n2 * PI * p.x) * cos(m2 * PI * p.y) - 0.65 * cos(m2 * PI * p.x) * cos(n2 * PI * p.y);
+    float chladniSquare = chladni1 * 0.75 + chladni2 * 0.25 * (uBandEnergies.z * 1.5 + 0.3);
 
-    // 2. Exact Numerical Gradient of Acoustic Modal Field (for both Cartesian & Bessel)
-    float eps = 0.015;
-    vec2 p_dx = p + vec2(eps, 0.0);
-    vec2 p_dy = p + vec2(0.0, eps);
+    float besselArg1 = nMode * PI * r * 1.6;
+    float bessel1 = evalBesselJ(mMode, besselArg1) * cos(mMode * theta);
+    float besselArg2 = (nMode + 1.0) * PI * r * 2.0;
+    float bessel2 = evalBesselJ(max(0.0, mMode - 1.0), besselArg2) * cos((mMode + 1.0) * theta);
+    float chladniCircle = bessel1 * 0.8 + bessel2 * 0.2;
 
-    float r_dx = length(p_dx);
-    float th_dx = atan(p_dx.y, p_dx.x);
-    float c_dx = cos(nMode * PI * p_dx.x) * cos(mMode * PI * p_dx.y) - 0.72 * cos(mMode * PI * p_dx.x) * cos(nMode * PI * p_dx.y);
-    float b_dx = evalBesselJ(mMode, nMode * PI * r_dx * 1.6) * cos(mMode * th_dx);
-    float val_dx = mix(c_dx, b_dx, uChamberType);
+    float modalVal = mix(chladniSquare, chladniCircle, uChamberType);
 
-    float r_dy = length(p_dy);
-    float th_dy = atan(p_dy.y, p_dy.x);
-    float c_dy = cos(nMode * PI * p_dy.x) * cos(mMode * PI * p_dy.y) - 0.72 * cos(mMode * PI * p_dy.x) * cos(nMode * PI * p_dy.y);
-    float b_dy = evalBesselJ(mMode, nMode * PI * r_dy * 1.6) * cos(mMode * th_dy);
-    float val_dy = mix(c_dy, b_dy, uChamberType);
+    // 2. Exact Analytical & Numerical Gradient of Acoustic Modal Field
+    vec2 gradP;
+    if (uChamberType < 0.5) {
+        // Analytical derivative for Cartesian Square Plate (High performance, exact gradient)
+        float dC1_dx = -nMode * PI * sin(nMode * PI * p.x) * cos(mMode * PI * p.y) + 0.72 * mMode * PI * sin(mMode * PI * p.x) * cos(nMode * PI * p.y);
+        float dC1_dy = -mMode * PI * cos(nMode * PI * p.x) * sin(mMode * PI * p.y) + 0.72 * nMode * PI * cos(mMode * PI * p.x) * sin(nMode * PI * p.y);
+        
+        float dC2_dx = -n2 * PI * sin(n2 * PI * p.x) * cos(m2 * PI * p.y) + 0.65 * m2 * PI * sin(m2 * PI * p.x) * cos(n2 * PI * p.y);
+        float dC2_dy = -m2 * PI * cos(n2 * PI * p.x) * sin(m2 * PI * p.y) + 0.65 * n2 * PI * cos(m2 * PI * p.x) * sin(n2 * PI * p.y);
+        
+        float overtoneWeight = 0.25 * (uBandEnergies.z * 1.5 + 0.3);
+        gradP = vec2(dC1_dx * 0.75 + dC2_dx * overtoneWeight, dC1_dy * 0.75 + dC2_dy * overtoneWeight);
+    } else {
+        // Efficient finite-difference gradient for Circular Bessel Plate
+        float eps = 0.015;
+        vec2 p_dx = p + vec2(eps, 0.0);
+        vec2 p_dy = p + vec2(0.0, eps);
+        float r_dx = length(p_dx);
+        float th_dx = atan(p_dx.y, p_dx.x);
+        float b_dx = evalBesselJ(mMode, nMode * PI * r_dx * 1.6) * cos(mMode * th_dx);
+        float r_dy = length(p_dy);
+        float th_dy = atan(p_dy.y, p_dy.x);
+        float b_dy = evalBesselJ(mMode, nMode * PI * r_dy * 1.6) * cos(mMode * th_dy);
+        gradP = vec2((b_dx - bessel1) / eps, (b_dy - bessel1) / eps);
+    }
 
-    vec2 gradP = vec2((val_dx - modalVal) / eps, (val_dy - modalVal) / eps);
     float gradLen = length(gradP);
     vec2 normGrad = gradLen > 1e-4 ? gradP / gradLen : vec2(0.0);
 
     // 3. Gor'kov Acoustic Radiation Trapping Force:
     // Pushes sand grains precisely toward nodal lines (modalVal == 0)
     float bassKick = uBandEnergies.x * 1.8 + uBandEnergies.y * 1.2;
-    float gorkovStrength = 0.85 + uBandEnergies.x * 0.25;
+    float gorkovStrength = 0.88 + uBandEnergies.x * 0.35 + uBandEnergies.y * 0.20;
     float distToNode = modalVal / (gradLen + 0.18);
     vec2 trapDisp = -distToNode * normGrad * gorkovStrength;
 
     // 4. Acoustic Micro-Streaming Surface Jitter & Dynamic Beat Dancing
     float speedFactor = uWaveSpeed * 0.18;
-    float streamSpeed = uTime * (2.2 + bassKick * 2.8) * speedFactor + aParticlePhase;
+    float streamSpeed = uTime * (2.2 + bassKick * 3.2) * speedFactor + aParticlePhase;
     vec2 streamVortex = vec2(
         sin(p.y * 5.0 + streamSpeed + aParticleSeed * 6.28),
         cos(p.x * 5.0 + streamSpeed + aParticleSeed * 6.28)
-    ) * (0.006 + bassKick * 0.016 + uBandEnergies.z * 0.01);
+    ) * (0.008 + bassKick * 0.022 + uBandEnergies.z * 0.015);
 
     vec2 finalP = p + trapDisp + streamVortex;
     

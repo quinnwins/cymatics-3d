@@ -63,9 +63,9 @@ export class SpectrumHUD {
     } else {
       this.element.innerHTML = `
         <!-- Top: Live Pitch & Note Header with Accordion Toggle -->
-        <button id="btn-toggle-spectrum-hud" class="w-full flex items-center justify-between border-b border-white/10 pb-2 cursor-pointer group text-left">
+        <button id="btn-toggle-spectrum-hud" class="w-full flex items-center justify-between border-b border-white/10 pb-1.5 cursor-pointer group text-left">
           <div class="flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50"></div>
+            <div class="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50 animate-pulse"></div>
             <span class="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">Audio Spectrum</span>
           </div>
           <div class="flex items-center gap-2">
@@ -73,12 +73,12 @@ export class SpectrumHUD {
               <span id="hud-note" class="font-bold text-cyan-400 tabular-nums min-w-[24px] text-right">---</span>
               <span id="hud-hz" class="text-slate-400 text-[11px] tabular-nums min-w-[45px] text-right">0 Hz</span>
             </div>
-            <span class="text-xs text-slate-400 group-hover:text-white font-mono">▲</span>
+            <span class="text-xs text-slate-400 group-hover:text-white font-mono">${this.isCollapsed ? '▼' : '▲'}</span>
           </div>
         </button>
 
-        <!-- 6-Band Perceptual Equalizer Wells -->
-        <div class="grid grid-cols-6 gap-2 items-end h-16 px-2 py-1.5 bg-slate-900/60 rounded-2xl border border-white/5 shadow-inner">
+        <!-- 6-Band Perceptual Equalizer Wells (Compact Precision Meter) -->
+        <div class="grid grid-cols-6 gap-1.5 items-end h-11 px-2 py-1 bg-slate-950/50 rounded-xl border border-white/5 shadow-inner">
           ${[
             { id: 'meter-sub', label: 'Sub' },
             { id: 'meter-bass', label: 'Bass' },
@@ -89,11 +89,11 @@ export class SpectrumHUD {
           ]
             .map(
               m => `
-            <div class="flex flex-col items-center gap-1 h-full justify-end min-h-0">
-              <div class="w-full bg-slate-800 rounded-full flex-1 min-h-0 relative overflow-hidden flex flex-col justify-end p-0.5">
-                <div id="${m.id}" class="eq-meter-bar w-full h-full bg-cyan-400 rounded-full"></div>
+            <div class="flex flex-col items-center gap-0.5 h-full justify-end min-h-0">
+              <div class="w-full bg-slate-800/80 rounded-full flex-1 min-h-0 relative overflow-hidden flex flex-col justify-end p-0.5">
+                <div id="${m.id}" class="eq-meter-bar w-full h-full bg-gradient-to-t from-cyan-500 to-cyan-300 rounded-full shadow-sm shadow-cyan-400/30"></div>
               </div>
-              <span class="text-[9px] text-slate-400 font-mono tracking-tight shrink-0">${m.label}</span>
+              <span class="text-[8px] text-slate-400 font-mono tracking-tight shrink-0">${m.label}</span>
             </div>
           `
             )
@@ -101,7 +101,7 @@ export class SpectrumHUD {
         </div>
 
         <!-- Footer: Telemetry & Wavelength -->
-        <div class="flex items-center justify-between text-[10px] text-slate-400 border-t border-white/10 pt-2 font-mono">
+        <div class="flex items-center justify-between text-[10px] text-slate-400 border-t border-white/10 pt-1.5 font-mono">
           <div class="flex items-center gap-1.5">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
             <span id="hud-fps" class="tabular-nums">60 FPS</span>
