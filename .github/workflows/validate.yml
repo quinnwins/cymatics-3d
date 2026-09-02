@@ -5,20 +5,19 @@ on:
   push:
     branches:
       - main
-      - 'codex/**'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: validate-${{ github.ref }}
+  group: validate-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test-and-build:
+  test-build-browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
 
     steps:
       - name: Check out repository
@@ -39,9 +38,16 @@ jobs:
       - name: Build production bundle
         run: npm run build
 
-      - name: Upload deployable build
+      - name: Run Sonic Memory in headless Chrome
+        run: node scripts/verify-sonic-memory.mjs
+
+      - name: Upload deployable build and visual proof
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: soundform-dist
-          path: dist
+          name: soundform-dist-and-sonic-memory-qa
+          path: |
+            dist
+            qa_screenshots/sonic-memory-smoke.png
+          if-no-files-found: ignore
           retention-days: 7
