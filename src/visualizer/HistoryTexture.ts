@@ -6,7 +6,7 @@ import { temporalMemory } from './TemporalMemory';
  *
  * Stores 512 log-distributed spectral samples across 512 fixed-rate history frames.
  * Encodes normalized unsigned-byte channels:
- * - R: spectral magnitude
+ * - R: perceptually compressed spectral magnitude
  * - G: signed spectral motion, remapped to [0..1]
  * - B: transient / bass impulse
  * - A: detected pitch
@@ -109,8 +109,12 @@ export class HistoryTexture {
       const rawDb = fftData[sourceIndex];
       const db = zeroFilledFallback ? -100 : Number.isFinite(rawDb) ? rawDb : -100;
       const magnitude = db > -90 ? Math.pow(10, (db + 10) / 45) : 0;
-      const normalizedMagnitude = Number.isFinite(magnitude)
-        ? Math.max(0, Math.min(1, magnitude / 2.5))
+
+      // The former linear 0..2.5 packing made ordinary mastered music occupy
+      // only a few byte levels. A sub-linear transfer preserves headroom while
+      // making quieter harmonics legible; a true silent bin remains exactly 0.
+      const normalizedMagnitude = Number.isFinite(magnitude) && magnitude > 0
+        ? Math.max(0, Math.min(1, Math.pow(magnitude / 2.5, 0.62)))
         : 0;
 
       const previous = this.previousMagnitudes[i];
