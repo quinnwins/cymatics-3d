@@ -3,7 +3,7 @@ import { PalettePreset } from './ColorPalettes';
 import { temporalMemory } from './TemporalMemory';
 
 const POINT_COUNT = 65_536;
-const INNER_RADIUS = 0.74;
+const INNER_RADIUS = 1.25;
 const OUTER_RADIUS = 3.55;
 
 const TEMPORAL_VERTEX_SHADER = `
@@ -32,6 +32,10 @@ uniform vec3 uPaletteC;
 uniform vec3 uPaletteD;
 uniform vec3 uCoreGlow;
 uniform vec3 uAccent;
+uniform float uFossilWeight;
+uniform int uChamberType;
+uniform float uChamberSize;
+uniform float uRefractiveIndex;
 
 attribute float aSeed;
 attribute float aRadius;
@@ -81,6 +85,24 @@ void main() {
   float impulse = historySample.b;
   float pitch = historySample.a;
 
+  // Wavefront phase ridge calculation for discrete traveling crests
+  float waveRidge = cos(TAU * (age * 10.0 - historyV * 5.0 + spectralMotion * 0.8));
+  // A crest only exists at the sharp peak of the wavefront (top ~12% of wave phase)
+  float crestPeak = smoothstep(0.72, 0.98, waveRidge);
+  float soundEnergy = smoothstep(0.20, 0.85, energy + impulse * 0.4);
+  float liveWaveGate = crestPeak * soundEnergy * step(aSeed, 0.28);
+
+  // In Live Mode: only active wave crests exist; background space is pure negative space.
+  // In Frozen / Fossil Mode: the complete 65,536-particle 3D acoustic crystal condenses.
+  float activeDensity = mix(liveWaveGate, 1.0, uFossilWeight);
+
+  if (activeDensity < 0.005) {
+    gl_PointSize = 0.0;
+    vAlpha = 0.0;
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    return;
+  }
+
   float harmonicOrder = 2.0 + floor(pitch * 8.0 + lowWeightedBin * 5.0);
   float angularForm = 0.5 + 0.5 * sin(
     azimuth * TAU * harmonicOrder
@@ -96,11 +118,19 @@ void main() {
 
   float activation = smoothstep(0.018, 0.82, energy * uGain);
   float memoryTexture = mix(0.22, 1.0, angularForm * radialForm);
-  float transientShell = impulse * (0.55 + 0.45 * angularForm);
+  float transientShell = impulse * (0.60 + 0.40 * angularForm);
+
+  // Frequency-specialized morphology
+  float lowWall = (1.0 - smoothstep(0.0, 0.28, lowWeightedBin)) * energy * 0.42 * cos(polar * PI * 1.5);
+  float midMembrane = smoothstep(0.20, 0.35, lowWeightedBin) * (1.0 - smoothstep(0.55, 0.70, lowWeightedBin)) * energy * 0.32 * angularForm * waveRidge;
+  float highFilament = smoothstep(0.55, 0.75, lowWeightedBin) * spectralMotion * 0.18 * sin(azimuth * 18.0 + aSeed * TAU);
 
   float displacement = (
-    energy * (0.24 + 0.30 * angularForm)
-    + transientShell * 0.22
+    energy * (0.20 + 0.25 * angularForm)
+    + lowWall
+    + midMembrane
+    + highFilament
+    + transientShell * 0.28
     + spectralMotion * 0.05
   ) * uGain;
 
@@ -116,18 +146,32 @@ void main() {
   displaced *= bassBreath;
   displaced.y += sin(azimuth * TAU * 3.0 + uTime * 0.16) * uHighEnergies.x * 0.035 * age;
 
+  // Chamber Boundary Refraction SDF
+  vec3 pChamber = displaced;
+  float distToChamber = 0.0;
+  if (uChamberType == 2) {
+    distToChamber = length(pChamber) - uChamberSize;
+  } else if (uChamberType == 1) {
+    distToChamber = max(length(pChamber.xz) - uChamberSize, abs(pChamber.y) - uChamberSize);
+  } else {
+    vec3 dBox = abs(pChamber) - vec3(uChamberSize);
+    distToChamber = max(dBox.x, max(dBox.y, dBox.z));
+  }
+  float boundaryTransit = smoothstep(0.12, 0.0, abs(distToChamber));
+
   vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
   gl_Position = projectionMatrix * mvPosition;
 
   float perspective = clamp(24.0 / max(2.0, -mvPosition.z), 0.55, 3.2);
-  float pointSize = (0.55 + activation * 1.9 + impulse * 1.6) * perspective * uPointScale;
-  gl_PointSize = clamp(pointSize, 0.7, 7.2);
+  float pointSize = (0.55 + activation * 1.8 + impulse * 1.6) * perspective * uPointScale;
+  pointSize *= (1.0 + boundaryTransit * 0.45);
+  gl_PointSize = clamp(pointSize * mix(1.15, 0.88, uFossilWeight), 0.7, 7.4);
 
   vec3 spectrumColor = cosinePalette(lowWeightedBin * 0.78 + pitch * 0.28 + spectralMotion * 0.08);
   vec3 ageColor = cosinePalette(0.05 + age * 0.84 + uTime * 0.006);
   vec3 color = mix(spectrumColor, ageColor, uColorByAge * 0.74);
-  color = mix(color, uAccent, impulse * 0.38);
-  color = mix(color, vec3(1.0), impulse * 0.28 + activation * 0.08);
+  color = mix(color, uAccent, impulse * 0.38 + boundaryTransit * 0.28);
+  color = mix(color, vec3(1.0), impulse * 0.28 + activation * 0.08 + boundaryTransit * 0.18);
 
   float innerFade = smoothstep(0.015, 0.11, age);
   float outerFade = 1.0 - smoothstep(0.90, 1.0, age);
@@ -144,13 +188,14 @@ void main() {
   );
 
   vColor = color;
-  vHotCore = impulse * 0.7 + activation * 0.25;
+  vHotCore = impulse * 0.7 + activation * 0.25 + boundaryTransit * 0.3;
   vAlpha = uEnabled
     * max(uSignal, broadEnergy * 0.65)
     * activation
     * historyPresence
     * innerFade
-    * (0.28 + 0.72 * outerFade);
+    * (0.28 + 0.72 * outerFade)
+    * activeDensity;
 }
 `;
 
@@ -188,13 +233,12 @@ export class TemporalSculpture {
   public readonly points: THREE.Points;
 
   private readonly material: THREE.ShaderMaterial;
-  private readonly presentShell: THREE.Mesh;
-  private readonly presentShellMaterial: THREE.MeshBasicMaterial;
   private readonly frozenBands = new THREE.Vector4();
   private readonly frozenHighs = new THREE.Vector2();
   private frozenFundamentalHz = 0;
   private frozenSignal = 0;
   private sculptureTime = 0;
+  private fossilWeight = 0;
 
   constructor(initialPalette: PalettePreset, pointCount = POINT_COUNT) {
     this.group = new THREE.Group();
@@ -224,6 +268,10 @@ export class TemporalSculpture {
         uPaletteD: { value: initialPalette.d.clone() },
         uCoreGlow: { value: initialPalette.coreGlow.clone() },
         uAccent: { value: initialPalette.accent.clone() },
+        uFossilWeight: { value: 0 },
+        uChamberType: { value: 0 },
+        uChamberSize: { value: 1.95 },
+        uRefractiveIndex: { value: 1.52 },
       },
       transparent: true,
       depthWrite: false,
@@ -235,19 +283,6 @@ export class TemporalSculpture {
     this.points.frustumCulled = false;
     this.points.renderOrder = 3;
     this.group.add(this.points);
-
-    const shellGeometry = new THREE.IcosahedronGeometry(INNER_RADIUS * 0.91, 2);
-    this.presentShellMaterial = new THREE.MeshBasicMaterial({
-      color: initialPalette.accent,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.12,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    this.presentShell = new THREE.Mesh(shellGeometry, this.presentShellMaterial);
-    this.presentShell.renderOrder = 4;
-    this.group.add(this.presentShell);
   }
 
   public update(
@@ -260,6 +295,12 @@ export class TemporalSculpture {
     const state = temporalMemory.getUniformState();
     const settings = temporalMemory.getSettings();
     const uniforms = this.material.uniforms;
+
+    // Smooth transition between live discrete wavefronts and dense 3D fossil condensation
+    const isFossil = settings.frozen || settings.lookbackSeconds > 0.05;
+    const targetFossil = isFossil ? 1.0 : 0.0;
+    this.fossilWeight += (targetFossil - this.fossilWeight) * 0.14;
+    uniforms.uFossilWeight.value = this.fossilWeight;
 
     // Continuously retain the latest complete visual state. Freeze then holds
     // history, phase, broad-band motion, pitch, and presence as one sculpture.
@@ -297,18 +338,6 @@ export class TemporalSculpture {
     uniforms.uPointScale.value = Math.max(0.72, Math.min(1.35, viewportHeight / 900));
 
     this.points.visible = state.enabled > 0 && Boolean(state.texture);
-    this.presentShell.visible = this.points.visible;
-
-    const pulse = 1 + renderBands.x * 0.08 + renderBands.y * 0.04 + renderSignal * 0.025;
-    this.presentShell.scale.setScalar(pulse);
-    this.presentShell.rotation.y = this.sculptureTime * 0.09;
-    this.presentShell.rotation.z = -this.sculptureTime * 0.055;
-    this.presentShellMaterial.opacity = 0.045 + renderSignal * 0.12;
-
-    if (camera) {
-      const distance = camera.position.length();
-      this.presentShellMaterial.opacity *= Math.max(0.55, Math.min(1.15, distance / 8));
-    }
   }
 
   public setPalette(palette: PalettePreset): void {
@@ -319,7 +348,6 @@ export class TemporalSculpture {
     uniforms.uPaletteD.value.copy(palette.d);
     uniforms.uCoreGlow.value.copy(palette.coreGlow);
     uniforms.uAccent.value.copy(palette.accent);
-    this.presentShellMaterial.color.copy(palette.accent);
   }
 
   public setVisible(visible: boolean): void {
@@ -330,11 +358,20 @@ export class TemporalSculpture {
     return this.points.geometry.getAttribute('position').count;
   }
 
+  public setChamber(type: number, size = 1.95, refractiveIndex = 1.52): void {
+    const u = this.material.uniforms;
+    if (u.uChamberType) u.uChamberType.value = type;
+    if (u.uChamberSize) u.uChamberSize.value = size;
+    if (u.uRefractiveIndex) u.uRefractiveIndex.value = refractiveIndex;
+  }
+
+  public getFossilWeight(): number {
+    return this.fossilWeight;
+  }
+
   public dispose(): void {
     this.points.geometry.dispose();
     this.material.dispose();
-    this.presentShell.geometry.dispose();
-    this.presentShellMaterial.dispose();
   }
 
   private buildGeometry(pointCount: number): THREE.BufferGeometry {

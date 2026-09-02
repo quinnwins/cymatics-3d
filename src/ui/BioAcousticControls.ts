@@ -13,7 +13,7 @@ import { EngineMode } from './Header';
 export interface SorterPreset {
   id: string;
   name: string;
-  icon: string;
+  icon?: string;
   badge: string;
   summary: string;
   nodeCount: number;
@@ -48,7 +48,6 @@ export class BioAcousticControls {
     'ctc-cleansing': {
       id: 'ctc-cleansing',
       name: 'Standard Blood Cleansing',
-      icon: '🩸',
       badge: '99% Purity',
       summary: 'Pulls cancer cells out to side channels while healthy blood cells stay centered.',
       nodeCount: 4,
@@ -60,7 +59,6 @@ export class BioAcousticControls {
     'exosome-purification': {
       id: 'exosome-purification',
       name: 'Exosome Nanopurification',
-      icon: '🧬',
       badge: 'Gentle',
       summary: 'Gently separates tiny healing vesicles without damaging delicate cell membranes.',
       nodeCount: 8,
@@ -72,7 +70,6 @@ export class BioAcousticControls {
     'diagnostic-throughput': {
       id: 'diagnostic-throughput',
       name: 'High-Throughput Sorter',
-      icon: '⚡',
       badge: 'Fast Flow',
       summary: 'Rapidly sorts large fluid volumes for fast clinical screenings and diagnostics.',
       nodeCount: 2,
@@ -346,7 +343,6 @@ export class BioAcousticControls {
             >
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-1.5">
-                  <span class="text-sm">${preset.icon}</span>
                   <span class="font-bold text-xs text-white">${preset.name}</span>
                 </div>
                 <span class="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">

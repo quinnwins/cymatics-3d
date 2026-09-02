@@ -56,7 +56,7 @@ void main() {
   // A returning phrase does not teleport the path. Its related moments breathe
   // toward one another, making musical recollection visible as attraction.
   float breath = sin(uTime * 1.7 + aProgress * 28.0 + aPitch * 0.31) * 0.025;
-  p *= 1.0 + breath * (0.2 + aEnergy) + familyPulse * 0.025;
+  p *= 1.0 + breath * (0.2 + aEnergy) + familyPulse * 0.055;
 
   vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
   gl_Position = projectionMatrix * mvPosition;
@@ -66,7 +66,7 @@ void main() {
     + aEnergy * 3.1
     + aNovelty * 4.8
     + aEcho * 3.5
-    + familyPulse * 3.0
+    + familyPulse * 6.5
     + current * 6.4
     + hovered * 7.2;
   float layerScale = mix(1.0, 2.35, uLayer);
@@ -79,14 +79,14 @@ void main() {
   vec3 chronology = palette(fract(aProgress * 0.83 + aPitch / 18.0));
   vec3 familyColor = palette(fract(aFamily * 0.137 + 0.18));
   vec3 color = mix(chronology, familyColor, step(0.0, aFamily) * (0.35 + aEcho * 0.35));
-  color = mix(color, uAccent, aNovelty * 0.34 + familyPulse * 0.28);
+  color = mix(color, uAccent, aNovelty * 0.34 + familyPulse * 0.45);
   color = mix(color, uCoreGlow, current * 0.56 + uLayer * 0.22);
-  color = mix(color, vec3(1.0), current * 0.58 + hovered * 0.72 + familyPulse * 0.2 + uLayer * 0.08);
+  color = mix(color, vec3(1.0), current * 0.58 + hovered * 0.72 + familyPulse * 0.35 + uLayer * 0.08);
 
   vColor = color;
-  vCore = max(max(current, hovered), familyPulse * 0.75);
-  float corePresence = 0.42 + aEnergy * 0.46 + aNovelty * 0.34 + aEcho * 0.36 + vCore * 0.48;
-  float auraPresence = 0.24 + aEnergy * 0.24 + aNovelty * 0.18 + aEcho * 0.26 + vCore * 0.26;
+  vCore = max(max(current, hovered), familyPulse * 0.85);
+  float corePresence = 0.42 + aEnergy * 0.46 + aNovelty * 0.34 + aEcho * 0.36 + vCore * 0.55;
+  float auraPresence = 0.24 + aEnergy * 0.24 + aNovelty * 0.18 + aEcho * 0.26 + vCore * 0.35;
   vAlpha = uOpacity * mix(corePresence, auraPresence, uLayer);
 }
 `;
@@ -152,10 +152,10 @@ void main() {
   vColor = mix(
     palette(fract(aFamily * 0.137 + aTransposition / 18.0 + 0.2)),
     uAccent,
-    0.2 + returnMatch * 0.42
+    0.2 + returnMatch * 0.55
   );
-  vColor = mix(vColor, vec3(1.0), returnMatch * 0.32);
-  vAlpha = uOpacity * aStrength * shimmer * (0.16 + returnMatch * 0.74);
+  vColor = mix(vColor, vec3(1.0), returnMatch * 0.45);
+  vAlpha = uOpacity * aStrength * (shimmer * 0.35 + 0.65) * (returnMatch > 0.01 ? (0.35 + returnMatch * 0.65) : 0.25);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
@@ -449,12 +449,16 @@ export class AnamnesisField {
 
   public setEnabled(enabled: boolean): void {
     this.enabled = enabled;
-    this.targetOpacity = enabled ? (this.expanded ? 1 : 0.38) : 0;
+    this.targetOpacity = enabled ? (this.expanded ? 1 : 0) : 0;
+    if (!enabled) {
+      this.opacity = 0;
+      this.group.visible = false;
+    }
   }
 
   public setExpanded(expanded: boolean): void {
     this.expanded = expanded;
-    this.targetOpacity = this.enabled ? (expanded ? 1 : 0.38) : 0;
+    this.targetOpacity = this.enabled ? (expanded ? 1 : 0) : 0;
   }
 
   public isExpanded(): boolean {
@@ -480,11 +484,15 @@ export class AnamnesisField {
     this.auraMaterial.uniforms.uPointScale.value = pointScale;
 
     this.threadMaterial.uniforms.uTime.value = time;
-    this.threadMaterial.uniforms.uOpacity.value = this.opacity * (this.expanded ? 1.2 : 0.44);
+    const threadAlpha = this.expanded
+      ? 1.2
+      : (this.returnPulse > 0.01 ? this.returnPulse * 1.6 : 0.0);
+    const effectiveOpacity = this.expanded ? this.opacity : 1.0;
+    this.threadMaterial.uniforms.uOpacity.value = effectiveOpacity * threadAlpha;
     this.threadMaterial.uniforms.uReturnFamily.value = this.returnFamily;
     this.threadMaterial.uniforms.uReturnPulse.value = this.returnPulse;
 
-    this.pathMaterial.opacity = this.opacity * (this.expanded ? 0.52 : 0.11);
+    this.pathMaterial.opacity = this.opacity * (this.expanded ? 0.48 : 0.045);
     this.beaconMaterial.opacity = pointOpacity * (0.5 + 0.35 * Math.sin(time * 2.7));
     const beaconScale = 1.1 + Math.sin(time * 2.1) * 0.14 + this.returnPulse * 1.35;
     this.beacon.scale.setScalar(beaconScale);
@@ -492,7 +500,7 @@ export class AnamnesisField {
     const targetScale = this.expanded ? 1.08 : 1;
     const scale = this.group.scale.x + (targetScale - this.group.scale.x) * smoothing;
     this.group.scale.setScalar(scale);
-    this.group.visible = this.opacity > 0.002 || this.targetOpacity > 0;
+    this.group.visible = this.enabled && (this.opacity > 0.002 || this.targetOpacity > 0);
   }
 
   public pick(

@@ -15,6 +15,11 @@ import type {
   MemorySessionMeta,
 } from './AnamnesisModel';
 import { AnamnesisField } from './AnamnesisField';
+import {
+  temporalMemory,
+  TEMPORAL_MEMORY_EVENT,
+} from './TemporalMemory';
+import type { TemporalMemorySettings } from './TemporalMemory';
 
 export const ANAMNESIS_TOGGLE_EVENT = 'soundform-anamnesis-toggle';
 export const ANAMNESIS_STATE_EVENT = 'soundform-anamnesis-state';
@@ -51,7 +56,7 @@ interface RuntimeVisualizer {
   cymaticsMesh: RuntimeCymaticsMesh;
   cymaticsPlateMesh: RuntimeVisibleObject;
   gpuAcousticParticles: RuntimeVisibleObject;
-  chamberEnclosure: RuntimeVisibleObject & { isVisible?(): boolean };
+  chamberEnclosure: RuntimeVisibleObject & { isVisible?(): boolean; triggerRecognitionFlash?(intensity?: number): void };
   volumetricChladni: RuntimeVisibleObject;
   getStyle(): string;
   getCurrentPaletteId?(): string;
@@ -77,6 +82,7 @@ interface FocusSnapshot {
   controlsTarget: THREE.Vector3;
   chamberVisible: boolean;
   volumetricVisible: boolean;
+  temporalSculptureVisible: boolean;
 }
 
 export interface AnamnesisState {
@@ -118,24 +124,19 @@ function strongestTransient(audio: AudioEngine, nowSeconds: number): number {
 
 /** Mount after App exposes its runtime. The feature stays a removable lens. */
 export function mountAnamnesisExperience(): void {
-  if (singleton || mountRequested || typeof window === 'undefined') return;
-  mountRequested = true;
-  let attempts = 0;
-  const tryMount = (): void => {
-    const runtime = window as unknown as AnamnesisWindow;
-    const visualizer = runtime.__soundformApp?.visualizer;
-    const audio = runtime.__audioEngine;
-    if (!visualizer || !audio || !visualizer.scene || !visualizer.renderer?.domElement) {
-      attempts += 1;
-      if (attempts < 240) window.setTimeout(tryMount, 25);
-      else mountRequested = false;
-      return;
-    }
+  if (singleton || typeof window === 'undefined') return;
+  const runtime = window as unknown as AnamnesisWindow;
+  if (runtime.__anamnesis) {
+    singleton = runtime.__anamnesis;
+    return;
+  }
+  const visualizer = runtime.__soundformApp?.visualizer;
+  const audio = runtime.__audioEngine;
+  if (visualizer && audio && visualizer.scene && visualizer.renderer?.domElement) {
     const palette = ColorPalettes.getPalette(visualizer.getCurrentPaletteId?.() || 'cosmic-nebula');
     singleton = new AnamnesisExperience(audio, visualizer, palette);
     runtime.__anamnesis = singleton;
-  };
-  tryMount();
+  }
 }
 
 /**
@@ -153,7 +154,7 @@ export class AnamnesisExperience {
   private readonly store = new MemoryRelicStore();
   private readonly visualizer: RuntimeVisualizer;
   private readonly audio: AudioEngine;
-  private enabled = true;
+  private enabled = temporalMemory.getSettings().enabled;
   private expanded = false;
   private contextVisible = true;
   private sessionIdentity = '';
@@ -189,15 +190,28 @@ export class AnamnesisExperience {
     const id = (event as CustomEvent<{ paletteId?: string }>).detail?.paletteId;
     if (id) this.field.setPalette(ColorPalettes.getPalette(id));
   };
+  private readonly temporalMemoryListener = (event: Event): void => {
+    const detail = (event as CustomEvent<TemporalMemorySettings>).detail;
+    const isEnabled = typeof detail?.enabled === 'boolean'
+      ? detail.enabled
+      : temporalMemory.getSettings().enabled;
+    this.setEnabled(isEnabled);
+  };
 
   constructor(audio: AudioEngine, visualizer: RuntimeVisualizer, palette: PalettePreset) {
+    singleton = this;
+    if (typeof window !== 'undefined') {
+      (window as unknown as AnamnesisWindow).__anamnesis = this;
+    }
     this.audio = audio;
     this.visualizer = visualizer;
     this.field = new AnamnesisField(palette);
+    this.field.setEnabled(this.enabled);
     this.visualizer.scene.add(this.field.group);
     this.mountUi();
 
     window.addEventListener(ANAMNESIS_TOGGLE_EVENT, this.toggleListener);
+    window.addEventListener(TEMPORAL_MEMORY_EVENT, this.temporalMemoryListener);
     window.addEventListener('keydown', this.keyListener);
     window.addEventListener('pagehide', this.pageHideListener);
     window.addEventListener('palette-changed', this.paletteListener);
@@ -215,6 +229,7 @@ export class AnamnesisExperience {
   }
 
   public ingestObservation(observation: MemoryObservation, visualTime = this.visualTime): void {
+    if (!this.enabled) return;
     const result = this.model.ingest(observation);
     if (!result) return;
     this.latestLivePoints = this.model.getPoints();
@@ -222,6 +237,7 @@ export class AnamnesisExperience {
 
     if (result.thread) {
       this.field.celebrateReturn(result.thread);
+      this.visualizer.chamberEnclosure.triggerRecognitionFlash?.(1.0);
       const transposition = result.thread.transposition === 0
         ? ''
         : ` · ${result.thread.transposition > 0 ? '+' : ''}${result.thread.transposition} semitones`;
@@ -250,13 +266,27 @@ export class AnamnesisExperience {
   }
 
   public setEnabled(enabled: boolean): void {
+    if (this.enabled === enabled) return;
     this.enabled = enabled;
-    if (!enabled && this.expanded) this.setExpanded(false);
+    if (!enabled) {
+      this.field.setEnabled(false);
+      if (this.expanded) this.setExpanded(false);
+      this.temporaryMessage = '';
+      this.temporaryMessageUntil = 0;
+      if (this.whisper) {
+        this.whisper.textContent = '';
+        this.whisper.classList.remove('is-visible');
+      }
+      this.clearHover();
+    }
     this.emitState();
   }
 
   public toggleExpanded(): void {
-    if (!this.contextVisible || !this.enabled || !this.isMemorySource(this.audio.getMode())) return;
+    if (!this.contextVisible || !this.isMemorySource(this.audio.getMode())) return;
+    if (!this.enabled && !this.expanded) {
+      temporalMemory.setEnabled(true);
+    }
     this.setExpanded(!this.expanded);
   }
 
@@ -315,6 +345,9 @@ export class AnamnesisExperience {
   public viewRelic(id: string): boolean {
     const relic = this.store.list().find(item => item.id === id);
     if (!relic) return false;
+    if (!this.enabled) {
+      temporalMemory.setEnabled(true);
+    }
     this.viewingRelic = relic;
     this.field.setRelic(relic);
     if (!this.expanded) this.setExpanded(true);
@@ -354,6 +387,7 @@ export class AnamnesisExperience {
     this.visualizer.scene.remove(this.field.group);
     this.field.dispose();
     window.removeEventListener(ANAMNESIS_TOGGLE_EVENT, this.toggleListener);
+    window.removeEventListener(TEMPORAL_MEMORY_EVENT, this.temporalMemoryListener);
     window.removeEventListener('keydown', this.keyListener);
     window.removeEventListener('pagehide', this.pageHideListener);
     window.removeEventListener('palette-changed', this.paletteListener);
@@ -429,10 +463,12 @@ export class AnamnesisExperience {
         chamberVisible: this.visualizer.chamberEnclosure.isVisible?.()
           ?? this.visualizer.chamberEnclosure.group.visible,
         volumetricVisible: this.visualizer.volumetricChladni.group.visible,
+        temporalSculptureVisible: this.visualizer.cymaticsMesh.temporalSculpture.group.visible,
       };
       this.visualizer.setCameraMode('orbit');
       this.visualizer.cymaticsPlateMesh.setVisible(false);
-      this.visualizer.cymaticsMesh.setDropletVisible(false);
+      this.visualizer.cymaticsMesh.setDropletVisible(true);
+      this.visualizer.cymaticsMesh.temporalSculpture.setVisible(false);
       this.visualizer.gpuAcousticParticles.setVisible(false);
       this.visualizer.chamberEnclosure.setVisible(false);
       this.visualizer.volumetricChladni.setVisible(false);
@@ -446,6 +482,7 @@ export class AnamnesisExperience {
     if (!snapshot) return;
     this.focusSnapshot = null;
     this.visualizer.applyCymaticsLayers();
+    this.visualizer.cymaticsMesh.temporalSculpture.setVisible(snapshot.temporalSculptureVisible);
     this.visualizer.chamberEnclosure.setVisible(snapshot.chamberVisible);
     this.visualizer.volumetricChladni.setVisible(snapshot.volumetricVisible);
     this.visualizer.camera.position.copy(snapshot.cameraPosition);
@@ -530,9 +567,10 @@ export class AnamnesisExperience {
     const style = document.createElement('style');
     style.id = 'anamnesis-styles';
     style.textContent = `
-      #anamnesis-hud{position:fixed;z-index:92;inset:0;display:flex;align-items:flex-start;justify-content:center;padding:clamp(28px,6vh,76px) 24px;pointer-events:none;opacity:0;transition:opacity .45s ease;color:#f8fafc;font-family:Inter,system-ui,sans-serif}
-      body.soundform-anamnesis #anamnesis-hud{opacity:1}#anamnesis-hud *{box-sizing:border-box}
-      #anamnesis-hud .ana-card{width:min(620px,calc(100vw - 32px));text-align:center;pointer-events:auto;text-shadow:0 2px 18px #000;background:radial-gradient(ellipse at 50% 0%,#0a1223b8 0%,#03071180 52%,transparent 76%);padding:22px 26px 28px;border-radius:28px}
+      #anamnesis-hud{position:fixed;z-index:92;inset:0;display:none;align-items:flex-start;justify-content:center;padding:clamp(28px,6vh,76px) 24px;pointer-events:none;opacity:0;transition:opacity .45s ease;color:#f8fafc;font-family:Inter,system-ui,sans-serif}
+      body.soundform-anamnesis #anamnesis-hud{display:flex;opacity:1}#anamnesis-hud *{box-sizing:border-box}
+      #anamnesis-hud .ana-card{width:min(620px,calc(100vw - 32px));text-align:center;pointer-events:none;text-shadow:0 2px 18px #000;background:radial-gradient(ellipse at 50% 0%,#0a1223b8 0%,#03071180 52%,transparent 76%);padding:22px 26px 28px;border-radius:28px}
+      body.soundform-anamnesis #anamnesis-hud .ana-card{pointer-events:auto}
       #anamnesis-hud .ana-kicker{font:700 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.38em;color:#67e8f9;margin-bottom:10px}
       #anamnesis-hud h1{font:500 clamp(24px,4vw,44px)/1.02 Georgia,'Times New Roman',serif;letter-spacing:.02em;margin:0;color:#fff}
       #anamnesis-hud .ana-track{margin-top:10px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#cbd5e1}
@@ -664,7 +702,10 @@ export class AnamnesisExperience {
     if (this.whisper) {
       const show = Boolean(this.temporaryMessage)
         && time < this.temporaryMessageUntil
-        && !this.expanded;
+        && !this.expanded
+        && this.enabled
+        && this.contextVisible
+        && this.isMemorySource(this.audio.getMode());
       this.whisper.textContent = this.temporaryMessage;
       this.whisper.classList.toggle('is-visible', show);
     }
@@ -689,7 +730,8 @@ export class AnamnesisExperience {
       const tag = target.tagName.toLowerCase();
       if (target.isContentEditable || tag === 'input' || tag === 'textarea' || tag === 'select') return;
     }
-    if (event.key.toLowerCase() === 'a' && this.contextVisible) {
+    const key = event.key.toLowerCase();
+    if ((key === 'a' || key === 'm') && this.contextVisible) {
       event.preventDefault();
       this.toggleExpanded();
     } else if (event.key === 'Escape' && this.expanded) {

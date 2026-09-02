@@ -708,6 +708,10 @@ export class AudioEngine {
     return this.analyzer ? this.analyzer.getRawFrequencyData() : new Float32Array(2048);
   }
 
+  public getTimeDomainData(): Float32Array {
+    return this.analyzer ? this.analyzer.getTimeDomainData() : new Float32Array(4096);
+  }
+
   public getFundamentalFrequency(): number {
     if (this.currentMode === 'frequency-lab') {
       return this.synthesizer && this.synthesizer.getIsPlaying() ? this.synthesizer.frequency : 0;

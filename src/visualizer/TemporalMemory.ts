@@ -45,7 +45,7 @@ export const TEMPORAL_MEDIA: Record<TemporalMediumId, TemporalMedium> = {
 };
 
 const DEFAULTS: TemporalMemorySettings = {
-  enabled: true,
+  enabled: false,
   frozen: false,
   memorySeconds: 6,
   lookbackSeconds: 0,
@@ -57,7 +57,7 @@ const DEFAULTS: TemporalMemorySettings = {
 };
 
 export const TEMPORAL_MEMORY_EVENT = 'soundform-temporal-memory-changed';
-const STORAGE_KEY = 'soundform.temporal-memory.v2';
+const STORAGE_KEY = 'soundform.temporal-memory.v3';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -161,7 +161,15 @@ export class TemporalMemoryController {
   }
 
   public setEnabled(value: boolean): void { this.patch({ enabled: value }); }
-  public setFrozen(value: boolean): void { this.patch({ frozen: value }); }
+  public setFrozen(value: boolean): void {
+    const patch: Partial<TemporalMemorySettings> = { frozen: value };
+    if (value) {
+      patch.enabled = true;
+    } else {
+      patch.lookbackSeconds = 0;
+    }
+    this.patch(patch);
+  }
   public setColorByAge(value: boolean): void { this.patch({ colorByAge: value }); }
   public toggleEnabled(): void { this.setEnabled(!this.settings.enabled); }
   public toggleFrozen(): void { this.setFrozen(!this.settings.frozen); }
@@ -171,7 +179,13 @@ export class TemporalMemoryController {
   }
 
   public setLookbackSeconds(value: number): void {
-    this.patch({ lookbackSeconds: clamp(finite(Number(value), DEFAULTS.lookbackSeconds), 0, 10) });
+    const lookback = clamp(finite(Number(value), DEFAULTS.lookbackSeconds), 0, 10);
+    const patch: Partial<TemporalMemorySettings> = { lookbackSeconds: lookback };
+    if (lookback > 0.05) {
+      patch.enabled = true;
+      patch.frozen = true;
+    }
+    this.patch(patch);
   }
 
   public setPropagation(value: number): void {
@@ -204,11 +218,8 @@ export class TemporalMemoryController {
 
   private requestControls(): void {
     if (this.controlsRequested || typeof window === 'undefined') return;
-    if (typeof navigator !== 'undefined' && /(happy-dom|jsdom)/i.test(navigator.userAgent)) return;
     this.controlsRequested = true;
-    import('./SonicMemoryControls')
-      .then(({ mountSonicMemoryControls }) => mountSonicMemoryControls(this))
-      .catch(error => console.warn('Sonic Memory controls unavailable', error));
+    // SonicMemoryControls bottom pill retired in favor of unified "The Song Remembers" (Anamnesis)
   }
 
   private emit(): void {

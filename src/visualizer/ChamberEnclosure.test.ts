@@ -47,4 +47,19 @@ describe('ChamberEnclosure - Minimal Wireframe Datum Frame', () => {
     const enclosure = new ChamberEnclosure(palette);
     expect(enclosure.group.position.y).toBeCloseTo(0.45, 2);
   });
+
+  it('triggers recognition flash and decays over frame time', () => {
+    const enclosure = new ChamberEnclosure(palette);
+    const internals = enclosure as unknown as { recognitionFlash: number };
+
+    expect(internals.recognitionFlash).toBe(0);
+    enclosure.triggerRecognitionFlash(1.5);
+    expect(internals.recognitionFlash).toBeCloseTo(1.5);
+
+    enclosure.update(1.0, 0.5, new THREE.Vector4(), new THREE.Vector2());
+    expect(internals.recognitionFlash).toBeLessThan(1.5);
+
+    enclosure.update(2.0, 1.5, new THREE.Vector4(), new THREE.Vector2());
+    expect(internals.recognitionFlash).toBe(0);
+  });
 });

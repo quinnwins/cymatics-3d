@@ -1,4 +1,5 @@
 import { BesselFunctions } from './BesselFunctions';
+import { AcousticEigenmodes, AcousticContrastFactors, MediumProperties } from './AcousticEigenmodes';
 
 export type ChamberGeometryType = 'rectangular' | 'cylindrical' | 'spherical';
 
@@ -98,8 +99,9 @@ export class ChladniPhysics {
     const r = Math.sqrt(x * x + z * z);
     const theta = Math.atan2(z, x);
 
-    // Exact m-th order Bessel function for acoustic radial standing waves
-    const kr = (n * Math.PI + (m * Math.PI) / 2) * r;
+    // Exact m-th order Bessel function for acoustic radial standing waves with exact NIST DLMF 10.75 root
+    const alphaPrime = AcousticEigenmodes.getCylindricalBesselDerivativeRoot(m, n);
+    const kr = alphaPrime * r;
     const jm = this.evalBesselJ(m, kr);
 
     const angular = Math.cos(m * theta);
@@ -121,7 +123,8 @@ export class ChladniPhysics {
     l: number
   ): number {
     const r = Math.sqrt(x * x + y * y + z * z);
-    const kr = n * Math.PI * r;
+    const xiPrime = AcousticEigenmodes.getSphericalBesselDerivativeRoot(l, n);
+    const kr = xiPrime * r;
 
     let jl: number;
     if (l === 0) {
@@ -166,6 +169,7 @@ export class ChladniPhysics {
 
   /**
    * Computes the Gor'kov Acoustic Radiation Potential U and Force Vector F = -grad(U).
+   * Supports both normalized geometric mode and full calibrated material contrast mode.
    * Normal Chladni (mode > 0): particles trap into pressure nodes (p = 0).
    * Inverse Chladni (mode < 0): particles levitate into pressure antinodes (|p| = max).
    */
@@ -178,7 +182,11 @@ export class ChladniPhysics {
     l: number,
     geom: ChamberGeometryType = 'rectangular',
     mode: 'normal' | 'inverse' = 'normal',
-    acousticPower = 1.0
+    acousticPower = 1.0,
+    contrast?: AcousticContrastFactors,
+    medium: MediumProperties = AcousticEigenmodes.MEDIA.water,
+    particleRadius = 5e-6,
+    frequencyHz = 1000.0
   ): GorkovForceVector {
     const eps = 0.005;
     const evalP = (px: number, py: number, pz: number): number => {
@@ -198,8 +206,37 @@ export class ChladniPhysics {
     const gradPx = (pxPlus - pxMinus) / (2 * eps);
     const gradPy = (pyPlus - pyMinus) / (2 * eps);
     const gradPz = (pzPlus - pzMinus) / (2 * eps);
+    const gradSq = gradPx * gradPx + gradPy * gradPy + gradPz * gradPz;
 
-    // Gor'kov potential is proportional to <p^2> - beta * <|grad p|^2>
+    if (contrast) {
+      // Full Gor'kov potential U = (V_p / (4 * rho_0 * c_0^2)) * [ f1 * |p|^2 - (3/2) * (f2 / k^2) * |grad p|^2 ]
+      const c0 = medium.speedOfSound;
+      const rho0 = medium.density;
+      const k = Math.max(1e-3, (2.0 * Math.PI * frequencyHz) / c0);
+      const vp = (4.0 / 3.0) * Math.PI * Math.pow(particleRadius, 3);
+      const kSq = k * k;
+
+      const scale = (vp / (4.0 * rho0 * c0 * c0)) * acousticPower;
+      const potential = scale * (contrast.f1 * p0 * p0 - 1.5 * (contrast.f2 / kSq) * gradSq);
+
+      // Gradient of U via finite differences
+      const evalU = (px: number, py: number, pz: number): number => {
+        const p = evalP(px, py, pz);
+        const gx = (evalP(px + eps, py, pz) - evalP(px - eps, py, pz)) / (2 * eps);
+        const gy = (evalP(px, py + eps, pz) - evalP(px, py - eps, pz)) / (2 * eps);
+        const gz = (evalP(px, py, pz + eps) - evalP(px, py, pz - eps)) / (2 * eps);
+        const g2 = gx * gx + gy * gy + gz * gz;
+        return scale * (contrast.f1 * p * p - 1.5 * (contrast.f2 / kSq) * g2);
+      };
+
+      const fx = -(evalU(x + eps, y, z) - evalU(x - eps, y, z)) / (2 * eps);
+      const fy = -(evalU(x, y + eps, z) - evalU(x, y - eps, z)) / (2 * eps);
+      const fz = -(evalU(x, y, z + eps) - evalU(x, y, z - eps)) / (2 * eps);
+
+      return { fx, fy, fz, potential };
+    }
+
+    // Classic normalized Gor'kov approximation
     const isNormal = mode === 'normal';
     const potential = isNormal ? p0 * p0 : -p0 * p0;
 

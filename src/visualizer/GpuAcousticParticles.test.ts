@@ -55,4 +55,39 @@ describe('GpuAcousticParticles', () => {
     const particles = new GpuAcousticParticles(mockRenderer, palette, { particleCount: 1024 });
     expect(particles.group.position.y).toBeCloseTo(0.45, 2);
   });
+
+  it('supports toggling equilibrium and dynamic simulation modes', () => {
+    const mockRenderer = {} as THREE.WebGLRenderer;
+    const particles = new GpuAcousticParticles(mockRenderer, palette, { particleCount: 1024 });
+
+    expect(particles.getSimulationMode()).toBe('equilibrium');
+    particles.setSimulationMode('dynamic');
+    expect(particles.getSimulationMode()).toBe('dynamic');
+  });
+
+  it('updates acoustic contrast when medium or particle material changes', () => {
+    const mockRenderer = {} as THREE.WebGLRenderer;
+    const particles = new GpuAcousticParticles(mockRenderer, palette, { particleCount: 1024 });
+
+    particles.setMedium('water');
+    particles.setParticleMaterial('polystyrene');
+    // Polystyrene in water has positive acoustic contrast
+    expect((particles as any).acousticContrast).toBeGreaterThan(0);
+
+    particles.setParticleMaterial('airBubble');
+    // Air bubble in water has negative acoustic contrast
+    expect((particles as any).acousticContrast).toBeLessThan(0);
+  });
+
+  it('updates exact NIST Bessel derivative roots when modal numbers change', () => {
+    const mockRenderer = {} as THREE.WebGLRenderer;
+    const particles = new GpuAcousticParticles(mockRenderer, palette, { particleCount: 1024 });
+
+    particles.setModalNumbers(1, 1, 1);
+    const u = (particles as any).renderMaterial.uniforms;
+    // alpha'_{1,1} = 1.841184
+    expect(u.uRadialRoot.value).toBeCloseTo(1.841184, 4);
+    // xi'_{1,1} = 2.081576
+    expect(u.uSphericalRoot.value).toBeCloseTo(2.081576, 4);
+  });
 });

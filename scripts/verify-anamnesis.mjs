@@ -61,7 +61,11 @@ async function main() {
   try {
     await page.goto('http://127.0.0.1:5198', { waitUntil: 'networkidle0', timeout: 30_000 });
     await page.waitForFunction(() => Boolean(window.__anamnesis && window.__soundformApp), { timeout: 15_000 });
-    await page.waitForSelector('#sonic-memory-control .sm-pill', { timeout: 15_000 });
+    await page.waitForSelector('#btn-sonic-memory', { timeout: 15_000 });
+
+    // Enable Memory so live Web Audio feeds the long-memory model.
+    await page.evaluate(() => document.querySelector('#btn-sonic-memory')?.click());
+    await page.waitForFunction(() => window.__anamnesis?.getState?.().enabled === true, { timeout: 15_000 });
 
     // Prove that ordinary live Web Audio feeds the long-memory model.
     await page.mouse.click(720, 450);
@@ -154,10 +158,11 @@ async function main() {
       throw new Error(`Phrase recurrence did not become a visible memory: ${JSON.stringify(recurrence)}`);
     }
 
-    // Enter through the actual product control rather than calling focus APIs.
-    await page.click('#sonic-memory-control .sm-pill');
-    await page.waitForSelector('#sm-panel:not([hidden])');
-    await page.click('[data-action="anamnesis"]');
+    // Enter through the actual product control directly
+    const isExpanded = await page.evaluate(() => window.__anamnesis?.getState?.().expanded === true);
+    if (!isExpanded) {
+      await page.click('#btn-sonic-memory');
+    }
     await page.waitForFunction(() => document.body.classList.contains('soundform-anamnesis'));
     await page.waitForFunction(() => window.__anamnesis?.getState?.().expanded === true);
     await new Promise(resolve => setTimeout(resolve, 1200));
@@ -242,6 +247,20 @@ async function main() {
 
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.body.classList.contains('soundform-anamnesis'));
+
+    // Verify that disabling memory disables Anamnesis and suppresses whispers
+    await page.evaluate(() => window.__anamnesis?.setEnabled?.(false));
+    await page.waitForFunction(() => window.__anamnesis?.getState?.().enabled === false, { timeout: 15_000 });
+    const suppressed = await page.evaluate(() => {
+      const whisper = document.querySelector('#anamnesis-whisper');
+      return {
+        enabled: window.__anamnesis.getState().enabled,
+        whisperVisible: whisper?.classList.contains('is-visible') ?? false,
+      };
+    });
+    if (suppressed.enabled || suppressed.whisperVisible) {
+      throw new Error(`Anamnesis was not properly suppressed when memory was turned off: ${JSON.stringify(suppressed)}`);
+    }
 
     if (errors.length) throw new Error(`Browser reported errors:\n${errors.join('\n')}`);
     console.log('Anamnesis browser verification passed.', {

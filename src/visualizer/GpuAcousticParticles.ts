@@ -1,9 +1,30 @@
 import * as THREE from 'three';
 import { PalettePreset } from './ColorPalettes';
 import { CYMATICS_CORE_GLSL } from './shaders/cymaticsCore';
+import { SHAPE_SDF_GLSL } from './shaders/shapeSdfLibrary';
+import { AcousticEigenmodes } from '../math/AcousticEigenmodes';
 
 export type ChladniMode = 'normal' | 'inverse';
 export type ChamberGeometryType = 'cube' | 'cylinder' | 'sphere' | 'human';
+export type ParticleSimulationMode = 'equilibrium' | 'dynamic';
+export type FieldShapeType =
+  | 'free-field'
+  | 'superquadric'
+  | 'torus'
+  | 'octahedron'
+  | 'tetrahedron'
+  | 'dodecahedron'
+  | 'helix'
+  | 'heart'
+  | 'custom';
+
+export interface SuperquadricParams {
+  eps1: number; // axial curvature [0.08, 4.0]
+  eps2: number; // equatorial curvature [0.08, 4.0]
+  pinch: number; // vertical taper [-0.8, 0.8]
+  lobes: number; // radial petals [0, 12]
+  lobeAmp: number; // petal depth [0, 0.4]
+}
 
 export interface GpuParticleConfig {
   particleCount?: number;
@@ -13,6 +34,7 @@ export interface GpuParticleConfig {
   brownianIntensity?: number;
   particleScale?: number;
   chamberSize?: number;
+  simulationMode?: ParticleSimulationMode;
 }
 
 // ----------------------------------------------------------------------------
@@ -22,12 +44,22 @@ export interface GpuParticleConfig {
 // ----------------------------------------------------------------------------
 const PARTICLE_VERTEX_SHADER = `
 ${CYMATICS_CORE_GLSL}
+${SHAPE_SDF_GLSL}
 
 uniform float uTime;
 uniform float uParticleScale;
 uniform float uChamberSize;
 uniform int uChamberType;
 uniform int uMode; // 0 = Normal Chladni (nodal p=0), 1 = Inverse Chladni (antinodes)
+uniform int uSimMode; // 0 = Equilibrium Preview, 1 = Dynamic Acoustophoresis
+uniform int uFieldMode; // 0 = Cavity Chamber, 1 = Field Mode (Unbound)
+uniform int uFieldShapeType; // 0=Free-field, 1=Superquadric, 2=Torus, 3=Octahedron, 4=Tetrahedron, 5=Dodecahedron, 6=Helix, 7=Heart, 8=Custom
+uniform vec4 uSuperquadricParams; // x=eps1, y=eps2, z=pinch, w=lobes
+uniform float uSuperquadricLobeAmp;
+uniform float uFieldBoundaryStrength;
+uniform float uRadialRoot;
+uniform float uSphericalRoot;
+uniform float uAcousticContrast;
 uniform vec3 uModalNumbers;
 uniform vec4 uBandEnergies;
 uniform vec2 uHighEnergies;
@@ -51,29 +83,42 @@ varying float vIntensity;
 varying float vSpeed;
 varying float vDepthFade;
 
-// 3D Cartesian Acoustic Cavity Pressure
-float evalCartesianPressure(vec3 p, vec3 nml, float L) {
+// Single-Pass Analytical 3D Cartesian Acoustic Cavity Pressure & Gradient
+vec3 evalCartesianGradAndPressure(vec3 p, vec3 nml, float L, out float pressure) {
     vec3 k = (nml * PI) / (2.0 * L);
-    float cX = cos(k.x * p.x); float cY = cos(k.y * p.y); float cZ = cos(k.z * p.z);
-    float cX2 = cos(k.y * p.x); float cY2 = cos(k.z * p.y); float cZ2 = cos(k.x * p.z);
-    float cX3 = cos(k.z * p.x); float cY3 = cos(k.x * p.y); float cZ3 = cos(k.y * p.z);
+    float cX = cos(k.x * p.x); float sX = sin(k.x * p.x);
+    float cY = cos(k.y * p.y); float sY = sin(k.y * p.y);
+    float cZ = cos(k.z * p.z); float sZ = sin(k.z * p.z);
+
+    float cX2 = cos(k.y * p.x); float sX2 = sin(k.y * p.x);
+    float cY2 = cos(k.z * p.y); float sY2 = sin(k.z * p.y);
+    float cZ2 = cos(k.x * p.z); float sZ2 = sin(k.x * p.z);
+
+    float cX3 = cos(k.z * p.x); float sX3 = sin(k.z * p.x);
+    float cY3 = cos(k.x * p.y); float sY3 = sin(k.x * p.y);
+    float cZ3 = cos(k.y * p.z); float sZ3 = sin(k.y * p.z);
 
     float w1 = 1.0;
     float w2 = 0.55 + 0.35 * uBandEnergies.y;
     float w3 = 0.35 + 0.45 * uBandEnergies.z;
 
-    return w1 * (cX * cY * cZ) - w2 * (cX2 * cY2 * cZ2) + w3 * (cX3 * cY3 * cZ3);
+    pressure = w1 * (cX * cY * cZ) - w2 * (cX2 * cY2 * cZ2) + w3 * (cX3 * cY3 * cZ3);
+
+    vec3 g1 = vec3(-k.x * sX * cY * cZ, -k.y * cX * sY * cZ, -k.z * cX * cY * sZ);
+    vec3 g2 = vec3(-k.y * sX2 * cY2 * cZ2, -k.z * cX2 * sY2 * cZ2, -k.x * cX2 * cY2 * sZ2);
+    vec3 g3 = vec3(-k.z * sX3 * cY3 * cZ3, -k.x * cX3 * sY3 * cZ3, -k.y * cX3 * cY3 * sZ3);
+
+    return w1 * g1 - w2 * g2 + w3 * g3;
 }
 
-// 3D Cylindrical Cavity Pressure (Vertical Standing Cylinder along Y)
+// 3D Cylindrical Cavity Pressure (Vertical Standing Cylinder along Y) with exact NIST DLMF 10.75 root
 float evalCylindricalPressure(vec3 p, vec3 nml, float L) {
     float r = length(p.xz);
     float theta = (abs(p.x) < 1e-6 && abs(p.z) < 1e-6) ? 0.0 : atan(p.z, p.x);
-    float n = max(0.5, nml.x);
     float m = max(0.0, nml.y);
     float l = max(0.0, nml.z);
 
-    float k = PI * (n + 0.5 * m - 0.25) / L;
+    float k = (uRadialRoot > 0.0 ? uRadialRoot : PI * (max(0.5, nml.x) + 0.5 * m - 0.25)) / L;
     float ky = (l * PI) / (2.0 * L);
 
     float bessel = evalBesselJ(m, k * r);
@@ -83,7 +128,7 @@ float evalCylindricalPressure(vec3 p, vec3 nml, float L) {
     return bessel * angular * axial;
 }
 
-// 3D Spherical Field with Spherical Harmonics L0-L3 & Radial Bessel Waves
+// 3D Spherical Field with Spherical Harmonics L0-L3 & Radial Bessel Waves with exact root
 float evalSphericalPressure(vec3 p, vec3 nml, float L) {
     float r = length(p);
     if (r < 1e-5) return 1.0;
@@ -93,7 +138,7 @@ float evalSphericalPressure(vec3 p, vec3 nml, float L) {
     float sh2[5]; evalSH_L2(n, sh2);
     float sh3[7]; evalSH_L3(n, sh3);
 
-    float u = (3.14159265 * (nml.x + 0.5) * r) / L;
+    float u = (uSphericalRoot > 0.0 ? uSphericalRoot * r : 3.14159265 * (nml.x + 0.5) * r) / L;
     float j0 = sphericalBessel_j0(u);
     float j1 = sphericalBessel_j1(u * (nml.y / max(nml.x, 1.0)));
     float j2 = sphericalBessel_j2(u * (nml.z / max(nml.x, 1.0)));
@@ -109,18 +154,21 @@ float evalSphericalPressure(vec3 p, vec3 nml, float L) {
 
 // Unified Chamber Pressure Evaluator
 float evalChamberPressure(vec3 p, vec3 nml, float L, int chamberType) {
-    if (chamberType == 0) {
-        return evalCartesianPressure(p, nml, L);
-    } else if (chamberType == 1) {
+    if (chamberType == 1) {
         return evalCylindricalPressure(p, nml, L);
     } else if (chamberType == 2) {
         return evalSphericalPressure(p, nml, L);
     }
-    return evalCartesianPressure(p, nml, L);
+    float pDirect = 0.0;
+    evalCartesianGradAndPressure(p, nml, L, pDirect);
+    return pDirect;
 }
 
-// Exact 3D Spatial Gradient via Central Finite Differences
+// 3D Spatial Gradient (single-pass analytical in Cartesian, finite differences in Cyl/Sph)
 vec3 evalPressureGradient(vec3 p, vec3 nml, float L, int chamberType, out float pressure) {
+    if (chamberType == 0) {
+        return evalCartesianGradAndPressure(p, nml, L, pressure);
+    }
     pressure = evalChamberPressure(p, nml, L, chamberType);
     float eps = clamp(0.006 * L, 0.001, 0.012);
     float dx = evalChamberPressure(p + vec3(eps, 0.0, 0.0), nml, L, chamberType) - evalChamberPressure(p - vec3(eps, 0.0, 0.0), nml, L, chamberType);
@@ -133,8 +181,26 @@ void main() {
     vec3 p0 = position;
     float L = uChamberSize;
 
-    // Adapt base position domain to match active chamber geometry with uniform density
-    if (uChamberType == 1) {
+    // Adapt base position domain to match active chamber geometry or field mode
+    if (uFieldMode == 1) {
+        if (uFieldShapeType == 0) {
+            // Unbounded Free-Field: Preserve the full 3D low-discrepancy (R3) volume distribution
+            // Every particle is an independent 3D point of acoustic dust, free from box walls
+            p0 = position;
+        } else if (uFieldShapeType == 8) {
+            // Custom 3D Mesh: Keep exact sampled surface positions without SDF reprojection
+        } else {
+            // Analytical geometric shapes (Torus, Superquadric, Octahedron, Tetrahedron, Dodecahedron, Helix, Heart):
+            // Retain full 3D particle dust distribution and smoothly confine points outside the shape manifold
+            float d0 = evaluateFieldShapeSDF(p0, uFieldShapeType, uSuperquadricParams, uSuperquadricLobeAmp, L * 0.92);
+            if (d0 > 0.0) {
+                float r = length(p0);
+                if (r > 1e-4) {
+                    p0 *= clamp(1.0 - (d0 / r), 0.1, 0.95);
+                }
+            }
+        }
+    } else if (uChamberType == 1) {
         // Full 4-Quadrant Shirley-Chiu concentric mapping from square [-L, L]^2 to 360° circular cylinder
         vec2 uv = p0.xz / (L * 0.95);
         float r = 0.0;
@@ -174,16 +240,20 @@ void main() {
     float pressure = 0.0;
     vec3 gradP = evalPressureGradient(p0, uModalNumbers, L, uChamberType, pressure);
 
-    // 1. Exact 3D Gor'kov Nodal Manifold Projection
+    // 1. 3D Gor'kov Nodal Manifold Projection / Dynamic Acoustophoresis
     // Snaps particles precisely onto the 3D nodal surfaces p(x,y,z) = 0
     float gradSq = dot(gradP, gradP);
     vec3 deltaNodal = - (pressure * gradP) / (gradSq + 0.04);
     
-    // Smooth Gor'kov trapping blend
+    // Contrast factor: positive contrast moves to nodes; negative moves to antinodes
+    float contrastSign = uAcousticContrast >= 0.0 ? 1.0 : -1.0;
+    if (uMode == 1) contrastSign = -contrastSign;
+    deltaNodal *= contrastSign;
+
     float trapAmount = clamp(uGorkovStrength * 0.035, 0.5, 1.0);
-    if (uMode == 1) {
-        // Inverse Chladni: Trapping onto antinodes
-        deltaNodal = -deltaNodal;
+    if (uSimMode == 1) {
+        // Exact wave mode: strict analytical nodal convergence
+        trapAmount = 1.0;
     }
     vec3 trappedPos = p0 + deltaNodal * trapAmount;
 
@@ -192,7 +262,8 @@ void main() {
     vec3 g2 = evalPressureGradient(trappedPos, uModalNumbers, L, uChamberType, p2);
     float g2Sq = dot(g2, g2);
     vec3 normG2 = g2Sq > 1e-4 ? g2 / sqrt(g2Sq) : vec3(0.0);
-    trappedPos = trappedPos - (p2 * g2) / (g2Sq + 0.04) * (trapAmount * 0.90);
+    float refineFactor = uSimMode == 1 ? 0.98 : 0.85;
+    trappedPos = trappedPos - (p2 * g2) / (g2Sq + 0.04) * (trapAmount * refineFactor);
 
     // 2. Continuous 3D Rayleigh In-Plane Streaming Flow (confined strictly to the nodal sheet)
     float audioScale = 0.85 + uBandEnergies.x * 2.2 + uBandEnergies.y * 1.5;
@@ -207,8 +278,9 @@ void main() {
     // Tangential projection onto the nodal sheet tangent plane (preserves razor-sharp sheet lines)
     vec3 vTangent = vRayleigh - normG2 * dot(vRayleigh, normG2);
 
+    float streamDamping = clamp(1.2 / max(0.4, uStokesDrag), 0.3, 2.5);
     float streamPhase = uTime * (1.2 * audioScale) + aParticlePhase * 6.28318;
-    vec3 streamingDisp = vTangent * (0.24 * sin(streamPhase) * audioScale);
+    vec3 streamingDisp = vTangent * (0.24 * sin(streamPhase) * audioScale * streamDamping);
 
     // 3. In-Plane Beat Jitter (confined strictly to the tangent plane of the nodal sheet)
     vec3 rawJitter = vec3(
@@ -248,23 +320,46 @@ void main() {
     }
     currentPos += nShock * (shockDisp * 0.8);
 
-    // 6. Strict Physical Chamber Boundary Confinement
-    // Fills the full rectangular box in Cube mode, cylinder in Cylinder mode, sphere in Sphere mode
-    if (uChamberType == 0) {
-        // Cube: [-L * 0.96, L * 0.96]^3 (Fills all 6 flat square faces wall-to-wall)
-        currentPos = clamp(currentPos, -vec3(L * 0.96), vec3(L * 0.96));
-    } else if (uChamberType == 1) {
-        // Vertical Cylinder: Radius in XZ <= L * 0.96, Height in Y in [-L * 0.96, L * 0.96]
-        float rXZ = length(currentPos.xz);
-        if (rXZ > L * 0.96 && rXZ > 1e-4) {
-            currentPos.xz = (currentPos.xz / rXZ) * (L * 0.96);
+    // 6. Boundary Confinement & Field Mode Unbounding
+    if (uFieldMode == 1) {
+        if (uFieldShapeType == 0) {
+            // Unbounded Free-Field: open acoustic radiation with smooth distance continuation
+            float rTot = length(currentPos);
+            if (rTot > L * 2.5 && rTot > 1e-4) {
+                currentPos = (currentPos / rTot) * (L * 2.5);
+            }
+        } else if (uFieldShapeType == 8) {
+            // Custom 3D Mesh: Keep open field with generous bounds matching mesh normalization
+            float rTot = length(currentPos);
+            if (rTot > L * 2.2 && rTot > 1e-4) {
+                currentPos = (currentPos / rTot) * (L * 2.2);
+            }
+        } else {
+            // Arbitrary Shape Manifold via Signed Distance Field (SDF)
+            float shapeDist = evaluateFieldShapeSDF(currentPos, uFieldShapeType, uSuperquadricParams, uSuperquadricLobeAmp, L * 0.95);
+            if (shapeDist > 0.0) {
+                vec3 shapeN = computeFieldShapeNormal(currentPos, uFieldShapeType, uSuperquadricParams, uSuperquadricLobeAmp, L * 0.95);
+                currentPos -= shapeN * (shapeDist * clamp(uFieldBoundaryStrength, 0.6, 1.2));
+            }
         }
-        currentPos.y = clamp(currentPos.y, -L * 0.96, L * 0.96);
-    } else if (uChamberType == 2) {
-        // Sphere: Radius L * 0.96
-        float rTot = length(currentPos);
-        if (rTot > L * 0.96 && rTot > 1e-4) {
-            currentPos = (currentPos / rTot) * (L * 0.96);
+    } else {
+        // Classic Physical Cavity Chamber Boundary Confinement
+        if (uChamberType == 0) {
+            // Cube: [-L * 0.96, L * 0.96]^3 (Fills all 6 flat square faces wall-to-wall)
+            currentPos = clamp(currentPos, -vec3(L * 0.96), vec3(L * 0.96));
+        } else if (uChamberType == 1) {
+            // Vertical Cylinder: Radius in XZ <= L * 0.96, Height in Y in [-L * 0.96, L * 0.96]
+            float rXZ = length(currentPos.xz);
+            if (rXZ > L * 0.96 && rXZ > 1e-4) {
+                currentPos.xz = (currentPos.xz / rXZ) * (L * 0.96);
+            }
+            currentPos.y = clamp(currentPos.y, -L * 0.96, L * 0.96);
+        } else if (uChamberType == 2) {
+            // Sphere: Radius L * 0.96
+            float rTot = length(currentPos);
+            if (rTot > L * 0.96 && rTot > 1e-4) {
+                currentPos = (currentPos / rTot) * (L * 0.96);
+            }
         }
     }
 
@@ -341,6 +436,22 @@ export class GpuAcousticParticles {
   private acousticExcitation = 1.0;
   private brownianMotion = 0.8;
   private particleScale = 1.0;
+  private simulationMode: ParticleSimulationMode = 'equilibrium';
+  private acousticContrast = 0.24;
+  private activeMedium = 'water';
+  private activeParticle = 'polystyrene';
+
+  // Field Mode State
+  private fieldMode = false;
+  private fieldShapeType: FieldShapeType = 'free-field';
+  private lastCustomMeshSamples: Float32Array | null = null;
+  private superquadricParams: SuperquadricParams = {
+    eps1: 1.0,
+    eps2: 1.0,
+    pinch: 0.0,
+    lobes: 0.0,
+    lobeAmp: 0.0,
+  };
 
   constructor(_renderer: THREE.WebGLRenderer, initialPalette: PalettePreset, config?: GpuParticleConfig) {
     this.group = new THREE.Group();
@@ -355,6 +466,7 @@ export class GpuAcousticParticles {
     if (config?.brownianIntensity !== undefined) this.brownianMotion = config.brownianIntensity;
     if (config?.particleScale !== undefined) this.particleScale = config.particleScale;
     if (config?.chamberSize !== undefined) this.chamberSize = config.chamberSize;
+    if (config?.simulationMode !== undefined) this.simulationMode = config.simulationMode;
 
     // 1. Initialize Particle Geometry with 3D Low-Discrepancy (R3) Volume Distribution
     const particleGeometry = this.buildParticleGeometry();
@@ -369,6 +481,15 @@ export class GpuAcousticParticles {
         uChamberSize: { value: this.chamberSize },
         uChamberType: { value: 0 },
         uMode: { value: 0 },
+        uSimMode: { value: this.simulationMode === 'equilibrium' ? 0 : 1 },
+        uFieldMode: { value: 0 },
+        uFieldShapeType: { value: 0 },
+        uSuperquadricParams: { value: new THREE.Vector4(1.0, 1.0, 0.0, 0.0) },
+        uSuperquadricLobeAmp: { value: 0.0 },
+        uFieldBoundaryStrength: { value: 0.95 },
+        uRadialRoot: { value: 1.841184 },
+        uSphericalRoot: { value: 2.081576 },
+        uAcousticContrast: { value: this.acousticContrast },
         uModalNumbers: { value: this.modalNumbers.clone() },
         uGorkovStrength: { value: this.gorkovStrength },
         uStokesDrag: { value: this.stokesDrag },
@@ -466,6 +587,83 @@ export class GpuAcousticParticles {
     return this.chamberType;
   }
 
+  public setFieldMode(enabled: boolean): void {
+    const wasCustom = this.fieldMode && this.fieldShapeType === 'custom';
+    this.fieldMode = enabled;
+    this.renderMaterial.uniforms.uFieldMode.value = enabled ? 1 : 0;
+    if (!enabled && wasCustom) {
+      this.resetParticleDistribution();
+    } else if (enabled && this.fieldShapeType === 'custom' && this.lastCustomMeshSamples) {
+      this.setCustomMeshSamples(this.lastCustomMeshSamples);
+    }
+  }
+
+  public getFieldMode(): boolean {
+    return this.fieldMode;
+  }
+
+  public setFieldShape(shape: FieldShapeType, params?: Partial<SuperquadricParams>): void {
+    const prevShape = this.fieldShapeType;
+    this.fieldShapeType = shape;
+    if (prevShape === 'custom' && shape !== 'custom') {
+      this.resetParticleDistribution();
+    } else if (shape === 'custom' && this.lastCustomMeshSamples) {
+      this.setCustomMeshSamples(this.lastCustomMeshSamples);
+    }
+
+    const shapeMap: Record<FieldShapeType, number> = {
+      'free-field': 0,
+      'superquadric': 1,
+      'torus': 2,
+      'octahedron': 3,
+      'tetrahedron': 4,
+      'dodecahedron': 5,
+      'helix': 6,
+      'heart': 7,
+      'custom': 8,
+    };
+    this.renderMaterial.uniforms.uFieldShapeType.value = shapeMap[shape] ?? 0;
+    if (params) {
+      if (params.eps1 !== undefined) this.superquadricParams.eps1 = params.eps1;
+      if (params.eps2 !== undefined) this.superquadricParams.eps2 = params.eps2;
+      if (params.pinch !== undefined) this.superquadricParams.pinch = params.pinch;
+      if (params.lobes !== undefined) this.superquadricParams.lobes = params.lobes;
+      if (params.lobeAmp !== undefined) this.superquadricParams.lobeAmp = params.lobeAmp;
+    }
+    const sq = this.superquadricParams;
+    this.renderMaterial.uniforms.uSuperquadricParams.value.set(sq.eps1, sq.eps2, sq.pinch, sq.lobes);
+    this.renderMaterial.uniforms.uSuperquadricLobeAmp.value = sq.lobeAmp;
+  }
+
+  public setFieldBoundaryStrength(strength: number): void {
+    this.renderMaterial.uniforms.uFieldBoundaryStrength.value = strength;
+  }
+
+  public getFieldShape(): FieldShapeType {
+    return this.fieldShapeType;
+  }
+
+  public getSuperquadricParams(): Readonly<SuperquadricParams> {
+    return { ...this.superquadricParams };
+  }
+
+  public setCustomMeshSamples(samples: Float32Array): void {
+    this.lastCustomMeshSamples = samples;
+    const posAttr = this.pointsMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+    if (!posAttr) return;
+    const posArray = posAttr.array as Float32Array;
+    for (let i = 0; i < posArray.length; i++) {
+      posArray[i] = samples[i % samples.length];
+    }
+    posAttr.needsUpdate = true;
+  }
+
+  public resetParticleDistribution(): void {
+    const freshGeo = this.buildParticleGeometry();
+    this.pointsMesh.geometry.dispose();
+    this.pointsMesh.geometry = freshGeo;
+  }
+
   public setChamberSize(size: number): void {
     this.chamberSize = size;
     this.renderMaterial.uniforms.uChamberSize.value = size;
@@ -474,10 +672,45 @@ export class GpuAcousticParticles {
   public setModalNumbers(n: number, m: number, l: number): void {
     this.modalNumbers.set(n, m, l);
     this.renderMaterial.uniforms.uModalNumbers.value.copy(this.modalNumbers);
+    const rRoot = AcousticEigenmodes.getCylindricalBesselDerivativeRoot(m, n);
+    const sRoot = AcousticEigenmodes.getSphericalBesselDerivativeRoot(l, n);
+    this.renderMaterial.uniforms.uRadialRoot.value = rRoot;
+    this.renderMaterial.uniforms.uSphericalRoot.value = sRoot;
   }
 
   public setModes(n: number, m: number, l: number): void {
     this.setModalNumbers(n, m, l);
+  }
+
+  public setSimulationMode(mode: ParticleSimulationMode): void {
+    this.simulationMode = mode;
+    this.renderMaterial.uniforms.uSimMode.value = mode === 'equilibrium' ? 0 : 1;
+  }
+
+  public getSimulationMode(): ParticleSimulationMode {
+    return this.simulationMode;
+  }
+
+  public setMedium(mediumKey: string): void {
+    if (AcousticEigenmodes.MEDIA[mediumKey]) {
+      this.activeMedium = mediumKey;
+      this.updateContrast();
+    }
+  }
+
+  public setParticleMaterial(particleKey: string): void {
+    if (AcousticEigenmodes.PARTICLES[particleKey]) {
+      this.activeParticle = particleKey;
+      this.updateContrast();
+    }
+  }
+
+  private updateContrast(): void {
+    const med = AcousticEigenmodes.MEDIA[this.activeMedium] || AcousticEigenmodes.MEDIA.water;
+    const part = AcousticEigenmodes.PARTICLES[this.activeParticle] || AcousticEigenmodes.PARTICLES.polystyrene;
+    const contrast = AcousticEigenmodes.computeAcousticContrast(med, part);
+    this.acousticContrast = contrast.phi;
+    this.renderMaterial.uniforms.uAcousticContrast.value = this.acousticContrast;
   }
 
   public setGorkovStrength(strength: number): void {
@@ -488,6 +721,17 @@ export class GpuAcousticParticles {
   public setStokesDrag(drag: number): void {
     this.stokesDrag = drag;
     this.renderMaterial.uniforms.uStokesDrag.value = drag;
+  }
+
+  public setBrownianMotion(amount: number): void {
+    this.brownianMotion = amount;
+    if (this.renderMaterial?.uniforms?.uBrownianMotion) {
+      this.renderMaterial.uniforms.uBrownianMotion.value = amount;
+    }
+  }
+
+  public getBrownianMotion(): number {
+    return this.brownianMotion;
   }
 
   public setAcousticExcitation(excitation: number): void {
@@ -563,6 +807,7 @@ export class GpuAcousticParticles {
     shockwaves: THREE.Vector4[],
     _fundamentalHz = 432
   ): void {
+    const safeDt = Math.min(Math.max(0, _dt), 0.033);
     const renderU = this.renderMaterial.uniforms;
     renderU.uTime.value = time;
     renderU.uModalNumbers.value.copy(this.modalNumbers);
@@ -571,6 +816,8 @@ export class GpuAcousticParticles {
     renderU.uChamberType.value = this.chamberType === 'cube' ? 0 : this.chamberType === 'cylinder' ? 1 : this.chamberType === 'sphere' ? 2 : 3;
     renderU.uChamberSize.value = this.chamberSize;
     renderU.uMode.value = this.chladniMode === 'normal' ? 0 : 1;
+    renderU.uSimMode.value = this.simulationMode === 'equilibrium' ? 0 : 1;
+    renderU.uAcousticContrast.value = this.acousticContrast;
     renderU.uGorkovStrength.value = this.gorkovStrength;
     renderU.uStokesDrag.value = this.stokesDrag;
     renderU.uBrownianMotion.value = this.brownianMotion;

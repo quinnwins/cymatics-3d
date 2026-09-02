@@ -72,4 +72,42 @@ describe('TemporalSculpture', () => {
     sculpture.dispose();
     history.dispose();
   });
+
+  it('smoothly relaxes uFossilWeight toward 1.0 when frozen and 0.0 when live', () => {
+    const history = new HistoryTexture();
+    const sculpture = new TemporalSculpture(ColorPalettes.getPalette('cosmic-nebula'), 4096);
+    const internals = sculpture as unknown as {
+      material: THREE.ShaderMaterial;
+      fossilWeight: number;
+    };
+
+    expect(internals.material.uniforms.uFossilWeight.value).toBe(0);
+
+    temporalMemory.setFrozen(true);
+    for (let i = 0; i < 20; i++) {
+      sculpture.update(1, new THREE.Vector4(), new THREE.Vector2(), 440);
+    }
+    expect(internals.material.uniforms.uFossilWeight.value).toBeGreaterThan(0.9);
+
+    temporalMemory.setFrozen(false);
+    for (let i = 0; i < 30; i++) {
+      sculpture.update(1, new THREE.Vector4(), new THREE.Vector2(), 440);
+    }
+    expect(internals.material.uniforms.uFossilWeight.value).toBeLessThan(0.05);
+
+    sculpture.dispose();
+    history.dispose();
+  });
+
+  it('configures chamber geometry uniforms via setChamber', () => {
+    const sculpture = new TemporalSculpture(ColorPalettes.getPalette('cosmic-nebula'), 4096);
+    const internals = sculpture as unknown as { material: THREE.ShaderMaterial };
+
+    sculpture.setChamber(1, 2.1, 1.48);
+    expect(internals.material.uniforms.uChamberType.value).toBe(1);
+    expect(internals.material.uniforms.uChamberSize.value).toBe(2.1);
+    expect(internals.material.uniforms.uRefractiveIndex.value).toBe(1.48);
+
+    sculpture.dispose();
+  });
 });

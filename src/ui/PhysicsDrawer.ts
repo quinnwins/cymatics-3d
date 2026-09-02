@@ -1,6 +1,12 @@
 import { VisualizerEngine, CameraMode } from '../visualizer/VisualizerEngine';
 import { ColorPalettes } from '../visualizer/ColorPalettes';
 import { EngineMode } from './Header';
+import {
+  temporalMemory,
+  TEMPORAL_MEDIA,
+  TEMPORAL_MEMORY_EVENT,
+  type TemporalMediumId,
+} from '../visualizer/TemporalMemory';
 
 export class PhysicsDrawer {
   private element: HTMLElement;
@@ -140,6 +146,24 @@ export class PhysicsDrawer {
       }
     }
 
+    // Apparatus Simulation Mode Dropdown
+    const engineSelect = this.element.querySelector('#select-engine-mode') as HTMLSelectElement | null;
+    if (engineSelect && this.visualizer && typeof this.visualizer.getEngineMode === 'function') {
+      const activeEngineMode = this.visualizer.getEngineMode();
+      if (!skipFocused || document.activeElement !== engineSelect) {
+        engineSelect.value = activeEngineMode;
+      }
+    }
+
+    // Particle Motion Mode Dropdown
+    const particleMotionSelect = this.element.querySelector('#select-particle-motion') as HTMLSelectElement | null;
+    if (particleMotionSelect && this.visualizer?.gpuAcousticParticles && typeof this.visualizer.gpuAcousticParticles.getSimulationMode === 'function') {
+      const activeMotion = this.visualizer.gpuAcousticParticles.getSimulationMode();
+      if (!skipFocused || document.activeElement !== particleMotionSelect) {
+        particleMotionSelect.value = activeMotion;
+      }
+    }
+
     // Floor Grid Toggle Button
     const gridBtn = this.element.querySelector('#btn-toggle-ground-grid') as HTMLButtonElement | null;
     if (gridBtn) {
@@ -233,6 +257,10 @@ export class PhysicsDrawer {
     const bloomPct = Math.round(((this.visualizer.bloomStrength - 0.05) / 0.95) * 100);
     const densityPct = Math.round(((this.visualizer.particleDensity - 16384) / (262144 - 16384)) * 100);
     const scalePct = Math.round(((this.visualizer.particleScale - 0.4) / 1.6) * 100);
+
+    const memSettings = temporalMemory.getSettings();
+    const lookbackPct = Math.round((memSettings.lookbackSeconds / 10.0) * 100);
+    const memoryPct = Math.round(((memSettings.memorySeconds - 1.0) / 9.0) * 100);
 
     this.element.innerHTML = `
       <!-- Main Accordion Header -->
@@ -343,6 +371,58 @@ export class PhysicsDrawer {
               style="background: linear-gradient(to right, #38bdf8 ${dampingPct}%, rgba(255, 255, 255, 0.1) ${dampingPct}%);"
               class="w-full min-w-0 cursor-pointer slider-cyan"
             />
+          </div>
+
+          <!-- Apparatus Simulation Mode -->
+          <div class="flex flex-col gap-1 min-w-0 pt-1 border-t border-white/5">
+            <label for="select-engine-mode" class="text-[10px] font-medium text-slate-300 flex items-center gap-1">
+              <span>Apparatus Mode</span>
+            </label>
+            <select
+              id="select-engine-mode"
+              aria-label="Apparatus physics mode"
+              class="glass-select glass-select-sm w-full cursor-pointer text-xs"
+            >
+              <option value="hybrid" ${this.visualizer.getEngineMode && this.visualizer.getEngineMode() === 'hybrid' ? 'selected' : ''}>Hybrid (Resonance & Visual Glow)</option>
+              <option value="physical" ${this.visualizer.getEngineMode && this.visualizer.getEngineMode() === 'physical' ? 'selected' : ''}>Physical (Exact Solver & Migration)</option>
+              <option value="expressive" ${this.visualizer.getEngineMode && this.visualizer.getEngineMode() === 'expressive' ? 'selected' : ''}>Expressive (Direct Audio Shapes)</option>
+            </select>
+          </div>
+
+          <!-- Particle Motion Simulation Mode -->
+          <div class="flex flex-col gap-1 min-w-0">
+            <label for="select-particle-motion" class="text-[10px] font-medium text-slate-300 flex items-center gap-1">
+              <span>Particle Motion</span>
+            </label>
+            <select
+              id="select-particle-motion"
+              aria-label="Particle motion simulation mode"
+              class="glass-select glass-select-sm w-full cursor-pointer text-xs"
+            >
+              <option value="equilibrium" ${this.visualizer.gpuAcousticParticles?.getSimulationMode?.() === 'equilibrium' ? 'selected' : ''}>Instant Preview (Nodal Surface)</option>
+              <option value="dynamic" ${this.visualizer.gpuAcousticParticles?.getSimulationMode?.() === 'dynamic' ? 'selected' : ''}>Physical Migration (Acoustophoresis)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Song Memory ("The Song Remembers") Group -->
+        <div id="drawer-temporal-acoustics" class="flex flex-col gap-2.5 bg-slate-950/40 p-2.5 rounded-2xl border border-white/5">
+          <div class="flex items-center justify-between">
+            <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span>Song Memory</span>
+            </div>
+          </div>
+
+          <!-- Enter The Song Remembers Action Button -->
+          <div>
+            <button
+              id="btn-drawer-theater"
+              type="button"
+              class="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 hover:from-cyan-500/30 hover:to-indigo-500/30 text-cyan-200 border border-cyan-400/40 text-[11px] font-semibold cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
+              aria-label="Enter The Song Remembers"
+            >
+              <span>The Song Remembers (A or M)</span>
+            </button>
           </div>
         </div>
         `
@@ -529,6 +609,28 @@ export class PhysicsDrawer {
       window.dispatchEvent(new CustomEvent('optics-value-changed', { detail: { source: 'physics-drawer' } }));
     });
 
+    // Apparatus Simulation Mode
+    const engineModeSelect = this.element.querySelector('#select-engine-mode') as HTMLSelectElement | null;
+    engineModeSelect?.addEventListener('change', () => {
+      const val = engineModeSelect.value as any;
+      if (typeof this.visualizer.setEngineMode === 'function') {
+        this.visualizer.setEngineMode(val);
+      }
+      this.syncValuesFromVisualizer(false);
+      window.dispatchEvent(new CustomEvent('optics-value-changed', { detail: { source: 'physics-drawer' } }));
+    });
+
+    // Particle Motion Mode
+    const particleMotionSelect = this.element.querySelector('#select-particle-motion') as HTMLSelectElement | null;
+    particleMotionSelect?.addEventListener('change', () => {
+      const val = particleMotionSelect.value as any;
+      if (this.visualizer.gpuAcousticParticles && typeof this.visualizer.gpuAcousticParticles.setSimulationMode === 'function') {
+        this.visualizer.gpuAcousticParticles.setSimulationMode(val);
+      }
+      this.syncValuesFromVisualizer(false);
+      window.dispatchEvent(new CustomEvent('optics-value-changed', { detail: { source: 'physics-drawer' } }));
+    });
+
     // Bloom Strength
     const bloomSlider = this.element.querySelector('#slider-bloom') as HTMLInputElement;
     bloomSlider?.addEventListener('input', () => {
@@ -595,9 +697,24 @@ export class PhysicsDrawer {
     this.element.querySelector('#btn-reset-physics-drawer')?.addEventListener('click', () => {
       this.resetDefaults();
     });
+
+    // The Song Remembers Button
+    this.element.querySelector('#btn-drawer-theater')?.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('soundform-anamnesis-toggle'));
+    });
   }
 
   private attachGlobalListeners(): void {
+
+    window.addEventListener('soundform-memory-drawer-toggle', () => {
+      this.isOpen = true;
+      this.render();
+      const card = this.element.querySelector('#drawer-temporal-acoustics');
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+
     window.addEventListener('camera-mode-changed', () => {
       this.syncValuesFromVisualizer(true);
     });

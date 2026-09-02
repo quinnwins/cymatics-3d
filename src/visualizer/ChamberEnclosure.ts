@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PalettePreset } from './ColorPalettes';
 import { CYMATICS_CORE_GLSL } from './shaders/cymaticsCore';
+import type { FieldShapeType, SuperquadricParams } from './GpuAcousticParticles';
 
 export type ChamberType = 'cube' | 'cylinder' | 'sphere';
 
@@ -52,6 +53,7 @@ uniform vec3 uAccentColor;
 uniform vec4 uBandEnergies;
 uniform vec2 uHighEnergies;
 uniform vec3 uCameraPos;
+uniform float uRecognitionFlash;
 
 varying vec3 vWorldNormal;
 varying vec3 vWorldPosition;
@@ -159,15 +161,17 @@ void main() {
     vec3 finalRgb = glassTint * (1.0 + bassPulse * 0.5);
     finalRgb += specularGlint;
     finalRgb += uAccentColor * (gridLine * (1.2 + bassPulse * 0.8));
+    finalRgb += (uAccentColor + vec3(0.25, 0.5, 0.9)) * (uRecognitionFlash * 1.6);
 
     // Dynamic Opacity with Front/Back Transmission (Ultra-transparent optical enclosure)
     float alpha = clamp(
         (gl_FrontFacing ? uGlassOpacity : uGlassOpacity * 0.4) +
         fresnel * 0.06 +
         gridLine * 0.06 +
-        (spec1 + spec2) * 0.15,
+        (spec1 + spec2) * 0.15 +
+        uRecognitionFlash * 0.22,
         0.0,
-        0.18
+        0.42
     );
 
     gl_FragColor = vec4(finalRgb, alpha);
@@ -199,6 +203,7 @@ uniform vec3 uColor;
 uniform vec3 uAccent;
 uniform vec4 uBandEnergies;
 uniform float uEdgeGlow;
+uniform float uRecognitionFlash;
 
 varying vec3 vWorldNormal;
 varying vec3 vViewPosition;
@@ -218,6 +223,7 @@ void main() {
 
     vec3 edgeColor = mix(uColor, uAccent, pulse * 0.5);
     edgeColor *= (0.8 + audioBoost + fresnel * 0.8) * uEdgeGlow;
+    edgeColor += (uAccent + vec3(0.4, 0.7, 1.0)) * (uRecognitionFlash * 2.2);
 
     // Specular shine
     vec3 H = normalize(normalize(vec3(1.0, 2.0, 1.5)) + V);
@@ -225,7 +231,7 @@ void main() {
     edgeColor += vec3(spec * 0.8);
 
     // Ultra-minimal datum frame opacity (~0.08-0.18)
-    float alpha = clamp(0.08 + fresnel * 0.12 + audioBoost * 0.06, 0.0, 0.35);
+    float alpha = clamp(0.08 + fresnel * 0.12 + audioBoost * 0.06 + uRecognitionFlash * 0.35, 0.0, 0.65);
     gl_FragColor = vec4(clamp(edgeColor, 0.0, 10.0), alpha);
 }
 `;
@@ -243,6 +249,29 @@ export class ChamberEnclosure {
   private cylinderFrameMeshGroup = new THREE.Group();
   private sphereFrameMeshGroup = new THREE.Group();
 
+  // Field Mode State & Manifold Groups
+  private fieldMode = false;
+  private fieldShapeType: FieldShapeType = 'free-field';
+  private contourVisible = true;
+  private fieldGroup = new THREE.Group();
+  private freeFieldEmitterGroup = new THREE.Group();
+  private torusFrameGroup = new THREE.Group();
+  private octahedronFrameGroup = new THREE.Group();
+  private tetrahedronFrameGroup = new THREE.Group();
+  private dodecahedronFrameGroup = new THREE.Group();
+  private helixFrameGroup = new THREE.Group();
+  private heartFrameGroup = new THREE.Group();
+  private superquadricFrameGroup = new THREE.Group();
+  private customMeshGroup = new THREE.Group();
+  private customMeshLines: THREE.LineSegments | null = null;
+  private superquadricParams: SuperquadricParams = {
+    eps1: 1.0,
+    eps2: 1.0,
+    pinch: 0.0,
+    lobes: 0.0,
+    lobeAmp: 0.0,
+  };
+
   // Materials
   private glassMaterial: THREE.ShaderMaterial;
   private strutMaterial: THREE.ShaderMaterial;
@@ -256,6 +285,7 @@ export class ChamberEnclosure {
   private dispersionStrength: number;
   private edgeGlowIntensity: number;
   private autoRotationSpeed = 0.08;
+  private recognitionFlash = 0;
 
   constructor(initialPalette: PalettePreset, config?: ChamberEnclosureConfig) {
     this.group = new THREE.Group();
@@ -265,6 +295,18 @@ export class ChamberEnclosure {
 
     this.group.add(this.chamberGroup);
     this.group.add(this.frameGroup);
+    this.group.add(this.fieldGroup);
+    this.fieldGroup.visible = false;
+
+    this.fieldGroup.add(this.freeFieldEmitterGroup);
+    this.fieldGroup.add(this.torusFrameGroup);
+    this.fieldGroup.add(this.octahedronFrameGroup);
+    this.fieldGroup.add(this.tetrahedronFrameGroup);
+    this.fieldGroup.add(this.dodecahedronFrameGroup);
+    this.fieldGroup.add(this.helixFrameGroup);
+    this.fieldGroup.add(this.heartFrameGroup);
+    this.fieldGroup.add(this.superquadricFrameGroup);
+    this.fieldGroup.add(this.customMeshGroup);
 
     this.chamberType = config?.chamberType ?? 'cube';
     this.size = config?.size ?? 1.95;
@@ -290,6 +332,7 @@ export class ChamberEnclosure {
         uBandEnergies: { value: new THREE.Vector4() },
         uHighEnergies: { value: new THREE.Vector2() },
         uCameraPos: { value: new THREE.Vector3() },
+        uRecognitionFlash: { value: 0 },
       },
       transparent: true,
       depthWrite: false,
@@ -307,6 +350,7 @@ export class ChamberEnclosure {
         uAccent: { value: initialPalette.accent.clone() },
         uBandEnergies: { value: new THREE.Vector4() },
         uEdgeGlow: { value: this.edgeGlowIntensity },
+        uRecognitionFlash: { value: 0 },
       },
       transparent: true,
       depthWrite: false,
@@ -326,7 +370,17 @@ export class ChamberEnclosure {
     this.buildCylinderChamber();
     this.buildSphereChamber();
 
-    // 4. Set Initial Mode
+    // 4. Build Geometries for Field Mode Manifolds
+    this.buildFreeFieldEmitter();
+    this.buildTorusFrame();
+    this.buildOctahedronFrame();
+    this.buildTetrahedronFrame();
+    this.buildDodecahedronFrame();
+    this.buildHelixFrame();
+    this.buildHeartFrame();
+    this.buildSuperquadricFrame();
+
+    // 5. Set Initial Mode
     this.setChamberType(this.chamberType);
   }
 
@@ -439,6 +493,287 @@ export class ChamberEnclosure {
     this.frameGroup.add(this.sphereFrameMeshGroup);
   }
 
+  private makeStrutBetween(p1: THREE.Vector3, p2: THREE.Vector3, radius = 0.010): THREE.Mesh {
+    const dist = p1.distanceTo(p2);
+    const geo = new THREE.CylinderGeometry(radius, radius, Math.max(0.01, dist), 8);
+    const strut = new THREE.Mesh(geo, this.strutMaterial);
+    const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+    strut.position.copy(mid);
+    if (dist > 1e-5) {
+      const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+      strut.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    }
+    return strut;
+  }
+
+  private buildFreeFieldEmitter(): void {
+    // 3 Concentric Piezo Array Rings at base
+    const baseRings = [
+      { r: 1.70, tube: 0.014 },
+      { r: 1.15, tube: 0.012 },
+      { r: 0.55, tube: 0.010 },
+    ];
+    baseRings.forEach(br => {
+      const geo = new THREE.TorusGeometry(br.r, br.tube, 8, 48);
+      const ring = new THREE.Mesh(geo, this.strutMaterial);
+      ring.position.y = -1.45;
+      ring.rotation.x = Math.PI / 2;
+      this.freeFieldEmitterGroup.add(ring);
+    });
+
+    // 12 Piezo Transducer Crystal Elements
+    const nodeGeo = new THREE.OctahedronGeometry(0.035, 0);
+    for (let i = 0; i < 12; i++) {
+      const angle = (i * Math.PI * 2) / 12;
+      const node = new THREE.Mesh(nodeGeo, this.cornerNodeMaterial);
+      node.position.set(1.70 * Math.cos(angle), -1.45, 1.70 * Math.sin(angle));
+      this.freeFieldEmitterGroup.add(node);
+    }
+
+    // 2 Floating Wavefront Rings
+    const waveRing1 = new THREE.Mesh(new THREE.TorusGeometry(1.85, 0.007, 6, 48), this.strutMaterial);
+    waveRing1.position.y = 0.0;
+    waveRing1.rotation.x = Math.PI / 2;
+    this.freeFieldEmitterGroup.add(waveRing1);
+
+    const waveRing2 = new THREE.Mesh(new THREE.TorusGeometry(1.45, 0.007, 6, 48), this.strutMaterial);
+    waveRing2.position.y = 1.15;
+    waveRing2.rotation.x = Math.PI / 2;
+    this.freeFieldEmitterGroup.add(waveRing2);
+  }
+
+  private buildTorusFrame(): void {
+    // Major Equator Ring
+    const majorRing = new THREE.Mesh(new THREE.TorusGeometry(1.35, 0.012, 8, 48), this.strutMaterial);
+    majorRing.rotation.x = Math.PI / 2;
+    this.torusFrameGroup.add(majorRing);
+
+    // 8 Transverse Meridian Ribs
+    const ribGeo = new THREE.TorusGeometry(0.70, 0.009, 8, 36);
+    for (let i = 0; i < 8; i++) {
+      const angle = (i * Math.PI * 2) / 8;
+      const rib = new THREE.Mesh(ribGeo, this.strutMaterial);
+      rib.position.set(1.35 * Math.cos(angle), 0, 1.35 * Math.sin(angle));
+      rib.rotation.y = -angle;
+      this.torusFrameGroup.add(rib);
+    }
+  }
+
+  private buildOctahedronFrame(): void {
+    const s = 1.85;
+    const verts = [
+      new THREE.Vector3(s, 0, 0),
+      new THREE.Vector3(-s, 0, 0),
+      new THREE.Vector3(0, s, 0),
+      new THREE.Vector3(0, -s, 0),
+      new THREE.Vector3(0, 0, s),
+      new THREE.Vector3(0, 0, -s),
+    ];
+    const nodeGeo = new THREE.OctahedronGeometry(0.032, 0);
+    verts.forEach(v => {
+      const node = new THREE.Mesh(nodeGeo, this.cornerNodeMaterial);
+      node.position.copy(v);
+      this.octahedronFrameGroup.add(node);
+    });
+
+    const edges: [number, number][] = [
+      [2, 0], [2, 1], [2, 4], [2, 5],
+      [3, 0], [3, 1], [3, 4], [3, 5],
+      [0, 4], [4, 1], [1, 5], [5, 0],
+    ];
+    edges.forEach(([i, j]) => {
+      this.octahedronFrameGroup.add(this.makeStrutBetween(verts[i], verts[j]));
+    });
+  }
+
+  private buildTetrahedronFrame(): void {
+    const r = 1.85;
+    const a = r / Math.sqrt(3);
+    const verts = [
+      new THREE.Vector3(a, a, a),
+      new THREE.Vector3(a, -a, -a),
+      new THREE.Vector3(-a, a, -a),
+      new THREE.Vector3(-a, -a, a),
+    ];
+    const nodeGeo = new THREE.OctahedronGeometry(0.032, 0);
+    verts.forEach(v => {
+      const node = new THREE.Mesh(nodeGeo, this.cornerNodeMaterial);
+      node.position.copy(v);
+      this.tetrahedronFrameGroup.add(node);
+    });
+    for (let i = 0; i < 4; i++) {
+      for (let j = i + 1; j < 4; j++) {
+        this.tetrahedronFrameGroup.add(this.makeStrutBetween(verts[i], verts[j]));
+      }
+    }
+  }
+
+  private buildDodecahedronFrame(): void {
+    const phi = (1 + Math.sqrt(5)) / 2;
+    const invPhi = 1 / phi;
+    const rawVerts: [number, number, number][] = [];
+    const signs = [-1, 1];
+
+    signs.forEach(x => signs.forEach(y => signs.forEach(z => rawVerts.push([x, y, z]))));
+    signs.forEach(y => signs.forEach(z => rawVerts.push([0, y * invPhi, z * phi])));
+    signs.forEach(x => signs.forEach(y => rawVerts.push([x * invPhi, y * phi, 0])));
+    signs.forEach(x => signs.forEach(z => rawVerts.push([x * phi, 0, z * invPhi])));
+
+    const rTarget = 1.75;
+    const verts = rawVerts.map(v => {
+      const vec = new THREE.Vector3(v[0], v[1], v[2]);
+      return vec.normalize().multiplyScalar(rTarget);
+    });
+
+    const nodeGeo = new THREE.OctahedronGeometry(0.025, 0);
+    verts.forEach(v => {
+      const node = new THREE.Mesh(nodeGeo, this.cornerNodeMaterial);
+      node.position.copy(v);
+      this.dodecahedronFrameGroup.add(node);
+    });
+
+    let minDiff = Infinity;
+    for (let i = 0; i < verts.length; i++) {
+      for (let j = i + 1; j < verts.length; j++) {
+        const d = verts[i].distanceTo(verts[j]);
+        if (d > 0.1 && d < minDiff) minDiff = d;
+      }
+    }
+    const edgeLength = minDiff;
+    for (let i = 0; i < verts.length; i++) {
+      for (let j = i + 1; j < verts.length; j++) {
+        const d = verts[i].distanceTo(verts[j]);
+        if (Math.abs(d - edgeLength) < edgeLength * 0.15) {
+          this.dodecahedronFrameGroup.add(this.makeStrutBetween(verts[i], verts[j], 0.008));
+        }
+      }
+    }
+  }
+
+  private buildHelixFrame(): void {
+    const points: THREE.Vector3[] = [];
+    const turns = 4;
+    const count = 160;
+    for (let i = 0; i <= count; i++) {
+      const t = (i / count) * Math.PI * 2 * turns;
+      const y = (i / count) * 3.0 - 1.5;
+      points.push(new THREE.Vector3(1.25 * Math.cos(t), y, 1.25 * Math.sin(t)));
+    }
+    const curve = new THREE.CatmullRomCurve3(points);
+    const geo = new THREE.TubeGeometry(curve, 100, 0.012, 8, false);
+    const helix = new THREE.Mesh(geo, this.strutMaterial);
+    this.helixFrameGroup.add(helix);
+  }
+
+  private buildHeartFrame(): void {
+    const pointsXY: THREE.Vector3[] = [];
+    const count = 100;
+    for (let i = 0; i <= count; i++) {
+      const t = (i / count) * Math.PI * 2;
+      const x = 16 * Math.pow(Math.sin(t), 3);
+      const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+      pointsXY.push(new THREE.Vector3(x * 0.09, y * 0.09, 0));
+    }
+    const curve = new THREE.CatmullRomCurve3(pointsXY);
+    const geo = new THREE.TubeGeometry(curve, 80, 0.010, 6, true);
+    const heart = new THREE.Mesh(geo, this.strutMaterial);
+    this.heartFrameGroup.add(heart);
+
+    const heart2 = heart.clone();
+    heart2.rotation.y = Math.PI / 2;
+    this.heartFrameGroup.add(heart2);
+  }
+
+  private buildSuperquadricFrame(): void {
+    this.superquadricFrameGroup.traverse(obj => {
+      if (obj instanceof THREE.Mesh && obj.geometry) {
+        obj.geometry.dispose();
+      }
+    });
+    this.superquadricFrameGroup.clear();
+
+    [-0.8, 0, 0.8].forEach(y => {
+      const r = 1.35 * Math.sqrt(Math.max(0, 1 - (y / 1.5) ** 2));
+      const ringGeo = new THREE.TorusGeometry(r, 0.009, 6, 36);
+      const ring = new THREE.Mesh(ringGeo, this.strutMaterial);
+      ring.position.y = y;
+      ring.rotation.x = Math.PI / 2;
+      this.superquadricFrameGroup.add(ring);
+    });
+
+    for (let i = 0; i < 4; i++) {
+      const ringGeo = new THREE.TorusGeometry(1.35, 0.009, 6, 36);
+      const ring = new THREE.Mesh(ringGeo, this.strutMaterial);
+      ring.rotation.y = (i * Math.PI) / 4;
+      this.superquadricFrameGroup.add(ring);
+    }
+  }
+
+  public setCustomMeshWireframe(positions: Float32Array): void {
+    if (this.customMeshLines) {
+      this.customMeshGroup.remove(this.customMeshLines);
+      this.customMeshLines.geometry.dispose();
+      this.customMeshLines = null;
+    }
+    if (!positions || positions.length === 0) return;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    this.customMeshLines = new THREE.LineSegments(geo, this.strutMaterial);
+    this.customMeshGroup.add(this.customMeshLines);
+  }
+
+  public setFieldMode(enabled: boolean, shape?: FieldShapeType, params?: Partial<SuperquadricParams>): void {
+    this.fieldMode = enabled;
+    this.chamberGroup.visible = !enabled;
+    this.frameGroup.visible = !enabled;
+    this.fieldGroup.visible = enabled && this.contourVisible;
+
+    if (shape) {
+      this.setFieldShape(shape, params);
+    }
+  }
+
+  public getFieldMode(): boolean {
+    return this.fieldMode;
+  }
+
+  public setFieldShape(shape: FieldShapeType, params?: Partial<SuperquadricParams>): void {
+    this.fieldShapeType = shape;
+    this.freeFieldEmitterGroup.visible = shape === 'free-field';
+    this.torusFrameGroup.visible = shape === 'torus';
+    this.octahedronFrameGroup.visible = shape === 'octahedron';
+    this.tetrahedronFrameGroup.visible = shape === 'tetrahedron';
+    this.dodecahedronFrameGroup.visible = shape === 'dodecahedron';
+    this.helixFrameGroup.visible = shape === 'helix';
+    this.heartFrameGroup.visible = shape === 'heart';
+    this.superquadricFrameGroup.visible = shape === 'superquadric';
+    this.customMeshGroup.visible = shape === 'custom';
+
+    if (params) {
+      if (params.eps1 !== undefined) this.superquadricParams.eps1 = params.eps1;
+      if (params.eps2 !== undefined) this.superquadricParams.eps2 = params.eps2;
+      if (params.pinch !== undefined) this.superquadricParams.pinch = params.pinch;
+      if (params.lobes !== undefined) this.superquadricParams.lobes = params.lobes;
+      if (params.lobeAmp !== undefined) this.superquadricParams.lobeAmp = params.lobeAmp;
+      // Do not recreate static frame geometries on slider drag ticks
+    }
+  }
+
+  public getFieldShape(): FieldShapeType {
+    return this.fieldShapeType;
+  }
+
+  public setContourVisible(visible: boolean): void {
+    this.contourVisible = visible;
+    if (this.fieldMode) {
+      this.fieldGroup.visible = visible;
+    }
+  }
+
+  public getContourVisible(): boolean {
+    return this.contourVisible;
+  }
+
   public setChamberType(type: ChamberType): void {
     this.chamberType = type;
 
@@ -492,10 +827,17 @@ export class ChamberEnclosure {
   }
 
   public update(time: number, dt: number, bands: THREE.Vector4, highs: THREE.Vector2, camera?: THREE.Camera): void {
+    if (this.recognitionFlash > 0.001) {
+      this.recognitionFlash = Math.max(0, this.recognitionFlash - dt * 1.4);
+    } else {
+      this.recognitionFlash = 0;
+    }
+
     const gu = this.glassMaterial.uniforms;
     gu.uTime.value = time;
     gu.uBandEnergies.value.copy(bands);
     gu.uHighEnergies.value.copy(highs);
+    gu.uRecognitionFlash.value = this.recognitionFlash;
 
     if (camera) {
       gu.uCameraPos.value.copy(camera.position);
@@ -504,6 +846,11 @@ export class ChamberEnclosure {
     const su = this.strutMaterial.uniforms;
     su.uTime.value = time;
     su.uBandEnergies.value.copy(bands);
+    su.uRecognitionFlash.value = this.recognitionFlash;
+  }
+
+  public triggerRecognitionFlash(intensity = 1.0): void {
+    this.recognitionFlash = Math.max(this.recognitionFlash, Math.min(2.5, intensity));
   }
 
   public setVisible(visible: boolean): void {
@@ -526,10 +873,17 @@ export class ChamberEnclosure {
     this.cylinderGlassMesh.geometry.dispose();
     this.sphereGlassMesh.geometry.dispose();
 
-    this.frameGroup.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.geometry) {
-        child.geometry.dispose();
+    const disposedGeos = new Set<THREE.BufferGeometry>();
+    const disposeChild = (child: THREE.Object3D) => {
+      if ((child instanceof THREE.Mesh || child instanceof THREE.LineSegments) && child.geometry) {
+        if (!disposedGeos.has(child.geometry)) {
+          disposedGeos.add(child.geometry);
+          child.geometry.dispose();
+        }
       }
-    });
+    };
+
+    this.frameGroup.traverse(disposeChild);
+    this.fieldGroup.traverse(disposeChild);
   }
 }

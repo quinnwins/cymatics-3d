@@ -18,9 +18,14 @@ import { NobelDiscoveryLab } from './NobelDiscoveryLab';
 import { CymaticsPlateMesh } from './CymaticsPlateMesh';
 import { ScientificGroundDatum } from './ScientificGroundDatum';
 import { ColorPalettes, PalettePreset } from './ColorPalettes';
+import { ModalOscillatorBank } from '../math/ModalOscillatorBank';
+import { ProvenanceBadge, ProvenanceType } from '../ui/ProvenanceBadge';
+import type { FieldShapeType, SuperquadricParams } from './GpuAcousticParticles';
+import { CustomMeshFieldSampler, ParsedCustomMesh } from './CustomMeshFieldSampler';
 
 export type VisualStyle = 'cymatics' | 'cymatics-2d' | 'bio-acoustics' | 'therapy-lab' | 'voice-biometrics' | 'nobel-lab';
 export type CameraMode = 'orbit' | 'autocam' | 'emitter-lock' | 'top-down';
+export type EnginePhysicsMode = 'physical' | 'expressive' | 'hybrid';
 
 export interface CymaticsLayerState {
   plate: boolean;   // 2D Sand Plate
@@ -30,10 +35,10 @@ export interface CymaticsLayerState {
 
 export class VisualizerEngine {
   private container: HTMLElement;
-  private renderer: THREE.WebGLRenderer;
-  private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
-  private controls: OrbitControls;
+  public renderer: THREE.WebGLRenderer;
+  public scene: THREE.Scene;
+  public camera: THREE.PerspectiveCamera;
+  public controls: OrbitControls;
   private composer!: EffectComposer;
   private bloomPass!: UnrealBloomPass;
 
@@ -49,6 +54,9 @@ export class VisualizerEngine {
   public vocalBiometricsLab: VocalBiometricsLab;
   public nobelDiscoveryLab: NobelDiscoveryLab;
   public scientificGroundDatum!: ScientificGroundDatum;
+  public modalOscillatorBank: ModalOscillatorBank;
+  public provenanceBadge: ProvenanceBadge;
+  public engineMode: EnginePhysicsMode = 'hybrid';
 
   // Calibrated 3-Point Studio Lighting Rig
   private keyLight!: THREE.DirectionalLight;
@@ -74,7 +82,7 @@ export class VisualizerEngine {
   private recoilVelocity = new THREE.Vector3();
   private lastShockwaveBirth = 0;
   private lastAnimTime = 0;
-  private simTime = 0;
+  public simTime = 0;
 
   // Physics & Visual Tuning
   public waveSpeed = 6.0;
@@ -85,6 +93,7 @@ export class VisualizerEngine {
   public cymaticsVisibilityMode: 'both' | 'particles' | 'droplet' = 'both';
   public autoRotateSpeed = 0.5;
   public groundGridVisible = false;
+  private isImmersive = false;
 
   // Zero-GC Pre-allocated Vectors for 120 FPS Render Loop
   private tempVBands03 = new THREE.Vector4();
@@ -169,7 +178,7 @@ export class VisualizerEngine {
 
     // 3. Camera
     this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
-    this.camera.position.set(0, 3.5, 9.5);
+    this.camera.position.set(0, 2.4, 9.2);
 
     // 4. Orbit Controls (Interactive Grabbing, Rotation, Panning, and Zooming)
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -202,6 +211,17 @@ export class VisualizerEngine {
 
     // 5. History Ring-Buffer Texture
     this.historyTexture = new HistoryTexture();
+
+    // Modal Oscillator Bank & Provenance HUD
+    this.modalOscillatorBank = new ModalOscillatorBank(32);
+    this.provenanceBadge = new ProvenanceBadge({
+      onModeSelect: (mode) => {
+        this.setEngineMode(mode);
+      },
+      onOpenPhysicsDrawer: () => {
+        window.dispatchEvent(new CustomEvent('soundform-open-physics-settings'));
+      },
+    });
 
     // 6. Visual Subsystems
     this.cymaticsMesh = new CymaticsMesh(this.currentPalette);
@@ -274,6 +294,16 @@ export class VisualizerEngine {
 
     this.setStyle('cymatics');
     this.setupResizeListener();
+    this.updateViewportOffset();
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('soundform-immersive-changed', ((e: CustomEvent<{ immersive: boolean }>) => {
+        if (e.detail) {
+          this.setImmersive(e.detail.immersive);
+        }
+      }) as EventListener);
+    }
+
     this.animate();
   }
 
@@ -432,6 +462,61 @@ export class VisualizerEngine {
     this.chamberEnclosure.setChamberType(geometry);
   }
 
+  public setFieldMode(enabled: boolean, shape?: FieldShapeType, params?: Partial<SuperquadricParams>): void {
+    this.gpuAcousticParticles.setFieldMode(enabled);
+    this.volumetricChladni.setFieldMode(enabled);
+    this.chamberEnclosure.setFieldMode(enabled);
+
+    if (shape) {
+      this.setFieldShape(shape, params);
+    }
+  }
+
+  public getFieldMode(): boolean {
+    return this.gpuAcousticParticles.getFieldMode();
+  }
+
+  public setFieldShape(shape: FieldShapeType, params?: Partial<SuperquadricParams>): void {
+    this.gpuAcousticParticles.setFieldShape(shape, params);
+    this.volumetricChladni.setFieldShape(shape, params);
+    this.chamberEnclosure.setFieldShape(shape, params);
+  }
+
+  public getFieldShape(): FieldShapeType {
+    return this.gpuAcousticParticles.getFieldShape();
+  }
+
+  public setFieldContourVisible(visible: boolean): void {
+    this.chamberEnclosure.setContourVisible(visible);
+  }
+
+  public getFieldContourVisible(): boolean {
+    return this.chamberEnclosure.getContourVisible();
+  }
+
+  public loadCustomMeshObj(objText: string, name?: string): ParsedCustomMesh {
+    const parsed = CustomMeshFieldSampler.parseOBJ(objText, name);
+    this.chamberEnclosure.setCustomMeshWireframe(parsed.wireframePositions);
+    this.gpuAcousticParticles.setCustomMeshSamples(parsed.surfaceSamples);
+    this.setFieldMode(true, 'custom');
+    return parsed;
+  }
+
+  public loadCustomMeshPreset(preset: 'bunny' | 'teapot' | 'star'): ParsedCustomMesh {
+    let parsed: ParsedCustomMesh;
+    if (preset === 'bunny') {
+      parsed = CustomMeshFieldSampler.getStanfordBunnyPreset();
+    } else if (preset === 'teapot') {
+      parsed = CustomMeshFieldSampler.getUtahTeapotPreset();
+    } else {
+      parsed = CustomMeshFieldSampler.getStellatedStarPreset();
+    }
+    this.chamberEnclosure.setCustomMeshWireframe(parsed.wireframePositions);
+    this.gpuAcousticParticles.setCustomMeshSamples(parsed.surfaceSamples);
+    this.setFieldMode(true, 'custom');
+    return parsed;
+  }
+
   public setWaveSpeed(speed: number): void {
     this.waveSpeed = speed;
     if (this.cymaticsPlateMesh) {
@@ -550,6 +635,7 @@ export class VisualizerEngine {
       this.controls.target.set(0, targetY, 0);
       this.controls.update();
     }
+    this.updateViewportOffset();
     window.dispatchEvent(new CustomEvent('camera-mode-changed', { detail: { mode } }));
   }
 
@@ -557,22 +643,125 @@ export class VisualizerEngine {
     return this.cameraMode;
   }
 
+  public setEngineMode(mode: EnginePhysicsMode): void {
+    this.engineMode = mode;
+    if (mode === 'physical') {
+      // 1. EXACT WAVE MATHEMATICS (Analytic):
+      // Strict analytical wave equations, high physical damping, crisp optical focus, tight Gor'kov trapping
+      this.setWaveDamping(0.24);
+      this.setWaveSpeed(4.5);
+      this.setBloomStrength(0.10);
+      if (this.gpuAcousticParticles) {
+        this.gpuAcousticParticles.setSimulationMode('dynamic');
+        this.gpuAcousticParticles.setGorkovStrength(32.0);
+        this.gpuAcousticParticles.setStokesDrag(2.5);
+        this.gpuAcousticParticles.setBrownianMotion(0.02);
+      }
+      if (this.cymaticsMesh) {
+        this.cymaticsMesh.setAcousticPressure(1.0);
+      }
+      this.provenanceBadge.setProvenance('ANALYTIC');
+    } else if (mode === 'expressive') {
+      // 2. EXPRESSIVE ART (Interpretive):
+      // Low damping (lush ripples), fast speed, rich saturated glow without white blowout, energetic Rayleigh streaming swirls
+      this.setWaveDamping(0.05);
+      this.setWaveSpeed(7.2);
+      this.setBloomStrength(0.26);
+      if (this.gpuAcousticParticles) {
+        this.gpuAcousticParticles.setSimulationMode('equilibrium');
+        this.gpuAcousticParticles.setGorkovStrength(12.0);
+        this.gpuAcousticParticles.setStokesDrag(0.8);
+        this.gpuAcousticParticles.setBrownianMotion(0.40);
+      }
+      if (this.cymaticsMesh) {
+        this.cymaticsMesh.setAcousticPressure(1.2);
+      }
+      this.provenanceBadge.setProvenance('INTERPRETIVE');
+    } else {
+      // 3. REAL-TIME BALANCED (Hybrid / Reduced-Order):
+      // Organic acoustic trapping, smooth 60 FPS dynamics, balanced studio glow, natural fluid decay
+      this.setWaveDamping(0.12);
+      this.setWaveSpeed(6.0);
+      this.setBloomStrength(0.20);
+      if (this.gpuAcousticParticles) {
+        this.gpuAcousticParticles.setSimulationMode('equilibrium');
+        this.gpuAcousticParticles.setGorkovStrength(16.0);
+        this.gpuAcousticParticles.setStokesDrag(1.2);
+        this.gpuAcousticParticles.setBrownianMotion(0.20);
+      }
+      if (this.cymaticsMesh) {
+        this.cymaticsMesh.setAcousticPressure(1.0);
+      }
+      this.provenanceBadge.setProvenance('REDUCED_ORDER');
+    }
+    window.dispatchEvent(new CustomEvent('optics-value-changed', { detail: { source: 'visualizer-engine' } }));
+  }
+
+  public getEngineMode(): EnginePhysicsMode {
+    return this.engineMode;
+  }
+
   public captureScreenshot(): string {
     this.composer.render();
     return this.renderer.domElement.toDataURL('image/png');
   }
 
+  public setImmersive(enabled: boolean): void {
+    this.isImmersive = enabled;
+    this.updateViewportOffset();
+  }
+
+  public updateViewportOffset(): void {
+    if (typeof window === 'undefined' || !this.camera || typeof this.camera.setViewOffset !== 'function') {
+      return;
+    }
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    if (!w || !h || w <= 0 || h <= 0) return;
+
+    if (this.isImmersive) {
+      if (typeof this.camera.clearViewOffset === 'function') {
+        this.camera.clearViewOffset();
+      }
+      this.camera.aspect = w / h;
+      this.camera.updateProjectionMatrix();
+      return;
+    }
+
+    let offX = 0;
+    // Calibrated optical vertical elevation compensation (accounts for UI asymmetry and 3D perspective pitch)
+    let offY = 18;
+
+    if (typeof document !== 'undefined') {
+      const overlay = document.getElementById('center-viewport-overlay');
+      if (overlay) {
+        const rect = overlay.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          const apertureCenterX = rect.left + rect.width / 2;
+          const apertureCenterY = rect.top + rect.height / 2;
+          offX = (w / 2) - apertureCenterX;
+          // Compensate for asymmetrical top/bottom UI bars and perspective pitch foreshortening
+          offY = (h / 2) - apertureCenterY + 8;
+        }
+      }
+    }
+
+    this.camera.setViewOffset(w, h, offX, offY, w, h);
+  }
+
   private setupResizeListener(): void {
-    window.addEventListener('resize', () => {
+    this.resizeHandler = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
       this.camera.aspect = w / h;
+      this.updateViewportOffset();
       this.camera.updateProjectionMatrix();
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       this.renderer.setSize(w, h);
-      this.composer.setSize(w, h);
+      this.composer?.setSize?.(w, h);
       this.volumetricChladni.resize(w, h);
-    });
+    };
+    window.addEventListener('resize', this.resizeHandler);
   }
 
   private animate = (): void => {
@@ -587,7 +776,11 @@ export class VisualizerEngine {
     const simDt = rawDt * playbackSpeed;
     this.simTime += simDt;
 
-    this.audioEngine.update(this.simTime);
+    this.audioEngine?.update(this.simTime);
+
+    // Physical modal oscillator bank driven by live time-domain PCM signal
+    const pcmData = this.audioEngine ? this.audioEngine.getTimeDomainData() : new Float32Array(1024);
+    this.modalOscillatorBank.update(simDt, pcmData);
 
     // Telemetry FPS calculation
     this.frameCount++;
@@ -602,6 +795,19 @@ export class VisualizerEngine {
     const fundamentalHz = this.audioEngine.getFundamentalFrequency();
     const rawFft = this.audioEngine.getRawFrequencyData();
     this.historyTexture.pushSpectralFrame(rawFft, bands.subBass, fundamentalHz);
+
+    // Sync provenance badge to active visualizer style & physics mode
+    if (this.currentStyle === 'cymatics' || this.currentStyle === 'cymatics-2d') {
+      if (this.engineMode === 'physical') {
+        this.provenanceBadge.setProvenance('ANALYTIC');
+      } else if (this.engineMode === 'hybrid') {
+        this.provenanceBadge.setProvenance('REDUCED_ORDER');
+      } else {
+        this.provenanceBadge.setProvenance('INTERPRETIVE');
+      }
+    } else {
+      this.provenanceBadge.setProvenance('BENCHMARKED');
+    }
 
     // Zero-GC Vector uniforms
     this.tempVBands03.set(bands.subBass, bands.bass, bands.lowMid, bands.mid);
@@ -714,8 +920,8 @@ export class VisualizerEngine {
         const baseAngle = time * 0.10 * this.autoRotateSpeed;
         const lissX = Math.sin(baseAngle) * radius + Math.sin(time * 0.23) * 0.25;
         const lissZ = Math.cos(baseAngle) * radius + Math.cos(time * 0.19) * 0.25;
-        const baseHeight = isCymatics ? 3.0 : isPlate ? 3.4 : isTherapy ? 2.2 : isBio ? 1.6 : isNobel ? 2.2 : 3.2;
-        const lissY = baseHeight + Math.sin(time * 0.15) * 0.45 + Math.cos(time * 0.31) * 0.20;
+        const baseHeight = isCymatics ? 2.2 : isPlate ? 3.4 : isTherapy ? 2.2 : isBio ? 1.6 : isNobel ? 2.2 : 3.2;
+        const lissY = baseHeight + Math.sin(time * 0.15) * 0.30 + Math.cos(time * 0.31) * 0.15;
 
         this.camera.position.set(
           lissX + this.recoilOffset.x,
@@ -749,6 +955,7 @@ export class VisualizerEngine {
     }
 
     try {
+      this.provenanceBadge?.destroy?.();
       this.cymaticsMesh?.dispose();
       this.cymaticsPlateMesh?.dispose();
       this.volumetricChladni?.dispose();

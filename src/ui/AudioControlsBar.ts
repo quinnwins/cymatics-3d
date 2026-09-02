@@ -18,6 +18,7 @@ import { DemoAudioGenerator } from '../audio/DemoAudioGenerator';
 import { WavePhysics, NoteInfo } from '../math/WavePhysics';
 import { WaveformType } from '../audio/FrequencySynthesizer';
 import { EngineMode } from './Header';
+import { temporalMemory, TEMPORAL_MEMORY_EVENT } from '../visualizer/TemporalMemory';
 
 export class AudioControlsBar {
   public static readonly SPEED_PRESETS = [0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
@@ -34,6 +35,7 @@ export class AudioControlsBar {
   // Real-time telemetry state
   private currentFreq = 432;
   private currentWaveform: WaveformType = 'sine';
+  private anamnesisExpanded = false;
 
   // State cache for intelligent in-place DOM updates
   private lastRenderState: {
@@ -50,7 +52,8 @@ export class AudioControlsBar {
   constructor(
     private audioEngine: AudioEngine,
     private onScreenshot?: () => void,
-    private onExport?: () => void
+    private onExport?: () => void,
+    private onToggleMemory?: () => void
   ) {
     this.element = typeof document !== 'undefined' ? document.createElement('div') : ({} as HTMLElement);
     this.element.className = 'w-full flex justify-center items-center select-none';
@@ -121,6 +124,30 @@ export class AudioControlsBar {
         this.currentWaveform = e.detail.waveform;
       }
     }) as EventListener);
+
+    window.addEventListener(TEMPORAL_MEMORY_EVENT, () => {
+      this.syncMemoryButton();
+    });
+
+    window.addEventListener('soundform-anamnesis-state', ((e: CustomEvent<{ expanded?: boolean }>) => {
+      this.anamnesisExpanded = Boolean(e.detail?.expanded);
+      this.syncMemoryButton();
+    }) as EventListener);
+  }
+
+  private syncMemoryButton(): void {
+    const btn = this.element.querySelector('#btn-sonic-memory');
+    if (!btn) return;
+    const isExpanded = this.anamnesisExpanded;
+    btn.className = `p-2 rounded-xl ${
+      isExpanded
+        ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/50 shadow-sm shadow-cyan-500/20'
+        : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 border border-white/10 hover:border-white/20'
+    } cursor-pointer transition-all active:scale-95 flex items-center gap-1.5 text-xs font-semibold shrink-0`;
+    const icon = btn.querySelector('svg');
+    if (icon) {
+      icon.setAttribute('class', `w-3.5 h-3.5 ${isExpanded ? 'text-cyan-400' : 'text-slate-500'}`);
+    }
   }
 
   public dispose(): void {
@@ -568,6 +595,25 @@ export class AudioControlsBar {
             <span class="hidden 2xl:inline text-[11px]">Export</span>
           </button>
 
+          <!-- Song Memory ("The Song Remembers") Action Button -->
+          <button
+            id="btn-sonic-memory"
+            type="button"
+            class="p-2 rounded-xl ${
+              this.anamnesisExpanded
+                ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/50 shadow-sm shadow-cyan-500/20'
+                : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 border border-white/10 hover:border-white/20'
+            } cursor-pointer transition-all active:scale-95 flex items-center gap-1.5 text-xs font-semibold shrink-0"
+            aria-label="The Song Remembers (Whole-Song Memory)"
+            data-tooltip="The Song Remembers (A or M)"
+          >
+            <svg class="w-3.5 h-3.5 shrink-0 ${this.anamnesisExpanded ? 'text-cyan-400' : 'text-slate-500'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <span class="hidden 2xl:inline text-[11px]">Memory</span>
+          </button>
+
           <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block shrink-0"></div>
 
           <!-- Master Volume Section -->
@@ -692,6 +738,15 @@ export class AudioControlsBar {
     // Export Button
     this.element.querySelector('#btn-export-dossier')?.addEventListener('click', () => {
       if (this.onExport) this.onExport();
+    });
+
+    // Song Memory ("The Song Remembers") Action Button
+    this.element.querySelector('#btn-sonic-memory')?.addEventListener('click', () => {
+      if (this.onToggleMemory) {
+        this.onToggleMemory();
+      } else {
+        window.dispatchEvent(new CustomEvent('soundform-anamnesis-toggle'));
+      }
     });
 
     // Volume Slider & Mute

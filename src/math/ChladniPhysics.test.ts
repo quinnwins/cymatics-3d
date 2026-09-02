@@ -61,5 +61,17 @@ describe('ChladniPhysics - 3D Modal Physics & Gor\'kov Suite', () => {
       expect(Number.isFinite(gSph.fz)).toBe(true);
       expect(Number.isFinite(gSph.potential)).toBe(true);
     });
+
+    it('computes calibrated Gor\'kov force with true acoustic contrast factors f1 and f2', () => {
+      const poly = { f1: 0.65, f2: 0.05, phi: 0.24 }; // Polystyrene in water
+      const gCal = ChladniPhysics.computeGorkovForce(
+        0.6, 0, 0, 2, 0, 0, 'rectangular', 'normal', 1.0, poly
+      );
+      expect(Number.isFinite(gCal.fx)).toBe(true);
+      expect(Number.isFinite(gCal.potential)).toBe(true);
+      // Polystyrene has positive f1 and f2, so force at x = 0.6 pushes toward node at x = 0.5 (fx < 0)
+      expect(gCal.fx).toBeLessThan(0);
+    });
   });
 });
+

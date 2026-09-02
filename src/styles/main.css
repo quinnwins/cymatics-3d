@@ -129,6 +129,15 @@
   box-shadow: 0 0 14px -2px var(--accent-cyan-glow), inset 0 1px 0 0 rgba(255, 255, 255, 0.25) !important;
 }
 
+.glass-btn-active-emerald {
+  background: linear-gradient(180deg, rgba(52, 211, 153, 0.22) 0%, rgba(5, 150, 105, 0.28) 100%) !important;
+  border: 1px solid rgba(52, 211, 153, 0.55) !important;
+  color: #a7f3d0 !important;
+  font-weight: 700;
+  box-shadow: 0 0 14px -2px rgba(52, 211, 153, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+
 /* --- Tactile Stepper Micro-Buttons --- */
 .btn-stepper,
 .btn-step {
@@ -203,6 +212,15 @@
   border: 1px solid rgba(56, 189, 248, 0.45) !important;
   box-shadow: 0 2px 8px -1px rgba(0, 0, 0, 0.4), 0 0 12px -2px var(--accent-cyan-glow), inset 0 1px 0 0 rgba(255, 255, 255, 0.2) !important;
 }
+
+.segmented-pill.is-active-emerald {
+  color: #a7f3d0 !important;
+  font-weight: 700;
+  background: linear-gradient(180deg, rgba(52, 211, 153, 0.18) 0%, rgba(5, 150, 105, 0.24) 100%) !important;
+  border: 1px solid rgba(52, 211, 153, 0.45) !important;
+  box-shadow: 0 2px 8px -1px rgba(0, 0, 0, 0.4), 0 0 12px -2px rgba(52, 211, 153, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.2) !important;
+}
+
 
 /* --- Apple/Linear-Grade Micro-Tooltips --- */
 [data-tooltip] {
@@ -690,4 +708,59 @@ select.glass-select option:checked,
   color: #38bdf8;
   font-weight: 700;
 }
+
+/* --- Unified Theater Mode Standard --- */
+body.soundform-theater #header-root,
+body.soundform-theater #left-sidebar-root,
+body.soundform-theater #right-sidebar-root,
+body.soundform-theater #bottom-transport-root,
+body.soundform-theater #center-prompt-root,
+body.soundform-immersive #header-root,
+body.soundform-immersive #left-sidebar-root,
+body.soundform-immersive #right-sidebar-root,
+body.soundform-immersive #bottom-transport-root,
+body.soundform-immersive #center-prompt-root,
+body.soundform-anamnesis #header-root,
+body.soundform-anamnesis #left-sidebar-root,
+body.soundform-anamnesis #right-sidebar-root,
+body.soundform-anamnesis #bottom-transport-root,
+body.soundform-anamnesis #center-prompt-root {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+body.soundform-theater #app,
+body.soundform-immersive #app,
+body.soundform-anamnesis #app {
+  padding: 0 !important;
+}
+
+/* --- Floating Exit Immersive HUD --- */
+#immersive-exit-hud {
+  display: none !important;
+}
+
+body.soundform-immersive #immersive-exit-hud,
+body.soundform-theater #immersive-exit-hud {
+  display: inline-flex !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
+  animation: fadeInDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
 

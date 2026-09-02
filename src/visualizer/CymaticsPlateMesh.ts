@@ -247,6 +247,27 @@ export class CymaticsPlateMesh {
     return this.modes.clone();
   }
 
+  /**
+   * Exact Kirchhoff-Love Thin-Plate Natural Resonant Frequency:
+   * f_mn = (gamma_mn^2 / (2 * pi * L^2)) * sqrt(D / (rho * h))
+   * with flexural rigidity D = E * h^3 / (12 * (1 - nu^2))
+   */
+  public static plateNaturalFrequency(
+    m: number,
+    n: number,
+    size = 0.35,
+    thickness = 0.0015,
+    youngModulus = 200e9,
+    density = 7850.0,
+    poissonRatio = 0.3
+  ): number {
+    const D = (youngModulus * Math.pow(thickness, 3)) / (12.0 * (1.0 - poissonRatio * poissonRatio));
+    const safeM = Math.max(1, Math.round(m));
+    const safeN = Math.max(1, Math.round(n));
+    const gammaSq = (Math.pow(safeM, 2) + Math.pow(safeN, 2)) * Math.PI * Math.PI;
+    return (gammaSq / (2.0 * Math.PI * size * size)) * Math.sqrt(D / (density * thickness));
+  }
+
   public setModes(n: number, m: number, l: number = 1.0): void {
     this.isAutoModal = false;
     this.modes.set(n, m, l);

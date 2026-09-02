@@ -19,6 +19,8 @@
  * 4. Branchless continuous modal interpolation (n, m, l) for buttery-smooth slider morphing
  */
 
+import { SHAPE_SDF_GLSL } from './shapeSdfLibrary';
+
 export const VOLUMETRIC_CHLADNI_VERTEX_SHADER = `
 varying vec3 vObjectPosition;
 varying vec3 vWorldPosition;
@@ -45,6 +47,8 @@ export const VOLUMETRIC_CHLADNI_FRAGMENT_SHADER = `
 #define TWO_PI 6.2831853071795864769252867665590
 #define HALF_PI 1.5707963267948966192313216916398
 
+${SHAPE_SDF_GLSL}
+
 // Precision & Quality Settings
 precision highp float;
 precision highp int;
@@ -54,6 +58,10 @@ precision highp int;
 // ----------------------------------------------------------------------------
 uniform float uTime;
 uniform int uChamberType;              // 0 = Rectangular, 1 = Cylindrical, 2 = Spherical
+uniform int uFieldMode;                // 0 = Cavity Chamber, 1 = Field Mode (Unbound)
+uniform int uFieldShapeType;           // 0=Free, 1=Superquadric, 2=Torus, 3=Octahedron, etc.
+uniform vec4 uSuperquadricParams;      // x=eps1, y=eps2, z=pinch, w=lobes
+uniform float uSuperquadricLobeAmp;
 uniform vec3 uModes;                    // (n, m, l) modal wave numbers (continuous floats)
 uniform vec3 uSuperposition;          // (alpha, beta, gamma) mixing weights for degenerate modes
 uniform vec3 uChamberSize;            // Dimensions (Lx, Ly, Lz) / Radius
@@ -279,17 +287,33 @@ float computeTaubinDistance(vec3 p, out vec3 normal, out float pVal) {
 // Boundary Clipping Tests with Smoothstep Edge Softness
 // ----------------------------------------------------------------------------
 float getChamberConfinement(vec3 p) {
-    if (uChamberType == 0) {
-        vec3 d = abs(p);
-        float maxD = max(max(d.x, d.y), d.z);
-        return 1.0 - smoothstep(0.98, 1.02, maxD);
-    } else if (uChamberType == 1) {
-        float r = length(p.xz);
-        float y = abs(p.y);
-        return (1.0 - smoothstep(0.98, 1.02, r)) * (1.0 - smoothstep(0.98, 1.02, y));
+    if (uFieldMode == 1) {
+        if (uFieldShapeType == 0) {
+            // Unbounded Free-Field: smooth optical radial decay without hard boundary clipping
+            float r = length(p);
+            return 1.0 / (1.0 + 0.35 * r * r);
+        } else if (uFieldShapeType == 8) {
+            // Custom 3D Mesh: Smooth boundary falloff matching [-1.6, 1.6]^3 domain
+            float r = length(p);
+            return 1.0 - smoothstep(1.6, 2.0, r);
+        } else {
+            // Arbitrary Shape Manifold via Signed Distance Field (SDF)
+            float d = evaluateFieldShapeSDF(p, uFieldShapeType, uSuperquadricParams, uSuperquadricLobeAmp, 0.95);
+            return 1.0 - smoothstep(-0.02, 0.04, d);
+        }
     } else {
-        float r = length(p);
-        return 1.0 - smoothstep(0.98, 1.02, r);
+        if (uChamberType == 0) {
+            vec3 d = abs(p);
+            float maxD = max(max(d.x, d.y), d.z);
+            return 1.0 - smoothstep(0.98, 1.02, maxD);
+        } else if (uChamberType == 1) {
+            float r = length(p.xz);
+            float y = abs(p.y);
+            return (1.0 - smoothstep(0.98, 1.02, r)) * (1.0 - smoothstep(0.98, 1.02, y));
+        } else {
+            float r = length(p);
+            return 1.0 - smoothstep(0.98, 1.02, r);
+        }
     }
 }
 
@@ -312,33 +336,24 @@ bool intersectBoundingBox(vec3 ro, vec3 rd, vec3 boxMin, vec3 boxMax, out float 
 }
 
 bool intersectBoundingCylinder(vec3 ro, vec3 rd, out float tNear, out float tFar) {
-    float a = rd.x * rd.x + rd.z * rd.z;
-    float b = 2.0 * (ro.x * rd.x + ro.z * rd.z);
-    float c = ro.x * ro.x + ro.z * ro.z - 1.0;
+    float a = dot(rd.xz, rd.xz);
+    float b = dot(ro.xz, rd.xz);
+    float c = dot(ro.xz, ro.xz) - 1.0;
+    float discr = b * b - a * c;
+    if (discr < 0.0) return false;
 
-    float tCylNear = -1e9;
-    float tCylFar = 1e9;
+    float sqrtDiscr = sqrt(discr);
+    float t0 = (-b - sqrtDiscr) / a;
+    float t1 = (-b + sqrtDiscr) / a;
 
-    if (a > 1e-6) {
-        float discr = b * b - 4.0 * a * c;
-        if (discr < 0.0) return false;
-        float sqrtDiscr = sqrt(discr);
-        tCylNear = (-b - sqrtDiscr) / (2.0 * a);
-        tCylFar = (-b + sqrtDiscr) / (2.0 * a);
-    } else if (c > 0.0) {
-        return false;
-    }
+    float ty0 = (-1.0 - ro.y) / (rd.y + 1e-12);
+    float ty1 = (1.0 - ro.y) / (rd.y + 1e-12);
 
-    // Intersect with y-caps [-1, 1]
-    float invRy = 1.0 / (abs(rd.y) > 1e-6 ? rd.y : 1e-6);
-    float ty0 = (-1.0 - ro.y) * invRy;
-    float ty1 = (1.0 - ro.y) * invRy;
-    float tyNear = min(ty0, ty1);
-    float tyFar = max(ty0, ty1);
+    float tCapMin = min(ty0, ty1);
+    float tCapMax = max(ty0, ty1);
 
-    tNear = max(tCylNear, tyNear);
-    tFar = min(tCylFar, tyFar);
-
+    tNear = max(t0, tCapMin);
+    tFar = min(t1, tCapMax);
     return tFar > max(tNear, 0.0);
 }
 
@@ -354,6 +369,10 @@ bool intersectBoundingSphere(vec3 ro, vec3 rd, out float tNear, out float tFar) 
 }
 
 bool getChamberRayInterval(vec3 ro, vec3 rd, out float tNear, out float tFar) {
+    if (uFieldMode == 1) {
+        // Field Mode: raymarch across entire expanded proxy volume [-1.8, 1.8]^3
+        return intersectBoundingBox(ro, rd, vec3(-1.8), vec3(1.8), tNear, tFar);
+    }
     if (uChamberType == 0) {
         return intersectBoundingBox(ro, rd, vec3(-1.0), vec3(1.0), tNear, tFar);
     } else if (uChamberType == 1) {
@@ -476,12 +495,13 @@ void main() {
         t += stepSize;
     }
 
-    // Subtle chamber glass hull luminescence (edge bounding cage glow)
+    // Subtle chamber glass hull luminescence (edge bounding cage glow - suppressed in Field Mode)
+    float fieldHullMul = 1.0 - float(uFieldMode);
     float hullEdge = pow(clamp(1.0 - abs(dot(vWorldNormal, normalize(vWorldPosition - cameraPosition))), 0.0, 1.0), 3.5);
-    vec3 hullGlow = uAccent * (hullEdge * 0.16) * (1.0 + 0.5 * uHighEnergies.x);
+    vec3 hullGlow = uAccent * (hullEdge * 0.16) * (1.0 + 0.5 * uHighEnergies.x) * fieldHullMul;
 
     accumRadiance += accumTransmittance * hullGlow;
-    float finalAlpha = clamp(1.0 - dot(accumTransmittance, vec3(0.3333)) + hullEdge * 0.08, 0.0, 1.0);
+    float finalAlpha = clamp(1.0 - dot(accumTransmittance, vec3(0.3333)) + hullEdge * 0.08 * fieldHullMul, 0.0, 1.0);
 
     if (finalAlpha < 0.005) {
         discard;

@@ -229,7 +229,8 @@ export class MicrofluidicChannelMesh {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 140;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
     // Rounded Glass Badge Background
     ctx.fillStyle = 'rgba(2, 6, 23, 0.92)';

@@ -18,6 +18,9 @@ import { PresentationTourEngine } from './visualizer/PresentationTourEngine';
 import { AcousticDataExporter } from './ui/AcousticDataExporter';
 import { SpectrumHUD } from './ui/SpectrumHUD';
 import { PhysicsDrawer } from './ui/PhysicsDrawer';
+import { AnamnesisExperience, ANAMNESIS_TOGGLE_EVENT } from './visualizer/AnamnesisExperience';
+import { ColorPalettes } from './visualizer/ColorPalettes';
+import { temporalMemory } from './visualizer/TemporalMemory';
 
 class App {
   private audioEngine: AudioEngine;
@@ -38,6 +41,7 @@ class App {
   private presentationTourEngine: PresentationTourEngine;
   private spectrumHUD: SpectrumHUD;
   private physicsDrawer: PhysicsDrawer;
+  private anamnesisExperience: AnamnesisExperience;
 
   private currentMode: EngineMode = 'music';
   private leftSidebarRoot: HTMLElement;
@@ -47,6 +51,7 @@ class App {
   private isLeftSidebarOpen = typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
   private isRightSidebarOpen = typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
   private hasInteracted = false;
+  private isImmersive = false;
 
   constructor() {
     this.leftSidebarRoot = document.getElementById('left-sidebar-root') as HTMLElement;
@@ -67,7 +72,11 @@ class App {
     this.audioEngine = new AudioEngine();
     this.visualizer = new VisualizerEngine(canvasContainer, this.audioEngine);
 
-    // 2. Initialize Presentation Tour HUD & Engine
+    // 2. Initialize Anamnesis Experience (Deterministic lifecycle, zero polling)
+    const initialPalette = ColorPalettes.getPalette(this.visualizer.getCurrentPaletteId?.() || 'cosmic-nebula');
+    this.anamnesisExperience = new AnamnesisExperience(this.audioEngine, this.visualizer, initialPalette);
+
+    // 3. Initialize Presentation Tour HUD & Engine
     this.presentationTourHUD = new PresentationTourHUD(document.body, {
       onNext: () => this.presentationTourEngine.nextStep(),
       onPrev: () => this.presentationTourEngine.prevStep(),
@@ -85,11 +94,12 @@ class App {
       }
     );
 
-    // 3. Initialize UI Components
+    // 4. Initialize UI Components
     this.audioControlsBar = new AudioControlsBar(
       this.audioEngine,
       () => this.captureScreenshot(),
-      () => this.exportClinicalDossier()
+      () => this.exportClinicalDossier(),
+      () => this.toggleMemoryControls()
     );
 
     this.modalSweeperControls = new ModalSweeperControls(
@@ -193,7 +203,8 @@ class App {
       () => this.exportClinicalDossier(),
       () => this.toggleLeftSidebar(),
       () => this.toggleRightSidebar(),
-      () => this.resetActiveMode()
+      () => this.resetActiveMode(),
+      () => this.toggleImmersive()
     );
 
     // Mount Master Audio Transport in Bottom Dock
@@ -207,10 +218,66 @@ class App {
     // 6. Seamless Audio Unlock on First User Interaction (Zero UI Overlay)
     this.setupAudioUnlock();
 
+    // 7. Immersive Mode Global Listeners & Exit HUD Integration
+    document.getElementById('immersive-exit-hud')?.addEventListener('click', () => {
+      this.setImmersive(false);
+    });
+
+    window.addEventListener('keydown', (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+
+      if (e.key === 'Escape') {
+        if (this.isImmersive) {
+          this.setImmersive(false);
+        }
+      } else if (e.key.toLowerCase() === 'i' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        this.toggleImmersive();
+      }
+    });
+
+    window.addEventListener('soundform-immersive-toggle', () => {
+      this.toggleImmersive();
+    });
+
+    window.addEventListener('soundform-immersive-changed', (e: Event) => {
+      const customEvent = e as CustomEvent<{ immersive?: boolean }>;
+      const active = !!customEvent.detail?.immersive;
+      if (this.isImmersive !== active) {
+        this.setImmersive(active);
+      }
+    });
+
+    window.addEventListener('soundform-open-physics-settings', () => {
+      if (!this.isRightSidebarOpen) {
+        this.toggleRightSidebar();
+      }
+      const select = document.querySelector('#select-engine-mode');
+      if (select) {
+        select.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+
+    this.visualizer.updateViewportOffset();
+
     if (typeof window !== 'undefined') {
       (window as any).__audioEngine = this.audioEngine;
       (window as any).__soundformApp = this;
     }
+  }
+
+  public setImmersive(enabled: boolean): void {
+    if (this.isImmersive === enabled) return;
+    this.isImmersive = enabled;
+    document.body.classList.toggle('soundform-immersive', this.isImmersive);
+    document.body.classList.toggle('soundform-theater', this.isImmersive);
+    this.header.setImmersive(this.isImmersive);
+    this.visualizer?.setImmersive?.(this.isImmersive);
+    window.dispatchEvent(new CustomEvent('soundform-immersive-changed', { detail: { immersive: this.isImmersive } }));
+  }
+
+  public toggleImmersive(): void {
+    this.setImmersive(!this.isImmersive);
   }
 
   private resetActiveMode(): void {
@@ -240,6 +307,10 @@ class App {
       this.leftSidebarRoot.classList.add('sidebar-collapsed');
     }
     this.header.setSidebarStates(this.isLeftSidebarOpen, this.isRightSidebarOpen);
+    this.visualizer?.updateViewportOffset?.();
+    if (typeof window !== 'undefined') {
+      setTimeout(() => this.visualizer?.updateViewportOffset?.(), 360);
+    }
   }
 
   private toggleRightSidebar(): void {
@@ -254,6 +325,14 @@ class App {
       this.rightSidebarRoot.classList.add('sidebar-collapsed');
     }
     this.header.setSidebarStates(this.isLeftSidebarOpen, this.isRightSidebarOpen);
+    this.visualizer?.updateViewportOffset?.();
+    if (typeof window !== 'undefined') {
+      setTimeout(() => this.visualizer?.updateViewportOffset?.(), 360);
+    }
+  }
+
+  private toggleMemoryControls(): void {
+    window.dispatchEvent(new CustomEvent(ANAMNESIS_TOGGLE_EVENT));
   }
 
   private exportClinicalDossier(): void {

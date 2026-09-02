@@ -73,6 +73,13 @@ describe('Scene Optics & Physics Drawer Inspector', () => {
     expect(el.querySelector('#slider-particle-scale')).not.toBeNull();
     expect(el.querySelector('#btn-toggle-ground-grid')).not.toBeNull();
     expect(el.querySelector('#btn-reset-physics-drawer')).not.toBeNull();
+    expect(el.querySelector('#drawer-temporal-acoustics')).not.toBeNull();
+    expect(el.querySelector('#btn-drawer-theater')).not.toBeNull();
+    expect(el.querySelector('#btn-drawer-memory-toggle')).toBeNull();
+    expect(el.querySelector('#btn-drawer-memory-freeze')).toBeNull();
+    expect(el.querySelector('#slider-drawer-lookback')).toBeNull();
+    expect(el.querySelector('#slider-drawer-memory')).toBeNull();
+    expect(el.querySelector('#select-drawer-medium')).toBeNull();
   });
 
   it('hides wave simulation controls in specialized lab modes (voice, therapy, nobel, bio) while keeping glow active', () => {
@@ -85,6 +92,7 @@ describe('Scene Optics & Physics Drawer Inspector', () => {
       const el = drawer.getElement();
       expect(el.querySelector('#slider-wave-speed')).toBeNull();
       expect(el.querySelector('#slider-wave-damping')).toBeNull();
+      expect(el.querySelector('#drawer-temporal-acoustics')).toBeNull();
       // Glow and floor grid remain universally accessible
       expect(el.querySelector('#slider-bloom')).not.toBeNull();
       expect(el.querySelector('#btn-toggle-ground-grid')).not.toBeNull();

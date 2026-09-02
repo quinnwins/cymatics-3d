@@ -132,9 +132,9 @@ export class CymaticsMesh {
     if (typeof window !== 'undefined') {
       this.visualStyleListener = ((event: CustomEvent<{ style?: string }>) => {
         const style = event.detail?.style;
-        this.temporalContextVisible = style === 'cymatics' || style === 'cymatics-2d';
-        this.temporalSculpture.setVisible(this.temporalContextVisible);
-        this.group.visible = this.mesh.visible || this.temporalContextVisible;
+        this.temporalContextVisible = false;
+        this.temporalSculpture.setVisible(false);
+        this.group.visible = this.mesh.visible;
       }) as EventListener;
       window.addEventListener('visual-style-changed', this.visualStyleListener);
     }
@@ -166,7 +166,25 @@ export class CymaticsMesh {
   }
 
   public getModes(): THREE.Vector3 {
-    return this.modes.clone();
+    return this.modes;
+  }
+
+  /**
+   * Rayleigh Capillary Droplet Eigenfrequency (Lamb 1932):
+   * omega_l^2 = l * (l - 1) * (l + 2) * sigma / (rho * R^3)
+   * f_l = (1 / 2pi) * sqrt( l * (l - 1) * (l + 2) * sigma / (rho * R^3) )
+   */
+  public static rayleighDropletEigenfrequency(
+    l: number,
+    radius = 0.002,
+    surfaceTension = 0.0728,
+    density = 1000.0
+  ): number {
+    const safeL = Math.max(2, Math.round(l));
+    const term = safeL * (safeL - 1) * (safeL + 2) * surfaceTension;
+    const denom = density * Math.pow(radius, 3);
+    const omega = Math.sqrt(term / denom);
+    return omega / (2.0 * Math.PI);
   }
 
   public setChamberGeometry(type: ChamberGeometryType): void {
@@ -190,6 +208,7 @@ export class CymaticsMesh {
       }
     }
     this.material.uniforms.uChamberType.value = this.chamberTypeInt;
+    this.temporalSculpture?.setChamber?.(this.chamberTypeInt, 1.95, 1.52);
   }
 
   public setGeometry(type: ChamberGeometryType): void {
@@ -260,6 +279,17 @@ export class CymaticsMesh {
 
     this.temporalSculpture.update(time, bands, highs, fundamentalHz, camera);
 
+    // In Acoustic Fossil mode (when uFossilWeight > 0), dim and scale the droplet slightly so the 3D fossil structure takes focal priority
+    const fossilWeight = this.temporalSculpture.getFossilWeight?.() ?? 0;
+    if (fossilWeight > 0.01) {
+      const dimFactor = 1.0 - fossilWeight * 0.25;
+      this.mesh.scale.setScalar(dimFactor);
+      this.innerCore.scale.setScalar(dimFactor);
+    } else {
+      this.mesh.scale.setScalar(1.0);
+      this.innerCore.scale.setScalar(1.0);
+    }
+
     // Organic levitating droplet axial precession and wobble
     this.mesh.rotation.y = time * 0.18 + bands.y * 0.3;
     this.mesh.rotation.x = Math.sin(time * 0.12) * 0.22 + bands.x * 0.15;
@@ -292,8 +322,8 @@ export class CymaticsMesh {
   public setVisible(visible: boolean): void {
     this.mesh.visible = visible;
     this.innerCore.visible = visible;
-    this.temporalSculpture.setVisible(this.temporalContextVisible);
-    this.group.visible = visible || this.temporalContextVisible;
+    this.temporalSculpture.setVisible(false);
+    this.group.visible = visible;
   }
 
   public isVisible(): boolean {
@@ -303,7 +333,8 @@ export class CymaticsMesh {
   public setDropletVisible(visible: boolean): void {
     this.mesh.visible = visible;
     this.innerCore.visible = visible;
-    this.group.visible = visible || this.temporalContextVisible;
+    this.temporalSculpture.setVisible(false);
+    this.group.visible = visible;
   }
 
   public isDropletVisible(): boolean {

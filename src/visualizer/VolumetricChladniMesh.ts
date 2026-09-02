@@ -11,6 +11,7 @@ import {
   VOLUMETRIC_CHLADNI_FRAGMENT_SHADER,
 } from './shaders/volumetricChladniShader';
 import { ColorPalettes, PalettePreset } from './ColorPalettes';
+import type { FieldShapeType, SuperquadricParams } from './GpuAcousticParticles';
 
 export type ChamberGeometryType = 'rectangular' | 'cylindrical' | 'spherical' | 0 | 1 | 2;
 
@@ -66,8 +67,8 @@ export class VolumetricChladniMesh {
     const chromaticDispersion = options?.chromaticDispersion ?? 1.2;
 
     // 1. Proxy Bounding Cube Geometry
-    // Size 2.45 encapsulates normalized chamber domain [-1, 1]^3 with bounding margin
-    const geometry = new THREE.BoxGeometry(2.45, 2.45, 2.45);
+    // Size 3.6 encapsulates normalized domain with margin for unconfined field mode
+    const geometry = new THREE.BoxGeometry(3.6, 3.6, 3.6);
 
     // 2. Custom Raymarching Shader Material
     this.material = new THREE.ShaderMaterial({
@@ -77,6 +78,10 @@ export class VolumetricChladniMesh {
         uTime: { value: 0 },
         uInverseModelMatrix: { value: new THREE.Matrix4() },
         uChamberType: { value: this.currentChamberType },
+        uFieldMode: { value: 0 },
+        uFieldShapeType: { value: 0 },
+        uSuperquadricParams: { value: new THREE.Vector4(1.0, 1.0, 0.0, 0.0) },
+        uSuperquadricLobeAmp: { value: 0.0 },
         uModes: { value: this.modes.clone() },
         uSuperposition: { value: this.superposition.clone() },
         uChamberSize: { value: new THREE.Vector3(2.0, 2.0, 2.0) },
@@ -256,6 +261,40 @@ export class VolumetricChladniMesh {
     const wire = this.group.getObjectByName('chamber-wireframe') as THREE.Mesh;
     if (wire && wire.material instanceof THREE.MeshBasicMaterial) {
       wire.material.color.copy(palette.accent);
+    }
+  }
+
+  public setFieldMode(enabled: boolean): void {
+    this.material.uniforms.uFieldMode.value = enabled ? 1 : 0;
+    const wire = this.group.getObjectByName('chamber-wireframe') as THREE.Mesh;
+    if (wire) {
+      wire.visible = !enabled;
+    }
+  }
+
+  public setFieldShape(shape: FieldShapeType, params?: Partial<SuperquadricParams>): void {
+    const shapeMap: Record<FieldShapeType, number> = {
+      'free-field': 0,
+      'superquadric': 1,
+      'torus': 2,
+      'octahedron': 3,
+      'tetrahedron': 4,
+      'dodecahedron': 5,
+      'helix': 6,
+      'heart': 7,
+      'custom': 8,
+    };
+    this.material.uniforms.uFieldShapeType.value = shapeMap[shape] ?? 0;
+    if (params) {
+      const cur = this.material.uniforms.uSuperquadricParams.value;
+      const eps1 = params.eps1 ?? cur.x;
+      const eps2 = params.eps2 ?? cur.y;
+      const pinch = params.pinch ?? cur.z;
+      const lobes = params.lobes ?? cur.w;
+      cur.set(eps1, eps2, pinch, lobes);
+      if (params.lobeAmp !== undefined) {
+        this.material.uniforms.uSuperquadricLobeAmp.value = params.lobeAmp;
+      }
     }
   }
 

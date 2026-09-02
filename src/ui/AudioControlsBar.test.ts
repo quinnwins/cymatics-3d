@@ -7,12 +7,14 @@ describe('AudioControlsBar UI - Universal Master Transport & Telemetry Dock', ()
   let controlsBar: AudioControlsBar;
   let screenshotSpy: any;
   let exportSpy: any;
+  let memorySpy: any;
 
   beforeEach(() => {
     audioEngine = new AudioEngine();
     screenshotSpy = vi.fn();
     exportSpy = vi.fn();
-    controlsBar = new AudioControlsBar(audioEngine, screenshotSpy, exportSpy);
+    memorySpy = vi.fn();
+    controlsBar = new AudioControlsBar(audioEngine, screenshotSpy, exportSpy, memorySpy);
   });
 
   it('should instantiate and provide element', () => {
@@ -21,17 +23,21 @@ describe('AudioControlsBar UI - Universal Master Transport & Telemetry Dock', ()
   });
 
   describe('Music Studio Master Dock', () => {
-    it('should render active track telemetry pill, snapshot, export, and volume', () => {
+    it('should render active track telemetry pill, snapshot, export, memory, and volume', () => {
       controlsBar.setMode('music');
       const el = controlsBar.getElement();
 
       expect(el.querySelector('#btn-play-pause')).not.toBeNull();
       expect(el.querySelector('#btn-screenshot')).not.toBeNull();
       expect(el.querySelector('#btn-export-dossier')).not.toBeNull();
+      expect(el.querySelector('#btn-sonic-memory')).not.toBeNull();
       expect(el.querySelector('#volume-slider')).not.toBeNull();
       expect(el.querySelector('#dock-timeline-scrubber')).not.toBeNull();
       expect(el.querySelector('#dock-label-current-time')).not.toBeNull();
       expect(el.querySelector('#dock-label-duration')).not.toBeNull();
+
+      (el.querySelector('#btn-sonic-memory') as HTMLButtonElement)?.click();
+      expect(memorySpy).toHaveBeenCalledTimes(1);
     });
 
     it('should seek audio engine on timeline scrubber input and change', () => {

@@ -116,4 +116,29 @@ describe('AnamnesisField', () => {
 
     field.dispose();
   });
+
+  it('keeps thread opacity at zero during ambient playback and illuminates on return celebration', () => {
+    const field = new AnamnesisField(ColorPalettes.getPalette('cosmic-nebula'));
+    const points = [point(0, [1, 0, 0], 0), point(1, [0, 1, 0], 0)];
+    const thread: EchoThread = {
+      id: 0, from: 1, to: 0, similarity: 0.9, harmonicSimilarity: 0.9,
+      timbralSimilarity: 0.9, transposition: 0, familyId: 0, timeGapSeconds: 2
+    };
+    field.setData(points, [thread]);
+    field.setEnabled(true);
+
+    // Warm up ambient update
+    for (let i = 0; i < 10; i++) {
+      field.update(1.0, 0.1, 900);
+    }
+    const threadMat = field.threads.material as THREE.ShaderMaterial;
+    expect(threadMat.uniforms.uOpacity.value).toBe(0);
+
+    // Celebrate return
+    field.celebrateReturn(thread);
+    field.update(1.0, 0.016, 900);
+    expect(threadMat.uniforms.uOpacity.value).toBeGreaterThan(0.5);
+
+    field.dispose();
+  });
 });
