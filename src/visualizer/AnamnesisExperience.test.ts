@@ -3,15 +3,15 @@ import { canControlAnamnesisPlayback } from './AnamnesisExperience';
 
 describe('Anamnesis playback semantics', () => {
   it('allows pausable sources and refuses to pretend live microphone input can pause', () => {
-    expect(canControlAnamnesisPlayback('demo-track')).toBe(true);
-    expect(canControlAnamnesisPlayback('file-upload')).toBe(true);
-    expect(canControlAnamnesisPlayback('apple-music')).toBe(true);
-    expect(canControlAnamnesisPlayback('spotify')).toBe(true);
+    for (const source of ['demo-track', 'file-upload', 'apple-music', 'spotify'] as const) {
+      expect(canControlAnamnesisPlayback(source)).toBe(true);
+    }
     expect(canControlAnamnesisPlayback('microphone')).toBe(false);
   });
 
-  it('disables transport while inspecting a stored relic', () => {
-    expect(canControlAnamnesisPlayback('demo-track', true)).toBe(false);
-    expect(canControlAnamnesisPlayback('file-upload', true)).toBe(false);
+  it('disables transport while inspecting a stored relic regardless of source', () => {
+    for (const source of ['demo-track', 'file-upload', 'apple-music', 'spotify', 'microphone'] as const) {
+      expect(canControlAnamnesisPlayback(source, true)).toBe(false);
+    }
   });
 });
