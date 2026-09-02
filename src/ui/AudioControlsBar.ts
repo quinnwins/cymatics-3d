@@ -20,7 +20,7 @@ import { WaveformType } from '../audio/FrequencySynthesizer';
 import { EngineMode } from './Header';
 
 export class AudioControlsBar {
-  public static readonly SPEED_PRESETS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+  public static readonly SPEED_PRESETS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
   private element: HTMLElement;
   private currentEngineMode: EngineMode = 'music';

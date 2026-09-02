@@ -109,14 +109,20 @@ describe('CymaticsPlateMesh - 2D Resonant Chladni Cymatics Plate with Dust Parti
     expect(highPitchN).toBeGreaterThan(lowPitchN);
   });
 
-  it('handles circular Bessel plate mode and updates uniforms accurately', () => {
+  it('handles circular Bessel plate mode and updates uniforms accurately for cylinder and sphere', () => {
     const plate = new CymaticsPlateMesh(palette);
     plate.setChamberType('circle');
     const uniforms = (plate.plateMesh.material as THREE.ShaderMaterial).uniforms;
     expect(uniforms.uChamberType.value).toBe(1.0);
+    expect(plate.bezelRim.geometry.type).toBe('CylinderGeometry');
+
+    plate.setChamberType('sphere');
+    expect(uniforms.uChamberType.value).toBe(1.0);
+    expect(plate.bezelRim.geometry.type).toBe('CylinderGeometry');
 
     plate.setChamberType('square');
     expect(uniforms.uChamberType.value).toBe(0.0);
+    expect(plate.bezelRim.geometry.type).toBe('BoxGeometry');
   });
 
   it('initializes with autoModal enabled by default and synchronizes dynamic modes to getModes()', () => {

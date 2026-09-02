@@ -241,15 +241,15 @@ describe('AudioControlsBar UI - Universal Master Transport & Telemetry Dock', ()
       speedBtn.click();
       const menu = el.querySelector('#dock-speed-menu');
       expect(menu).not.toBeNull();
-      expect(el.querySelectorAll('.speed-option-btn').length).toBe(6);
+      expect(el.querySelectorAll('.speed-option-btn').length).toBe(7);
 
-      // Select 1.5x speed option
+      // Select 0.25x speed option
       const setSpeedSpy = vi.spyOn(audioEngine, 'setPlaybackSpeed');
-      const speed15Btn = el.querySelector('[data-speed="1.5"]') as HTMLButtonElement;
-      expect(speed15Btn).not.toBeNull();
-      speed15Btn.click();
+      const speed025Btn = el.querySelector('[data-speed="0.25"]') as HTMLButtonElement;
+      expect(speed025Btn).not.toBeNull();
+      speed025Btn.click();
 
-      expect(setSpeedSpy).toHaveBeenCalledWith(1.5);
+      expect(setSpeedSpy).toHaveBeenCalledWith(0.25);
       expect(el.querySelector('#dock-speed-menu')).toBeNull();
     });
 

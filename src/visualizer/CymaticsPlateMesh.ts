@@ -265,14 +265,24 @@ export class CymaticsPlateMesh {
     }
   }
 
-  public setChamberType(type: 'square' | 'circle' | number): void {
-    this.chamberType = type === 'circle' || type === 1 ? 1.0 : 0.0;
+  public setChamberType(type: 'square' | 'circle' | 'sphere' | 'cylinder' | number): void {
+    this.chamberType = type === 'circle' || type === 'sphere' || type === 'cylinder' || type === 1 || type === 2 ? 1.0 : 0.0;
     this.plateMaterial.uniforms.uChamberType.value = this.chamberType;
     this.dustMaterial.uniforms.uChamberType.value = this.chamberType;
+
+    if (this.bezelRim) {
+      this.bezelRim.geometry.dispose();
+      if (this.chamberType === 1.0) {
+        const radius = (this.plateDiameter + 0.08) * 0.5;
+        this.bezelRim.geometry = new THREE.CylinderGeometry(radius, radius, 0.06, 64);
+      } else {
+        this.bezelRim.geometry = new THREE.BoxGeometry(this.plateDiameter + 0.12, 0.06, this.plateDiameter + 0.12);
+      }
+    }
   }
 
   public setChamberGeometry(type: any): void {
-    const isCircle = type === 'circle' || type === 'cylinder' || type === 1;
+    const isCircle = type === 'circle' || type === 'cylinder' || type === 'sphere' || type === 1 || type === 2;
     this.setChamberType(isCircle ? 'circle' : 'square');
   }
 

@@ -92,6 +92,7 @@ export class PresentationTourEngine {
     this.isRunning = true;
     this.isPaused = false;
     this.currentStepIndex = 0;
+    this.visualizer.setCameraMode('autocam');
     this.hud.setVisible(true);
     this.attachKeyboardListener();
     this.executeCurrentStep();
