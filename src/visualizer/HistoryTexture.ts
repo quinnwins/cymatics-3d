@@ -70,6 +70,17 @@ export class HistoryTexture {
       ? Math.max(0, Math.min(1, transientOnset))
       : 0;
 
+    // AudioEngine deliberately returns a zero-filled buffer before its analyser
+    // exists. Web Audio uses negative dB values (or -Infinity) once initialized,
+    // so an all-zero array is a transport sentinel, not a full-scale spectrum.
+    let zeroFilledFallback = true;
+    for (let i = 0; i < fftData.length; i += 1) {
+      if (fftData[i] !== 0) {
+        zeroFilledFallback = false;
+        break;
+      }
+    }
+
     let peakSignal = 0;
     let positiveFlux = 0;
     const sourceMax = fftData.length - 1;
@@ -85,7 +96,7 @@ export class HistoryTexture {
         Math.round(Math.pow(textureBin, 2.15) * sourceMax)
       );
       const rawDb = fftData[sourceIndex];
-      const db = Number.isFinite(rawDb) ? rawDb : -100;
+      const db = zeroFilledFallback ? -100 : Number.isFinite(rawDb) ? rawDb : -100;
       const magnitude = db > -90 ? Math.pow(10, (db + 10) / 45) : 0;
       const normalizedMagnitude = Number.isFinite(magnitude)
         ? Math.max(0, Math.min(1, magnitude / 2.5))
