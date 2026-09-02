@@ -6,7 +6,7 @@ import { temporalMemory } from './TemporalMemory';
  *
  * Stores 512 log-distributed spectral samples across 512 fixed-rate history frames.
  * Encodes normalized unsigned-byte channels:
- * - R: spectral magnitude
+ * - R: perceptually expanded spectral magnitude
  * - G: signed spectral motion, remapped to [0..1]
  * - B: transient / bass impulse
  * - A: detected pitch
@@ -116,14 +116,17 @@ export class HistoryTexture {
       );
       const rawDb = fftData[sourceIndex];
       const db = Number.isFinite(rawDb) ? rawDb : -100;
-      const magnitude = db > -90 ? Math.pow(10, (db + 10) / 45) : 0;
-      const normalizedMagnitude = Number.isFinite(magnitude)
-        ? Math.max(0, Math.min(1, magnitude / 2.5))
-        : 0;
+
+      // A physically linear amplitude encoding made ordinary music nearly
+      // invisible: useful musical detail commonly lives around -65 to -35 dB.
+      // Expand that range perceptually while retaining a quiet floor and hard
+      // ceiling. This is display calibration, not a change to the audio signal.
+      const dbWindow = Math.max(0, Math.min(1, (db + 90) / 80));
+      const normalizedMagnitude = Math.pow(dbWindow, 1.65);
 
       const previous = this.previousMagnitudes[i];
       const delta = normalizedMagnitude - previous;
-      const signedMotion = 0.5 + Math.max(-0.5, Math.min(0.5, delta * 1.6));
+      const signedMotion = 0.5 + Math.max(-0.5, Math.min(0.5, delta * 1.35));
       positiveFlux += Math.max(0, delta);
       peakSignal = Math.max(peakSignal, normalizedMagnitude);
 
@@ -134,7 +137,7 @@ export class HistoryTexture {
       this.previousMagnitudes[i] = normalizedMagnitude;
     }
 
-    const normalizedFlux = Math.min(1, (positiveFlux / this.width) * 18);
+    const normalizedFlux = Math.min(1, (positiveFlux / this.width) * 11);
     const impulse = Math.min(1, safeBassImpulse * 0.55 + normalizedFlux * 0.9);
     const encodedImpulse = Math.round(impulse * 255);
     for (let i = 0; i < this.width; i += 1) {
@@ -144,7 +147,7 @@ export class HistoryTexture {
     // One 1 MB upload at 48 Hz is considerably lighter than uploading a
     // 4 MB float texture on every display refresh, while retaining 512×512 history.
     this.texture.needsUpdate = true;
-    temporalMemory.recordFrame(row, Math.min(1, peakSignal * 0.85 + impulse * 0.35), now);
+    temporalMemory.recordFrame(row, Math.min(1, peakSignal * 0.9 + impulse * 0.25), now);
     this.writeHead = (this.writeHead + 1) % this.height;
 
     return (row + 0.5) / this.height;
