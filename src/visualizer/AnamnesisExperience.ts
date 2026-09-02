@@ -160,7 +160,9 @@ export class AnamnesisExperience {
   private hoveredIndex = -1;
   private disposed = false;
   private frameId: number | null = null;
+  private sampleTimer: number | null = null;
   private lastFrameAt = 0;
+  private lastSampleClock = 0;
   private focusSnapshot: FocusSnapshot | null = null;
 
   private root: HTMLElement | null = null;
@@ -194,6 +196,11 @@ export class AnamnesisExperience {
     this.visualizer.renderer.domElement.addEventListener('pointerleave', this.pointerLeaveListener);
     this.visualizer.renderer.domElement.addEventListener('click', this.pointerClickListener);
     this.lastFrameAt = performance.now();
+    this.lastSampleClock = this.lastFrameAt;
+    // Analysis cadence must not collapse when the GPU is busy. The model owns
+    // its 400 ms sampling interval; this lightweight clock simply gives it
+    // regular opportunities independent of the render frame rate.
+    this.sampleTimer = window.setInterval(this.captureAudio, 100);
     this.frameId = requestAnimationFrame(this.animate);
     this.emitState();
   }
@@ -315,6 +322,7 @@ export class AnamnesisExperience {
     this.disposed = true;
     this.saveRelic(false);
     if (this.frameId !== null) cancelAnimationFrame(this.frameId);
+    if (this.sampleTimer !== null) window.clearInterval(this.sampleTimer);
     this.setFocus(false);
     this.visualizer.scene.remove(this.field.group);
     this.field.dispose();
@@ -333,6 +341,34 @@ export class AnamnesisExperience {
     mountRequested = false;
   }
 
+  private readonly captureAudio = (): void => {
+    if (this.disposed) return;
+
+    const nowMs = performance.now();
+    const elapsedSeconds = Math.max(0, (nowMs - this.lastSampleClock) / 1000);
+    this.lastSampleClock = nowMs;
+
+    const style = this.visualizer.getStyle();
+    const mode = this.audio.getMode();
+    const contextVisible = style === 'cymatics' || style === 'cymatics-2d';
+    if (!this.enabled || !contextVisible || !this.isMemorySource(mode)) return;
+
+    const meta = this.resolveSessionMeta(mode);
+    if (meta.identity !== this.sessionIdentity) this.beginSession(meta);
+    if (!this.audio.getIsPlaying() || this.viewingRelic) return;
+
+    const playbackTime = this.getPlaybackTime(mode, elapsedSeconds);
+    this.ingestObservation({
+      timeSeconds: playbackTime,
+      durationSeconds: meta.durationSeconds,
+      sampleRate: this.getSampleRate(),
+      spectrum: this.audio.getRawFrequencyData(),
+      bands: this.audio.getAudioBands(),
+      fundamentalHz: this.audio.getFundamentalFrequency(),
+      transient: strongestTransient(this.audio, this.visualTime),
+    });
+  };
+
   private readonly animate = (nowMs: number): void => {
     if (this.disposed) return;
     const dt = Math.min(0.1, Math.max(0, (nowMs - this.lastFrameAt) / 1000));
@@ -347,24 +383,7 @@ export class AnamnesisExperience {
     this.field.setEnabled(shouldShow);
     this.field.update(this.visualTime, dt, window.innerHeight);
 
-    if (!shouldShow) {
-      if (this.expanded) this.setExpanded(false);
-    } else {
-      const meta = this.resolveSessionMeta(mode);
-      if (meta.identity !== this.sessionIdentity) this.beginSession(meta);
-      if (this.audio.getIsPlaying() && !this.viewingRelic) {
-        const playbackTime = this.getPlaybackTime(mode, dt);
-        this.ingestObservation({
-          timeSeconds: playbackTime,
-          durationSeconds: meta.durationSeconds,
-          sampleRate: this.getSampleRate(),
-          spectrum: this.audio.getRawFrequencyData(),
-          bands: this.audio.getAudioBands(),
-          fundamentalHz: this.audio.getFundamentalFrequency(),
-          transient: strongestTransient(this.audio, this.visualTime),
-        });
-      }
-    }
+    if (!shouldShow && this.expanded) this.setExpanded(false);
 
     if (this.visualTime - this.lastUiUpdate > 0.2) {
       this.lastUiUpdate = this.visualTime;
