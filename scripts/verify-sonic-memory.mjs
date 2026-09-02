@@ -116,35 +116,40 @@ async function main() {
     await page.click('#sonic-memory-control .sm-pill');
     await page.waitForSelector('#sm-panel:not([hidden])');
 
-    // Time Lens: move the center two seconds into the stored past.
-    const headBeforeLookback = live.historyHead;
+    // Freeze first so Time Lens movement can be measured against a stable ring-buffer head.
+    await page.click('[data-action="freeze"]');
+    await page.waitForFunction(() => document.querySelector('#sonic-memory-control em')?.textContent === 'FROZEN');
+    const frozenLive = await page.evaluate(() => {
+      const uniforms = window.__soundformApp?.visualizer?.cymaticsMesh?.temporalSculpture?.material?.uniforms;
+      return { time: uniforms?.uTime?.value ?? 0, head: uniforms?.uHistoryHead?.value ?? 0 };
+    });
+
+    // Time Lens: move the center two seconds into the stored past while phase remains frozen.
     await page.$eval('[data-control="lookback"]', element => {
       element.value = '2';
       element.dispatchEvent(new Event('input', { bubbles: true }));
     });
     await new Promise(resolve => setTimeout(resolve, 150));
-    const headAfterLookback = await page.evaluate(() => {
-      const sculpture = window.__soundformApp?.visualizer?.cymaticsMesh?.temporalSculpture;
-      return sculpture?.material?.uniforms?.uHistoryHead?.value ?? 0;
-    });
-    if (Math.abs(headAfterLookback - headBeforeLookback) < 0.01) {
-      throw new Error('The Sonic Memory Time Lens did not move through history.');
-    }
-
-    // Freeze must stop both history writes and shader phase, leaving a stable sculpture.
-    await page.click('[data-action="freeze"]');
-    await page.waitForFunction(() => document.querySelector('#sonic-memory-control em')?.textContent === 'FROZEN');
-    const frozenBefore = await page.evaluate(() => {
+    const frozenPast = await page.evaluate(() => {
       const uniforms = window.__soundformApp?.visualizer?.cymaticsMesh?.temporalSculpture?.material?.uniforms;
       return { time: uniforms?.uTime?.value ?? 0, head: uniforms?.uHistoryHead?.value ?? 0 };
     });
+
+    if (Math.abs(frozenPast.head - frozenLive.head) < 0.01) {
+      throw new Error(`The Sonic Memory Time Lens did not move through history: ${JSON.stringify({ frozenLive, frozenPast })}`);
+    }
+    if (Math.abs(frozenPast.time - frozenLive.time) > 0.0001) {
+      throw new Error(`The Time Lens advanced frozen shader phase: ${JSON.stringify({ frozenLive, frozenPast })}`);
+    }
+
+    // A frozen sculpture must remain stable after the lookback selection is applied.
     await new Promise(resolve => setTimeout(resolve, 500));
     const frozenAfter = await page.evaluate(() => {
       const uniforms = window.__soundformApp?.visualizer?.cymaticsMesh?.temporalSculpture?.material?.uniforms;
       return { time: uniforms?.uTime?.value ?? 0, head: uniforms?.uHistoryHead?.value ?? 0 };
     });
-    if (Math.abs(frozenAfter.time - frozenBefore.time) > 0.0001 || Math.abs(frozenAfter.head - frozenBefore.head) > 0.0001) {
-      throw new Error(`Frozen sculpture moved: ${JSON.stringify({ frozenBefore, frozenAfter })}`);
+    if (Math.abs(frozenAfter.time - frozenPast.time) > 0.0001 || Math.abs(frozenAfter.head - frozenPast.head) > 0.0001) {
+      throw new Error(`Frozen sculpture moved: ${JSON.stringify({ frozenPast, frozenAfter })}`);
     }
 
     // Immersive mode must enter cleanly and remain escapable from the keyboard.
@@ -166,7 +171,7 @@ async function main() {
     });
   } finally {
     await browser.close();
-    await server.httpServer.close();
+    await new Promise(resolve => server.httpServer.close(resolve));
   }
 }
 
