@@ -51,13 +51,13 @@ export class HistoryTexture {
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const normalizedCurrentHead = (this.writeHead + 0.5) / this.height;
 
+    // A frozen sculpture keeps both its pixels and its visible signal strength.
     if (!temporalMemory.shouldCapture()) {
-      temporalMemory.recordIdle();
       return normalizedCurrentHead;
     }
 
     const minimumInterval = 1000 / this.captureRateHz;
-    if (now - this.lastWriteAt < minimumInterval) {
+    if (now - this.lastWriteAt < minimumInterval || fftData.length === 0) {
       return normalizedCurrentHead;
     }
     this.lastWriteAt = now;
@@ -72,13 +72,13 @@ export class HistoryTexture {
 
     let peakSignal = 0;
     let positiveFlux = 0;
-    const sourceMax = Math.max(0, fftData.length - 1);
+    const sourceMax = fftData.length - 1;
 
     for (let i = 0; i < this.width; i += 1) {
       const idx = rowOffset + i * 4;
 
-      // The analyser bins are linear. Resample them logarithmically so the texture
-      // keeps bass resolution while still reaching the full available spectrum.
+      // Analyzer bins are linear. Resample them logarithmically so the history
+      // keeps bass resolution while still reaching the complete spectrum.
       const textureBin = i / Math.max(1, this.width - 1);
       const sourceIndex = Math.min(
         sourceMax,
