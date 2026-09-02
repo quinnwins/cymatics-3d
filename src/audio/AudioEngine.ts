@@ -364,8 +364,12 @@ export class AudioEngine {
     }
 
     let urlToPlay = track.previewUrl;
-    if (!urlToPlay && track.source === 'apple-music') {
-      urlToPlay = await this.appleMusicConnector.resolveFreshPreviewUrl(track);
+    if (!urlToPlay) {
+      if (track.source === 'apple-music') {
+        urlToPlay = await this.appleMusicConnector.resolveFreshPreviewUrl(track);
+      } else if (track.source === 'spotify') {
+        urlToPlay = await this.spotifyConnector.resolveFreshPreviewUrl(track);
+      }
       if (urlToPlay) {
         track.previewUrl = urlToPlay;
       }
@@ -379,9 +383,14 @@ export class AudioEngine {
 
       // Auto-recovery error listener for rotated CDN tokens
       this.audioElement.onerror = async () => {
-        if (track.source === 'apple-music' && !(track as any)._hasRetried) {
+        if (!(track as any)._hasRetried) {
           (track as any)._hasRetried = true;
-          const freshUrl = await this.appleMusicConnector.resolveFreshPreviewUrl(track);
+          let freshUrl: string | undefined;
+          if (track.source === 'apple-music') {
+            freshUrl = await this.appleMusicConnector.resolveFreshPreviewUrl(track);
+          } else if (track.source === 'spotify') {
+            freshUrl = await this.spotifyConnector.resolveFreshPreviewUrl(track);
+          }
           if (freshUrl && freshUrl !== urlToPlay) {
             track.previewUrl = freshUrl;
             this.audioElement.src = freshUrl;

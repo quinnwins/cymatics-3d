@@ -83,15 +83,10 @@ export class PhysicsDrawer {
     const isToneMode = this.currentMode === 'frequency';
     const isSpecializedLab = ['therapy', 'nobel', 'bio', 'voice'].includes(this.currentMode);
 
-    const showMediumControls = isMusicMode;
     const showWaveControls = isMusicMode;
     const showParticleScale = isMusicMode || isCymaticsMode || isToneMode;
     const showParticleDensity = isMusicMode || isCymaticsMode || isToneMode;
     const showGlowControl = true; // Universal bloom across all modes
-
-    const layers = this.visualizer?.getCymaticsLayers
-      ? this.visualizer.getCymaticsLayers()
-      : { plate: false, droplet: true, trap: true };
 
     const headerTitle = isSpecializedLab ? 'Scene Optics' : 'Scene Optics & Physics';
 
@@ -118,54 +113,45 @@ export class PhysicsDrawer {
       <div id="physics-body" class="${this.isOpen ? 'flex' : 'hidden'} flex-col gap-3 text-xs pt-2.5 border-t border-white/10">
 
         ${
-          showMediumControls
+          showWaveControls
             ? `
-        <!-- Cymatics Medium / Apparatus Multi-Layer Selector -->
+        <!-- Cymatics Apparatus Medium Layers -->
         <div class="flex flex-col gap-1.5 bg-slate-950/50 p-2.5 rounded-2xl border border-white/5">
-          <div class="flex items-center justify-between">
-            <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Cymatics Medium</span>
-            <span class="text-[9px] text-cyan-400 font-mono">Multi-Layer</span>
-          </div>
-          <div class="grid grid-cols-3 gap-1 bg-slate-950/80 p-1 rounded-xl border border-white/5">
+          <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Cymatics Medium</div>
+          <div class="grid grid-cols-3 gap-1">
             <button
               data-layer="plate"
-              class="btn-physics-layer py-1.5 px-1 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                layers.plate
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 ring-1 ring-cyan-400/30 shadow-sm font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
+              class="btn-physics-layer px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                this.visualizer.getCymaticsLayers && this.visualizer.getCymaticsLayers().plate
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-sm font-bold ring-1 ring-cyan-400/30'
+                  : 'bg-slate-900/60 border border-white/5 hover:border-white/20 text-slate-400'
               }"
             >
-              <span>${layers.plate ? '✓ ' : ''}2D Plate</span>
+              <span>${this.visualizer.getCymaticsLayers && this.visualizer.getCymaticsLayers().plate ? '✓ Plate' : 'Plate'}</span>
             </button>
             <button
               data-layer="droplet"
-              class="btn-physics-layer py-1.5 px-1 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                layers.droplet
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 ring-1 ring-cyan-400/30 shadow-sm font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
+              class="btn-physics-layer px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                this.visualizer.getCymaticsLayers && this.visualizer.getCymaticsLayers().droplet
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-sm font-bold ring-1 ring-cyan-400/30'
+                  : 'bg-slate-900/60 border border-white/5 hover:border-white/20 text-slate-400'
               }"
             >
-              <span>${layers.droplet ? '✓ ' : ''}3D Droplet</span>
+              <span>${this.visualizer.getCymaticsLayers && this.visualizer.getCymaticsLayers().droplet ? '✓ Droplet' : 'Droplet'}</span>
             </button>
             <button
               data-layer="trap"
-              class="btn-physics-layer py-1.5 px-1 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                layers.trap
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 ring-1 ring-cyan-400/30 shadow-sm font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
+              class="btn-physics-layer px-2 py-1.5 rounded-xl text-[10px] font-medium transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                this.visualizer.getCymaticsLayers && this.visualizer.getCymaticsLayers().trap
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-sm font-bold ring-1 ring-cyan-400/30'
+                  : 'bg-slate-900/60 border border-white/5 hover:border-white/20 text-slate-400'
               }"
             >
-              <span>${layers.trap ? '✓ ' : ''}3D Trap</span>
+              <span>${this.visualizer.getCymaticsLayers && this.visualizer.getCymaticsLayers().trap ? '✓ Trap' : 'Trap'}</span>
             </button>
           </div>
         </div>
-        `
-            : ''
-        }
 
-        ${
-          showWaveControls
-            ? `
         <!-- Simulation Physics Group -->
         <div class="flex flex-col gap-2.5 bg-slate-950/50 p-2.5 rounded-2xl border border-white/5">
           <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Acoustic Physics</div>
@@ -332,6 +318,23 @@ export class PhysicsDrawer {
       this.render();
     });
 
+    // Cymatics Medium Layer Toggles
+    this.element.querySelectorAll('.btn-physics-layer').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const target = e.currentTarget as HTMLElement;
+        const layer = target.getAttribute('data-layer') as 'plate' | 'droplet' | 'trap';
+        if (layer && typeof this.visualizer.getCymaticsLayers === 'function') {
+          const current = this.visualizer.getCymaticsLayers();
+          const updated = { ...current, [layer]: !current[layer] };
+          if (typeof this.visualizer.setCymaticsLayers === 'function') {
+            this.visualizer.setCymaticsLayers(updated);
+          }
+          this.render();
+          window.dispatchEvent(new CustomEvent('cymatics-layers-changed', { detail: updated }));
+        }
+      });
+    });
+
     // Wave Speed
     const speedSlider = this.element.querySelector('#slider-wave-speed') as HTMLInputElement;
     speedSlider?.addEventListener('input', () => {
@@ -416,41 +419,6 @@ export class PhysicsDrawer {
       }
       this.render();
       window.dispatchEvent(new CustomEvent('optics-value-changed'));
-    });
-
-    // Cymatics Medium Layer Toggles
-    this.element.querySelectorAll('.btn-physics-layer').forEach(btn => {
-      btn.addEventListener('click', e => {
-        const target = e.currentTarget as HTMLElement;
-        const layer = target.getAttribute('data-layer') as 'plate' | 'droplet' | 'trap';
-        if (!layer || !this.visualizer) return;
-
-        const currentLayers = this.visualizer.getCymaticsLayers
-          ? this.visualizer.getCymaticsLayers()
-          : { plate: false, droplet: true, trap: true };
-
-        const newLayers = { ...currentLayers, [layer]: !currentLayers[layer] };
-        // Ensure at least one layer remains active
-        if (!newLayers.plate && !newLayers.droplet && !newLayers.trap) {
-          newLayers[layer] = true;
-        }
-
-        if (typeof this.visualizer.setCymaticsLayers === 'function') {
-          this.visualizer.setCymaticsLayers(newLayers);
-        }
-        if (newLayers.plate && !newLayers.droplet && !newLayers.trap) {
-          this.visualizer.setStyle?.('cymatics-2d');
-        } else {
-          this.visualizer.setStyle?.('cymatics');
-        }
-
-        window.dispatchEvent(
-          new CustomEvent('cymatics-layers-changed', {
-            detail: newLayers,
-          })
-        );
-        this.render();
-      });
     });
 
     // Reset Defaults Button

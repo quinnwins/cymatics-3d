@@ -17,7 +17,7 @@ export class AppleMusicConnector implements StreamingConnector {
   public static readonly CURATED_CATEGORIES: StreamingGenreCategory[] = [
     {
       id: 'trending',
-      label: '🔥 Trending Hits',
+      label: 'Trending Hits',
       tracks: [
         {
           id: 'apple-curated-1',
@@ -62,7 +62,7 @@ export class AppleMusicConnector implements StreamingConnector {
     },
     {
       id: 'ambient',
-      label: '🌌 Cosmic & Ambient',
+      label: 'Cosmic & Ambient',
       tracks: [
         {
           id: 'apple-curated-4',
@@ -94,7 +94,7 @@ export class AppleMusicConnector implements StreamingConnector {
     },
     {
       id: 'classical',
-      label: '🎻 Classical Harmonics',
+      label: 'Classical Harmonics',
       tracks: [
         {
           id: 'apple-curated-6',
@@ -126,7 +126,7 @@ export class AppleMusicConnector implements StreamingConnector {
     },
     {
       id: 'electronic',
-      label: '⚡ Cyberpunk & Bass',
+      label: 'Cyberpunk & Bass',
       tracks: [
         {
           id: 'apple-curated-8',

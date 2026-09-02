@@ -120,17 +120,18 @@ describe('ModalSweeperControls UI & Resonant Frequency', () => {
     const summary = el.querySelector('#modal-header-summary');
     expect(summary?.textContent?.trim()).toBe('CUBE • NODES');
 
-    // Chamber shape buttons, boundary, trapping, and 1-click presets remain fully accessible
+    // Chamber shape buttons, boundary, and trapping remain accessible in Music mode, while bottom presets are hidden
     expect(el.querySelectorAll('.btn-geometry').length).toBe(3);
     expect(el.querySelector('#btn-enclosure-glass')).not.toBeNull();
     expect(el.querySelector('#btn-trap-nodes')).not.toBeNull();
-    expect(el.querySelectorAll('.btn-preset-card').length).toBe(7);
+    expect(el.querySelectorAll('.btn-preset-card').length).toBe(0);
   });
 
-  it('should restore modal sliders, audition tone button, and frequency telemetry when switched back to frequency mode', () => {
+  it('should restore modal sliders, 1-click presets, audition tone button, and frequency telemetry when switched back to frequency mode', () => {
     controls.setMode('music');
     expect(controls.getElement().querySelector('#btn-audition-eigenfrequency')).toBeNull();
     expect(controls.getElement().querySelector('#slider-mode-n')).toBeNull();
+    expect(controls.getElement().querySelectorAll('.btn-preset-card').length).toBe(0);
 
     controls.setMode('frequency');
     const el = controls.getElement();
@@ -138,5 +139,6 @@ describe('ModalSweeperControls UI & Resonant Frequency', () => {
     expect(el.querySelector('#modal-freq-val')).not.toBeNull();
     expect(el.querySelector('#btn-toggle-coupling')).not.toBeNull();
     expect(el.querySelector('#slider-mode-n')).not.toBeNull();
+    expect(el.querySelectorAll('.btn-preset-card').length).toBe(7);
   });
 });

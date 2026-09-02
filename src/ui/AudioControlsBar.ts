@@ -9,7 +9,7 @@
  * 1. Global Master Transport: 1-Click Play/Stop audio engine state with energetic cyan phosphor bloom.
  * 2. Interactive Audio Timeline Scrubber: Real-time seekable progress bar with elapsed/duration time codes and lag-free dragging.
  * 3. Live Audio Telemetry: Real-time active status, pitch (Note/Hz), acoustic wavelength λ, and clean non-wrapping metadata badges.
- * 4. Master Utilities: 1-Click 📸 Snapshot capture and 💾 Dossier Export.
+ * 4. Master Utilities: 1-Click Snapshot capture and Dossier Export.
  * 5. Master Output: Master volume slider with filled active gradient and mute toggle.
  */
 
@@ -268,26 +268,28 @@ export class AudioControlsBar {
       }
 
       statusPillHtml = `
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 shadow-inner max-w-[170px] xs:max-w-[220px] sm:max-w-[280px] md:max-w-[340px] shrink-0" title="${trackTitle}">
+        <div class="flex items-center gap-2 px-2.5 sm:px-3 py-1 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 shadow-inner max-w-[170px] xs:max-w-[200px] sm:max-w-[240px] md:max-w-[270px] lg:max-w-[300px] shrink-1" data-tooltip="${trackTitle} ${trackBadge}">
           <span class="w-2 h-2 rounded-full ${dotColor} shrink-0"></span>
-          <div class="marquee-container min-w-0 font-medium overflow-hidden" data-marquee>
-            <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
-              <span class="text-xs font-bold ${badgeColor} shrink-0">
-                ${trackTitle}
-              </span>
-              <span class="text-[10px] font-mono text-slate-400 whitespace-nowrap shrink-0">
-                ${trackBadge}
-              </span>
+          <div class="flex flex-col min-w-0 justify-center">
+            <div class="marquee-container min-w-0 font-medium overflow-hidden" data-marquee>
+              <div class="marquee-content whitespace-nowrap">
+                <span class="text-xs font-bold ${badgeColor} shrink-0">
+                  ${trackTitle}
+                </span>
+              </div>
             </div>
+            <span class="text-[9px] font-mono text-slate-400 whitespace-nowrap truncate shrink-0">
+              ${trackBadge}
+            </span>
           </div>
         </div>
       `;
 
       // Master Audio Timeline Scrubber
       centerContentHtml = `
-        <div id="dock-timeline-container" class="flex-1 min-w-[120px] max-w-xs sm:max-w-sm md:max-w-md flex items-center gap-2 px-1 sm:px-3">
-          <span id="dock-label-current-time" class="text-[10px] sm:text-xs font-mono text-cyan-300 tabular-nums shrink-0 select-none font-semibold">${this.formatTime(currentTime)}</span>
-          <div class="flex-1 relative flex items-center min-w-0 group">
+        <div id="dock-timeline-container" class="flex-1 min-w-[140px] sm:min-w-[200px] md:min-w-[280px] max-w-2xl flex items-center gap-2 sm:gap-3 px-1 sm:px-3">
+          <span id="dock-label-current-time" class="text-[11px] sm:text-xs font-mono text-cyan-300 tabular-nums shrink-0 select-none font-semibold min-w-[28px] sm:min-w-[32px] text-right">${this.formatTime(currentTime)}</span>
+          <div class="flex-1 relative flex items-center min-w-0 group py-1">
             <input
               type="range"
               id="dock-timeline-scrubber"
@@ -297,12 +299,12 @@ export class AudioControlsBar {
               value="${currentTime}"
               ${duration <= 0 && !loadedFileName ? 'disabled' : ''}
               aria-label="Master audio timeline scrubber"
-              title="${duration > 0 ? `Seek: ${this.formatTime(currentTime)} / ${this.formatTime(duration)}` : 'Audio Timeline'}"
+              data-tooltip="${duration > 0 ? `Seek: ${this.formatTime(currentTime)} / ${this.formatTime(duration)}` : 'Audio Timeline'}"
               class="w-full h-1.5 sm:h-2 rounded-full cursor-pointer appearance-none bg-white/10 slider-cyan transition-all group-hover:h-2.5"
               style="background: linear-gradient(to right, #22d3ee ${progressPct}%, rgba(255, 255, 255, 0.12) ${progressPct}%);"
             />
           </div>
-          <span id="dock-label-duration" class="text-[10px] sm:text-xs font-mono text-slate-400 tabular-nums shrink-0 select-none">${duration > 0 ? this.formatTime(duration) : isPlaying && !loadedFileName ? '∞' : '--:--'}</span>
+          <span id="dock-label-duration" class="text-[11px] sm:text-xs font-mono text-slate-400 tabular-nums shrink-0 select-none min-w-[28px] sm:min-w-[32px]">${duration > 0 ? this.formatTime(duration) : isPlaying && !loadedFileName ? '∞' : '--:--'}</span>
         </div>
       `;
     } else if (this.currentEngineMode === 'frequency') {
@@ -311,14 +313,16 @@ export class AudioControlsBar {
       const lambdaStr = lambdaM >= 1 ? `${lambdaM.toFixed(2)}m` : `${(lambdaM * 100).toFixed(1)}cm`;
 
       statusPillHtml = `
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 font-mono shadow-inner shrink-0" title="Resonance Tone: ${this.currentFreq} Hz (${noteInfo.name})">
+        <div class="flex items-center gap-2 px-2.5 sm:px-3 py-1 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 font-mono shadow-inner max-w-[170px] xs:max-w-[200px] sm:max-w-[240px] md:max-w-[270px] lg:max-w-[300px] shrink-1" data-tooltip="Resonance Tone: ${this.currentFreq} Hz (${noteInfo.name})">
           <span class="w-2 h-2 rounded-full ${isPlaying ? 'bg-cyan-400 animate-pulse' : 'bg-slate-600'} shrink-0"></span>
-          <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
-            <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
-              <span id="dock-freq-val" class="text-xs sm:text-sm font-bold text-cyan-400 tabular-nums shrink-0">${this.currentFreq} Hz</span>
-              <span id="dock-freq-note" class="text-[10px] font-bold text-blue-300 bg-blue-500/20 px-1.5 py-0.5 rounded border border-blue-500/30 shrink-0">${noteInfo.name}</span>
-              <span id="dock-freq-lambda" class="text-[10px] text-slate-400 tabular-nums whitespace-nowrap shrink-0">λ: ${lambdaStr}</span>
+          <div class="flex flex-col min-w-0 justify-center">
+            <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
+              <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
+                <span id="dock-freq-val" class="text-xs sm:text-sm font-bold text-cyan-400 tabular-nums shrink-0">${this.currentFreq} Hz</span>
+                <span id="dock-freq-note" class="text-[10px] font-bold text-blue-300 bg-blue-500/20 px-1.5 py-0.5 rounded border border-blue-500/30 shrink-0">${noteInfo.name}</span>
+              </div>
             </div>
+            <span id="dock-freq-lambda" class="text-[9px] text-slate-400 tabular-nums whitespace-nowrap truncate shrink-0">λ: ${lambdaStr}</span>
           </div>
         </div>
       `;
@@ -332,13 +336,15 @@ export class AudioControlsBar {
       `;
     } else if (this.currentEngineMode === 'therapy') {
       statusPillHtml = `
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 text-xs shadow-inner max-w-[170px] xs:max-w-[220px] sm:max-w-[280px] md:max-w-[340px] shrink-0" title="Ablation Beam: 500 kHz • 1.0 MPa • Anti-Phase">
+        <div class="flex items-center gap-2 px-2.5 sm:px-3 py-1 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 text-xs shadow-inner max-w-[170px] xs:max-w-[200px] sm:max-w-[240px] md:max-w-[270px] lg:max-w-[300px] shrink-1" data-tooltip="Ablation Beam: 500 kHz • 1.0 MPa • Anti-Phase">
           <span class="w-2 h-2 rounded-full ${isPlaying ? 'bg-rose-400 animate-pulse' : 'bg-slate-600'} shrink-0"></span>
-          <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
-            <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
-              <span class="font-bold text-rose-300 shrink-0">Ablation Beam: 500 kHz</span>
-              <span class="text-[10px] font-mono text-slate-400 shrink-0">1.0 MPa • Anti-Phase</span>
+          <div class="flex flex-col min-w-0 justify-center">
+            <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
+              <div class="marquee-content whitespace-nowrap">
+                <span class="font-bold text-rose-300 shrink-0">Ablation Beam: 500 kHz</span>
+              </div>
             </div>
+            <span class="text-[9px] font-mono text-slate-400 whitespace-nowrap truncate shrink-0">1.0 MPa • Anti-Phase</span>
           </div>
         </div>
       `;
@@ -351,13 +357,15 @@ export class AudioControlsBar {
       `;
     } else if (this.currentEngineMode === 'nobel') {
       statusPillHtml = `
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 text-xs shadow-inner max-w-[170px] xs:max-w-[220px] sm:max-w-[280px] md:max-w-[340px] shrink-0" title="Disruption Pulse: 432 Hz • Mechanogenomics">
+        <div class="flex items-center gap-2 px-2.5 sm:px-3 py-1 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 text-xs shadow-inner max-w-[170px] xs:max-w-[200px] sm:max-w-[240px] md:max-w-[270px] lg:max-w-[300px] shrink-1" data-tooltip="Disruption Pulse: 432 Hz • Mechanogenomics">
           <span class="w-2 h-2 rounded-full ${isPlaying ? 'bg-purple-400 animate-pulse' : 'bg-slate-600'} shrink-0"></span>
-          <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
-            <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
-              <span class="font-bold text-purple-300 shrink-0">Disruption Pulse: 432 Hz</span>
-              <span class="text-[10px] font-mono text-slate-400 shrink-0">Mechanogenomics</span>
+          <div class="flex flex-col min-w-0 justify-center">
+            <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
+              <div class="marquee-content whitespace-nowrap">
+                <span class="font-bold text-purple-300 shrink-0">Disruption Pulse: 432 Hz</span>
+              </div>
             </div>
+            <span class="text-[9px] font-mono text-slate-400 whitespace-nowrap truncate shrink-0">Mechanogenomics</span>
           </div>
         </div>
       `;
@@ -370,13 +378,15 @@ export class AudioControlsBar {
       `;
     } else if (this.currentEngineMode === 'bio') {
       statusPillHtml = `
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 text-xs shadow-inner max-w-[170px] xs:max-w-[220px] sm:max-w-[280px] md:max-w-[340px] shrink-0" title="Acoustic Drive: 220 Hz • 42.8 µm/s">
+        <div class="flex items-center gap-2 px-2.5 sm:px-3 py-1 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 text-xs shadow-inner max-w-[170px] xs:max-w-[200px] sm:max-w-[240px] md:max-w-[270px] lg:max-w-[300px] shrink-1" data-tooltip="Acoustic Drive: 220 Hz • 42.8 µm/s">
           <span class="w-2 h-2 rounded-full ${isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'} shrink-0"></span>
-          <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
-            <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
-              <span class="font-bold text-emerald-300 shrink-0">Acoustic Drive: 220 Hz</span>
-              <span class="text-[10px] font-mono text-slate-400 shrink-0">42.8 µm/s</span>
+          <div class="flex flex-col min-w-0 justify-center">
+            <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
+              <div class="marquee-content whitespace-nowrap">
+                <span class="font-bold text-emerald-300 shrink-0">Acoustic Drive: 220 Hz</span>
+              </div>
             </div>
+            <span class="text-[9px] font-mono text-slate-400 whitespace-nowrap truncate shrink-0">42.8 µm/s</span>
           </div>
         </div>
       `;
@@ -389,13 +399,15 @@ export class AudioControlsBar {
       `;
     } else if (this.currentEngineMode === 'voice') {
       statusPillHtml = `
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 text-xs font-mono shadow-inner max-w-[170px] xs:max-w-[220px] sm:max-w-[280px] md:max-w-[340px] shrink-0" title="Vocal Pitch f₀: 220 Hz • Stability 98.4%">
+        <div class="flex items-center gap-2 px-2.5 sm:px-3 py-1 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 text-xs font-mono shadow-inner max-w-[170px] xs:max-w-[200px] sm:max-w-[240px] md:max-w-[270px] lg:max-w-[300px] shrink-1" data-tooltip="Vocal Pitch f₀: 220 Hz • Stability 98.4%">
           <span class="w-2 h-2 rounded-full ${isPlaying ? 'bg-teal-400 animate-pulse' : 'bg-slate-600'} shrink-0"></span>
-          <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
-            <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
-              <span class="font-bold text-teal-300 whitespace-nowrap shrink-0">Vocal Pitch f₀: 220 Hz</span>
-              <span class="text-[10px] text-slate-400 whitespace-nowrap shrink-0">Stability 98.4%</span>
+          <div class="flex flex-col min-w-0 justify-center">
+            <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
+              <div class="marquee-content whitespace-nowrap">
+                <span class="font-bold text-teal-300 whitespace-nowrap shrink-0">Vocal Pitch f₀: 220 Hz</span>
+              </div>
             </div>
+            <span class="text-[9px] text-slate-400 whitespace-nowrap truncate shrink-0">Stability 98.4%</span>
           </div>
         </div>
       `;
@@ -409,14 +421,14 @@ export class AudioControlsBar {
     }
 
     this.element.innerHTML = `
-      <div class="glass-panel px-3 sm:px-4 py-2 rounded-2xl flex items-center justify-between gap-2 sm:gap-3.5 shadow-2xl border border-white/10 max-w-4xl w-full mx-auto backdrop-blur-2xl transition-all duration-300">
+      <div class="glass-panel px-3 sm:px-4 py-2 rounded-2xl flex items-center justify-between gap-2 sm:gap-3.5 shadow-2xl border border-white/10 max-w-5xl w-full mx-auto backdrop-blur-2xl transition-all duration-300">
         
         <!-- Left: Master Play/Pause Hero Button & Live Status Telemetry Pill -->
-        <div class="flex items-center gap-2 sm:gap-2.5 min-w-0 shrink-0">
+        <div class="flex items-center gap-2 sm:gap-2.5 min-w-0 shrink-1">
           <button
             id="btn-play-pause"
             aria-label="${isPlaying ? 'Pause Master Audio' : 'Play Master Audio'}"
-            title="${isPlaying ? 'Pause Master Audio' : 'Play Master Audio'}"
+            data-tooltip="${isPlaying ? 'Pause Master Audio' : 'Play Master Audio'}"
             class="w-9 h-9 rounded-xl ${
               isPlaying
                 ? 'bg-cyan-400 text-slate-950 font-bold hover:bg-cyan-300 shadow-lg shadow-cyan-400/40 ring-2 ring-cyan-300/60'
@@ -441,33 +453,33 @@ export class AudioControlsBar {
           <!-- Screenshot Snapshot Button -->
           <button
             id="btn-screenshot"
-            class="btn-screenshot p-1.5 sm:p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium"
+            class="btn-screenshot p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 hover:border-white/15 cursor-pointer transition-all active:scale-95 flex items-center gap-1.5 text-xs font-medium shrink-0"
             aria-label="Capture Screenshot (PNG)"
-            title="Capture Screenshot (PNG)"
+            data-tooltip="Capture Screenshot (PNG)"
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
               <circle cx="12" cy="13" r="4"/>
             </svg>
-            <span class="hidden lg:inline text-[11px]">Snapshot</span>
+            <span class="hidden 2xl:inline text-[11px]">Snapshot</span>
           </button>
 
           <!-- Export Dossier Button -->
           <button
             id="btn-export-dossier"
-            class="p-1.5 sm:p-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium"
+            class="p-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 hover:border-cyan-400/50 cursor-pointer transition-all active:scale-95 flex items-center gap-1.5 text-xs font-medium shrink-0"
             aria-label="Export Simulation Report & Data"
-            title="Export Simulation Report & Data"
+            data-tooltip="Export Simulation Report & Data"
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
               <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
-            <span class="hidden lg:inline text-[11px]">Export</span>
+            <span class="hidden 2xl:inline text-[11px]">Export</span>
           </button>
 
-          <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block"></div>
+          <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block shrink-0"></div>
 
           <!-- Master Volume Section -->
           ${this.renderVolumeSection(isPlaying, isMuted, volume)}
@@ -484,12 +496,12 @@ export class AudioControlsBar {
     const volPct = isMuted ? 0 : Math.round(volume * 100);
 
     return `
-      <div class="flex items-center gap-1 sm:gap-1.5 pl-0.5 sm:pl-1">
+      <div class="flex items-center gap-1 sm:gap-1.5 pl-0.5 sm:pl-1 shrink-0">
         <button
           id="btn-volume-mute"
-          class="text-gray-400 hover:text-cyan-400 transition-colors p-1 cursor-pointer"
+          class="text-gray-400 hover:text-cyan-400 transition-colors p-1 cursor-pointer rounded-lg hover:bg-white/5 shrink-0"
           aria-label="${isMuted ? 'Unmute master audio' : 'Mute master audio'}"
-          title="${isMuted ? 'Unmute master audio' : 'Mute master audio'}"
+          data-tooltip="${isMuted ? 'Unmute' : 'Mute'}"
         >
           ${
             isMuted || volume === 0
@@ -499,18 +511,20 @@ export class AudioControlsBar {
               : `<svg class="w-4 h-4 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`
           }
         </button>
-        <input
-          type="range"
-          id="volume-slider"
-          min="0"
-          max="1"
-          step="0.01"
-          value="${isMuted ? 0 : volume}"
-          aria-label="Master volume level slider"
-          style="background: linear-gradient(to right, #38bdf8 ${volPct}%, rgba(255, 255, 255, 0.1) ${volPct}%);"
-          class="w-12 sm:w-16 md:w-20 min-w-0 cursor-pointer slider-cyan"
-          title="Master Volume: ${isMuted ? 'Muted' : `${volPct}%`}"
-        />
+        <div class="relative flex items-center w-14 sm:w-18 md:w-22 px-1">
+          <input
+            type="range"
+            id="volume-slider"
+            min="0"
+            max="1"
+            step="0.01"
+            value="${isMuted ? 0 : volume}"
+            aria-label="Master volume level slider"
+            data-tooltip="Volume: ${isMuted ? 'Muted' : `${volPct}%`}"
+            style="background: linear-gradient(to right, #38bdf8 ${volPct}%, rgba(255, 255, 255, 0.1) ${volPct}%);"
+            class="w-full min-w-0 cursor-pointer slider-cyan"
+          />
+        </div>
       </div>
     `;
   }
@@ -543,6 +557,8 @@ export class AudioControlsBar {
         if (curLabel) {
           curLabel.textContent = this.formatTime(val);
         }
+        const dur = parseFloat(scrubber.max) || 0;
+        scrubber.setAttribute('data-tooltip', dur > 0 ? `Seek: ${this.formatTime(val)} / ${this.formatTime(dur)}` : 'Audio Timeline');
         const pct = max > 0 ? Math.min(100, Math.max(0, (val / max) * 100)) : 0;
         scrubber.style.background = `linear-gradient(to right, #22d3ee ${pct}%, rgba(255, 255, 255, 0.12) ${pct}%)`;
         this.audioEngine.seek(val);
@@ -579,6 +595,7 @@ export class AudioControlsBar {
         this.audioEngine.toggleMute();
       }
       const volPct = Math.round(val * 100);
+      volSlider.setAttribute('data-tooltip', `Volume: ${volPct}%`);
       volSlider.style.background = `linear-gradient(to right, #38bdf8 ${volPct}%, rgba(255, 255, 255, 0.1) ${volPct}%)`;
     });
 
