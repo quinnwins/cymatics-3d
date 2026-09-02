@@ -641,9 +641,10 @@ export class AnamnesisModel {
       }
     }
     const chromaAlignment = compareChromaCircular(currentChroma, previousChroma);
-    const shift = chromaAlignment.transposition < 0
-      ? chromaAlignment.transposition + 12
-      : chromaAlignment.transposition;
+    // The public interval reads from the earlier phrase to its return. Texture
+    // alignment needs the inverse rotation because each current pitch class
+    // looks up the source bin in the previous phrase.
+    const shift = ((12 - chromaAlignment.transposition) % 12 + 12) % 12;
 
     let harmonic = 0;
     let timbral = 0;
