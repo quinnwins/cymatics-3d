@@ -195,10 +195,10 @@ async function main() {
       }
     });
 
-    await page.click('[data-close]');
-    await page.click('#sonic-memory-control .sm-pill');
     await page.click('[data-action="immersive"]');
     await page.waitForFunction(() => document.body.classList.contains('soundform-immersive'));
+    await page.click('[data-close]');
+    await page.waitForFunction(() => document.querySelector('#sm-panel')?.hasAttribute('hidden'));
     await new Promise(resolve => setTimeout(resolve, 450));
     await page.screenshot({ path: SCREENSHOT_PATH, fullPage: false });
 
