@@ -56,82 +56,133 @@ void main() {
   vec3 direction = basePosition / baseLength;
   float age = clamp(aRadius, 0.0, 1.0);
 
+  // Radius is a timeline: the newest audio lives at the emitter and older
+  // frames remain at larger radii.
   float ageFrames = age * uMemoryFrames;
   float historyV = fract(uHistoryHead - ageFrames / max(uHistoryRows, 2.0) + 1.0);
 
   float azimuth = atan(direction.z, direction.x) / TAU + 0.5;
   float polar = acos(clamp(direction.y, -1.0, 1.0)) / PI;
-  float angularScan = fract(
-    azimuth * 0.57
-    + polar * 0.31
-    + aSeed * 0.17
-    + age * uWarp * 0.13
-  );
 
-  // Bias sampling toward the lower spectrum while retaining high-frequency filaments.
-  float lowWeightedBin = mix(angularScan, angularScan * angularScan * angularScan, 0.68);
-  lowWeightedBin = clamp(lowWeightedBin, 0.002, 0.996);
-  float neighborBin = clamp(fract(lowWeightedBin + 0.011 + aSeed * 0.007), 0.002, 0.996);
+  // Keep adjacent points coherent. A tiny deterministic dither avoids visible
+  // sampling seams without turning the form into randomized spectral dust.
+  float spectralCoordinate = fract(
+    azimuth * 0.62
+    + polar * 0.38
+    + sin(azimuth * TAU * 2.0) * 0.025
+    + age * uWarp * 0.018
+    + (aSeed - 0.5) * 0.008
+  );
+  float lowWeightedBin = pow(clamp(spectralCoordinate, 0.001, 0.999), 2.15);
+  float neighborBin = clamp(lowWeightedBin + mix(-0.018, 0.024, polar), 0.002, 0.996);
+  float overtoneBin = clamp(pow(fract(spectralCoordinate * 1.618 + age * 0.031), 1.72), 0.002, 0.996);
 
   vec4 historySample = texture2D(uHistory, vec2(lowWeightedBin, historyV));
   vec4 neighborSample = texture2D(uHistory, vec2(neighborBin, historyV));
+  vec4 overtoneSample = texture2D(uHistory, vec2(overtoneBin, historyV));
 
-  float energy = max(historySample.r, neighborSample.r * 0.82);
+  float rawEnergy = max(
+    historySample.r,
+    max(neighborSample.r * 0.84, overtoneSample.r * 0.62)
+  );
+  float energy = pow(clamp(rawEnergy, 0.0, 1.0), 0.58);
+  float captured = step(0.002, rawEnergy);
   float spectralMotion = (historySample.g - 0.5) * 2.0;
-  float impulse = historySample.b;
-  float pitch = historySample.a;
+  float impulse = pow(clamp(max(historySample.b, neighborSample.b), 0.0, 1.0), 0.62);
+  float pitch = max(historySample.a, neighborSample.a * 0.92);
 
-  float harmonicOrder = 2.0 + floor(pitch * 8.0 + lowWeightedBin * 5.0);
-  float angularForm = 0.5 + 0.5 * sin(
+  float currentPitch = clamp(log2(max(uFundamentalHz, 20.0) / 20.0) / 7.65, 0.0, 1.0);
+  float pitchIdentity = max(pitch, currentPitch * 0.35);
+  float harmonicOrder = 2.0 + floor(pitchIdentity * 7.0 + lowWeightedBin * 6.0);
+  float polarOrder = 2.0 + floor(lowWeightedBin * 8.0 + pitchIdentity * 3.0);
+
+  float petals = 0.5 + 0.5 * sin(
     azimuth * TAU * harmonicOrder
-    + polar * PI * (2.0 + pitch * 7.0)
-    + age * TAU * (1.0 + uWarp)
+    + polar * PI * (1.5 + pitchIdentity * 5.0)
+    + age * TAU * (0.42 + uWarp * 0.28)
   );
-  float radialForm = 0.5 + 0.5 * sin(
-    age * TAU * (4.0 + lowWeightedBin * 18.0)
-    - uTime * (0.42 + pitch * 0.58)
-    + spectralMotion * 4.0
-    + aSeed * TAU
+  float meridians = 0.5 + 0.5 * cos(
+    polar * PI * polarOrder
+    - azimuth * TAU * (1.0 + floor(pitchIdentity * 4.0))
+    + spectralMotion * 2.4
   );
+  float temporalContour = pow(
+    0.5 + 0.5 * cos(
+      age * TAU * (5.0 + lowWeightedBin * 13.0)
+      - uTime * (0.16 + pitchIdentity * 0.18)
+      + spectralMotion * 2.1
+    ),
+    4.5
+  );
+  float architecture = clamp(
+    petals * 0.54
+    + meridians * 0.28
+    + petals * meridians * 0.34,
+    0.0,
+    1.0
+  );
+  architecture = pow(architecture, 1.18);
 
-  float activation = smoothstep(0.018, 0.82, energy * uGain);
-  float memoryTexture = mix(0.22, 1.0, angularForm * radialForm);
-  float transientShell = impulse * (0.55 + 0.45 * angularForm);
+  float activation = smoothstep(0.025, 0.58, energy * uGain);
+  float transientShell = impulse * (0.45 + temporalContour * 0.55);
+  float harmonicRelief = (architecture - 0.42) * energy * (0.30 + (1.0 - lowWeightedBin) * 0.24);
+  float contourRelief = (temporalContour - 0.32) * energy * 0.12;
+  float transientRelief = transientShell * 0.42;
+  float radialOffset = (harmonicRelief + contourRelief + transientRelief) * uGain;
 
-  float displacement = (
-    energy * (0.24 + 0.30 * angularForm)
-    + transientShell * 0.22
-    + spectralMotion * 0.05
-  ) * uGain;
+  vec3 displaced = direction * (baseLength + radialOffset);
 
-  vec3 displaced = direction * (baseLength + displacement);
-
-  // Older sound turns into a gentle spatial helix instead of a flat stack of shells.
-  float twist = age * uWarp * 2.4 + spectralMotion * 0.72 + uTime * 0.022 * (1.0 - age);
+  // The past slowly twists into a helix. The present remains anchored so beats
+  // can be read as causally expanding from one point.
+  float twist = age * uWarp * (1.35 + pitchIdentity * 1.8)
+    + spectralMotion * 0.42
+    + uTime * 0.018 * (1.0 - age);
   displaced.xz = rotate2d(twist) * displaced.xz;
-  displaced += direction * (radialForm - 0.5) * 0.075 * activation;
 
-  // Let bass breathe the whole memory volume while upper bands create fine anisotropy.
-  float bassBreath = 1.0 + uBandEnergies.x * 0.035 + uBandEnergies.y * 0.022;
+  float lateralWave = (petals - 0.5) * energy * 0.12 * uGain;
+  vec3 tangent = normalize(vec3(-direction.z, 0.18 + direction.y * 0.12, direction.x));
+  displaced += tangent * lateralWave;
+  displaced.y += (meridians - 0.5) * energy * 0.14 * uGain;
+
+  // Bass breathes the complete memory volume. High frequencies add delicate
+  // anisotropy without replacing the historical field.
+  float bassBreath = 1.0 + uBandEnergies.x * 0.055 + uBandEnergies.y * 0.032;
   displaced *= bassBreath;
-  displaced.y += sin(azimuth * TAU * 3.0 + uTime * 0.16) * uHighEnergies.x * 0.035 * age;
+  displaced.y += sin(azimuth * TAU * 3.0 + uTime * 0.14)
+    * uHighEnergies.x * 0.045 * age;
 
   vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
   gl_Position = projectionMatrix * mvPosition;
 
-  float perspective = clamp(24.0 / max(2.0, -mvPosition.z), 0.55, 3.2);
-  float pointSize = (0.55 + activation * 1.9 + impulse * 1.6) * perspective * uPointScale;
-  gl_PointSize = clamp(pointSize, 0.7, 7.2);
+  float perspective = clamp(12.5 / max(2.0, -mvPosition.z), 0.62, 2.35);
+  float pointSize = (
+    0.78
+    + activation * 1.65
+    + transientShell * 1.75
+    + temporalContour * activation * 0.38
+  ) * perspective * uPointScale;
+  gl_PointSize = clamp(pointSize, 0.9, 5.8);
 
-  vec3 spectrumColor = cosinePalette(lowWeightedBin * 0.78 + pitch * 0.28 + spectralMotion * 0.08);
-  vec3 ageColor = cosinePalette(0.05 + age * 0.84 + uTime * 0.006);
-  vec3 color = mix(spectrumColor, ageColor, uColorByAge * 0.74);
-  color = mix(color, uAccent, impulse * 0.38);
-  color = mix(color, vec3(1.0), impulse * 0.28 + activation * 0.08);
+  vec3 spectrumColor = cosinePalette(
+    lowWeightedBin * 0.72
+    + pitchIdentity * 0.24
+    + spectralMotion * 0.045
+  );
+  vec3 ageColor = cosinePalette(0.03 + age * 0.88 + pitchIdentity * 0.08);
+  vec3 color = mix(spectrumColor, ageColor, uColorByAge * 0.72);
+  float presentGlow = 1.0 - smoothstep(0.02, 0.28, age);
+  color = mix(color, uCoreGlow, presentGlow * 0.34);
+  color = mix(color, uAccent, transientShell * 0.46 + temporalContour * 0.08);
+  color = mix(color, vec3(1.0), transientShell * 0.36 + activation * 0.07);
+  color *= 1.02 + activation * 0.34;
 
-  float innerFade = smoothstep(0.015, 0.11, age);
-  float outerFade = 1.0 - smoothstep(0.90, 1.0, age);
-  float historyPresence = 0.18 + 0.82 * memoryTexture;
+  float innerFade = smoothstep(0.0, 0.035, age);
+  float outerFade = 1.0 - smoothstep(0.965, 1.0, age);
+  float structurePresence = mix(
+    0.34,
+    1.0,
+    max(architecture * 0.78, temporalContour * 0.72)
+  );
   float broadEnergy = clamp(
     uBandEnergies.x * 0.36
     + uBandEnergies.y * 0.25
@@ -142,15 +193,23 @@ void main() {
     0.0,
     1.0
   );
+  float globalPresence = pow(
+    clamp(max(uSignal * 1.45, broadEnergy * 0.95), 0.0, 1.0),
+    0.62
+  );
+  float microDither = 0.86 + 0.14 * sin(aSeed * TAU * 17.0 + age * TAU * 31.0);
 
   vColor = color;
-  vHotCore = impulse * 0.7 + activation * 0.25;
+  vHotCore = transientShell * 0.82 + activation * 0.28 + presentGlow * 0.12;
   vAlpha = uEnabled
-    * max(uSignal, broadEnergy * 0.65)
+    * captured
     * activation
-    * historyPresence
+    * (0.10 + globalPresence * 0.43)
+    * structurePresence
+    * (0.82 + transientShell * 0.35)
     * innerFade
-    * (0.28 + 0.72 * outerFade);
+    * outerFade
+    * microDither;
 }
 `;
 
@@ -166,12 +225,13 @@ void main() {
   float radiusSquared = dot(point, point);
   if (radiusSquared > 1.0) discard;
 
-  float gaussian = exp(-radiusSquared * 4.8);
-  float edge = 1.0 - smoothstep(0.68, 1.0, sqrt(radiusSquared));
-  float alpha = clamp(vAlpha * gaussian * edge, 0.0, 0.82);
-  if (alpha < 0.004) discard;
+  float radius = sqrt(radiusSquared);
+  float core = exp(-radiusSquared * 3.7);
+  float halo = 1.0 - smoothstep(0.38, 1.0, radius);
+  float alpha = clamp(vAlpha * (core * 0.72 + halo * 0.28), 0.0, 0.72);
+  if (alpha < 0.003) discard;
 
-  vec3 color = vColor * (0.88 + gaussian * 0.62 + vHotCore * 0.35);
+  vec3 color = vColor * (0.96 + core * 0.86 + vHotCore * 0.42);
   gl_FragColor = vec4(color, alpha);
 }
 `;
@@ -303,7 +363,7 @@ export class TemporalSculpture {
     this.presentShell.scale.setScalar(pulse);
     this.presentShell.rotation.y = this.sculptureTime * 0.09;
     this.presentShell.rotation.z = -this.sculptureTime * 0.055;
-    this.presentShellMaterial.opacity = 0.045 + renderSignal * 0.12;
+    this.presentShellMaterial.opacity = 0.065 + renderSignal * 0.16;
 
     if (camera) {
       const distance = camera.position.length();
