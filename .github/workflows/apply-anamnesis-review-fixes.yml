@@ -22,6 +22,7 @@ jobs:
 
       - name: Apply deterministic review hardening
         run: |
+          python3 scripts/repair-anamnesis-review-patcher.py
           python3 scripts/fix-anamnesis-review.py
           git diff --check
 
@@ -30,6 +31,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           rm scripts/fix-anamnesis-review.py
+          rm scripts/repair-anamnesis-review-patcher.py
           rm .github/workflows/apply-anamnesis-review-fixes.yml
           git add -A
           git commit -m "fix: harden Anamnesis playback, intervals, and relics"
