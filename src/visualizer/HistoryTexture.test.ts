@@ -51,6 +51,20 @@ describe('HistoryTexture', () => {
     history.dispose();
   });
 
+  it('expands ordinary musical levels into a visible temporal field', () => {
+    const history = new HistoryTexture();
+    const ordinaryMusic = new Float32Array(2048).fill(-45);
+
+    history.pushSpectralFrame(ordinaryMusic, 0, 220);
+
+    const bytes = (history as unknown as { data: Uint8Array }).data;
+    expect(bytes[0]).toBeGreaterThan(85);
+    expect(bytes[0]).toBeLessThan(130);
+    expect(temporalMemory.getUniformState().signal).toBeGreaterThan(0.1);
+
+    history.dispose();
+  });
+
   it('does not let AudioEngine’s pre-playback zero buffer consume temporal history', () => {
     const history = new HistoryTexture();
     const uninitializedSpectrum = new Float32Array(2048);
