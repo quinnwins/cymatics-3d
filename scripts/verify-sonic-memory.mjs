@@ -124,20 +124,31 @@ async function main() {
       return { time: uniforms?.uTime?.value ?? 0, head: uniforms?.uHistoryHead?.value ?? 0 };
     });
 
-    // Time Lens: move the center two seconds into the stored past while phase remains frozen.
+    // Time Lens: move the center two seconds into stored history. Software
+    // WebGL can render this dense scene slowly, so wait for an actual renderer
+    // update instead of assuming a 150 ms sleep contains a new animation frame.
     await page.$eval('[data-control="lookback"]', element => {
       element.value = '2';
       element.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await new Promise(resolve => setTimeout(resolve, 150));
+    await page.waitForFunction(
+      () => document.querySelector('[data-value="lookback"]')?.value === '−2.0 s',
+      { timeout: 5_000 }
+    );
+    await page.waitForFunction(
+      headBefore => {
+        const uniforms = window.__soundformApp?.visualizer?.cymaticsMesh?.temporalSculpture?.material?.uniforms;
+        const currentHead = uniforms?.uHistoryHead?.value ?? 0;
+        return Math.abs(currentHead - headBefore) >= 0.01;
+      },
+      { timeout: 8_000 },
+      frozenLive.head
+    );
     const frozenPast = await page.evaluate(() => {
       const uniforms = window.__soundformApp?.visualizer?.cymaticsMesh?.temporalSculpture?.material?.uniforms;
       return { time: uniforms?.uTime?.value ?? 0, head: uniforms?.uHistoryHead?.value ?? 0 };
     });
 
-    if (Math.abs(frozenPast.head - frozenLive.head) < 0.01) {
-      throw new Error(`The Sonic Memory Time Lens did not move through history: ${JSON.stringify({ frozenLive, frozenPast })}`);
-    }
     if (Math.abs(frozenPast.time - frozenLive.time) > 0.0001) {
       throw new Error(`The Time Lens advanced frozen shader phase: ${JSON.stringify({ frozenLive, frozenPast })}`);
     }
