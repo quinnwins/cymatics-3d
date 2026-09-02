@@ -74,6 +74,7 @@ export class VisualizerEngine {
   private recoilVelocity = new THREE.Vector3();
   private lastShockwaveBirth = 0;
   private lastAnimTime = 0;
+  private simTime = 0;
 
   // Physics & Visual Tuning
   public waveSpeed = 6.0;
@@ -578,7 +579,15 @@ export class VisualizerEngine {
     requestAnimationFrame(this.animate);
 
     const time = this.clock.getElapsedTime();
-    this.audioEngine.update(time);
+    const rawDt = this.lastAnimTime > 0 ? Math.min(0.1, time - this.lastAnimTime) : 0.016;
+    const dt = rawDt;
+    this.lastAnimTime = time;
+
+    const playbackSpeed = this.audioEngine ? this.audioEngine.getPlaybackSpeed() : 1.0;
+    const simDt = rawDt * playbackSpeed;
+    this.simTime += simDt;
+
+    this.audioEngine.update(this.simTime);
 
     // Telemetry FPS calculation
     this.frameCount++;
@@ -610,27 +619,25 @@ export class VisualizerEngine {
     if (this.groundGridVisible) {
       this.scientificGroundDatum.update(this.camera);
     }
-    const dt = this.lastAnimTime > 0 ? Math.min(0.1, time - this.lastAnimTime) : 0.016;
-    this.lastAnimTime = time;
 
-    this.cymaticsMesh.update(time, this.tempVBands03, this.tempVBands45, fundamentalHz, dt, this.camera);
-    this.cymaticsPlateMesh.update(time, this.tempVBands03, this.tempVBands45, fundamentalHz, dt, this.camera);
-    this.volumetricChladni.update(time, this.tempVBands03, this.tempVBands45, fundamentalHz, this.camera);
+    this.cymaticsMesh.update(this.simTime, this.tempVBands03, this.tempVBands45, fundamentalHz, simDt, this.camera);
+    this.cymaticsPlateMesh.update(this.simTime, this.tempVBands03, this.tempVBands45, fundamentalHz, simDt, this.camera);
+    this.volumetricChladni.update(this.simTime, this.tempVBands03, this.tempVBands45, fundamentalHz, this.camera);
     if (this.gpuAcousticParticles.isVisible()) {
       const activeModes = this.cymaticsMesh.getModes();
       this.gpuAcousticParticles.setModalNumbers(activeModes.x, activeModes.y, activeModes.z);
-      this.gpuAcousticParticles.update(time, dt, this.tempVBands03, this.tempVBands45, this.tempShockwaves, fundamentalHz);
+      this.gpuAcousticParticles.update(this.simTime, simDt, this.tempVBands03, this.tempVBands45, this.tempShockwaves, fundamentalHz);
     }
     if (this.chamberEnclosure.isVisible()) {
-      this.chamberEnclosure.update(time, dt, this.tempVBands03, this.tempVBands45, this.camera);
+      this.chamberEnclosure.update(this.simTime, simDt, this.tempVBands03, this.tempVBands45, this.camera);
     }
-    this.bioAcousticResonator.update(time, dt, this.camera, this.tempVBands03);
-    this.acousticTherapyLab.update(time, dt, this.camera, this.tempVBands03);
-    this.nobelDiscoveryLab.update(time, dt, this.camera, this.tempVBands03);
+    this.bioAcousticResonator.update(this.simTime, simDt, this.camera, this.tempVBands03);
+    this.acousticTherapyLab.update(this.simTime, simDt, this.camera, this.tempVBands03);
+    this.nobelDiscoveryLab.update(this.simTime, simDt, this.camera, this.tempVBands03);
 
     if (this.audioEngine.voiceBiometrics) {
       const voiceReport = this.audioEngine.voiceBiometrics.update();
-      this.vocalBiometricsLab.update(dt, time, this.camera, voiceReport);
+      this.vocalBiometricsLab.update(simDt, this.simTime, this.camera, voiceReport);
     }
 
     // 6-DOF Harmonic Recoil Spring Dynamics (Triggered on Audio Shockwaves)
