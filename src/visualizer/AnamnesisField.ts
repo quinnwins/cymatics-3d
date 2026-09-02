@@ -17,6 +17,7 @@ precision highp float;
 uniform float uTime;
 uniform float uOpacity;
 uniform float uPointScale;
+uniform float uLayer;
 uniform float uCurrentIndex;
 uniform float uHoverIndex;
 uniform float uReturnFamily;
@@ -61,30 +62,39 @@ void main() {
   gl_Position = projectionMatrix * mvPosition;
 
   float perspective = clamp(22.0 / max(2.0, -mvPosition.z), 0.55, 3.0);
-  float pointSize = 1.1
-    + aEnergy * 2.4
-    + aNovelty * 4.0
-    + aEcho * 2.8
-    + familyPulse * 2.4
-    + current * 5.5
-    + hovered * 6.5;
-  gl_PointSize = clamp(pointSize * perspective * uPointScale, 1.1, 14.0);
+  float pointSize = 1.65
+    + aEnergy * 3.1
+    + aNovelty * 4.8
+    + aEcho * 3.5
+    + familyPulse * 3.0
+    + current * 6.4
+    + hovered * 7.2;
+  float layerScale = mix(1.0, 2.15, uLayer);
+  gl_PointSize = clamp(
+    pointSize * perspective * uPointScale * layerScale,
+    mix(1.6, 4.2, uLayer),
+    mix(18.0, 34.0, uLayer)
+  );
 
   vec3 chronology = palette(fract(aProgress * 0.83 + aPitch / 18.0));
   vec3 familyColor = palette(fract(aFamily * 0.137 + 0.18));
   vec3 color = mix(chronology, familyColor, step(0.0, aFamily) * (0.35 + aEcho * 0.35));
   color = mix(color, uAccent, aNovelty * 0.34 + familyPulse * 0.28);
-  color = mix(color, uCoreGlow, current * 0.56);
-  color = mix(color, vec3(1.0), current * 0.58 + hovered * 0.72 + familyPulse * 0.2);
+  color = mix(color, uCoreGlow, current * 0.56 + uLayer * 0.22);
+  color = mix(color, vec3(1.0), current * 0.58 + hovered * 0.72 + familyPulse * 0.2 + uLayer * 0.08);
 
   vColor = color;
   vCore = max(max(current, hovered), familyPulse * 0.75);
-  vAlpha = uOpacity * (0.28 + aEnergy * 0.42 + aNovelty * 0.28 + aEcho * 0.3 + vCore * 0.45);
+  float corePresence = 0.42 + aEnergy * 0.46 + aNovelty * 0.34 + aEcho * 0.36 + vCore * 0.48;
+  float auraPresence = 0.24 + aEnergy * 0.24 + aNovelty * 0.18 + aEcho * 0.26 + vCore * 0.26;
+  vAlpha = uOpacity * mix(corePresence, auraPresence, uLayer);
 }
 `;
 
 const POINT_FRAGMENT_SHADER = `
 precision highp float;
+
+uniform float uLayer;
 
 varying vec3 vColor;
 varying float vAlpha;
@@ -95,11 +105,15 @@ void main() {
   float radius = length(p);
   if (radius > 1.0) discard;
 
-  float core = exp(-radius * radius * 7.5);
-  float halo = exp(-radius * radius * 2.0) * 0.42;
-  float alpha = clamp(vAlpha * (core + halo * (0.5 + vCore)), 0.0, 0.92);
-  if (alpha < 0.003) discard;
-  gl_FragColor = vec4(vColor * (0.92 + core * 1.25 + vCore * 0.55), alpha);
+  float core = exp(-radius * radius * 7.2);
+  float halo = exp(-radius * radius * 1.75);
+  float coreProfile = core + halo * (0.42 + vCore * 0.32);
+  float auraProfile = halo * (0.72 + core * 0.28);
+  float profile = mix(coreProfile, auraProfile, uLayer);
+  float alpha = clamp(vAlpha * profile, 0.0, mix(0.96, 0.46, uLayer));
+  if (alpha < 0.002) discard;
+  float radiance = mix(1.05 + core * 1.42 + vCore * 0.62, 0.82 + halo * 0.72 + vCore * 0.24, uLayer);
+  gl_FragColor = vec4(vColor * radiance, alpha);
 }
 `;
 
@@ -179,6 +193,7 @@ function setAttributeUpdate(attribute: THREE.BufferAttribute): void {
  */
 export class AnamnesisField {
   public readonly group = new THREE.Group();
+  public readonly aura: THREE.Points;
   public readonly points: THREE.Points;
   public readonly chronology: THREE.Line;
   public readonly threads: THREE.LineSegments;
@@ -187,6 +202,7 @@ export class AnamnesisField {
   private readonly pointGeometry = new THREE.BufferGeometry();
   private readonly pathGeometry = new THREE.BufferGeometry();
   private readonly threadGeometry = new THREE.BufferGeometry();
+  private readonly auraMaterial: THREE.ShaderMaterial;
   private readonly pointMaterial: THREE.ShaderMaterial;
   private readonly pathMaterial: THREE.LineBasicMaterial;
   private readonly threadMaterial: THREE.ShaderMaterial;
@@ -240,6 +256,7 @@ export class AnamnesisField {
         uTime: { value: 0 },
         uOpacity: { value: 0 },
         uPointScale: { value: 1 },
+        uLayer: { value: 0 },
         uCurrentIndex: { value: -1 },
         uHoverIndex: { value: -1 },
         uReturnFamily: { value: -1 },
@@ -256,6 +273,14 @@ export class AnamnesisField {
       depthTest: true,
       blending: THREE.AdditiveBlending,
     });
+    this.auraMaterial = this.pointMaterial.clone();
+    this.auraMaterial.uniforms.uLayer.value = 1;
+    this.auraMaterial.depthTest = false;
+    this.aura = new THREE.Points(this.pointGeometry, this.auraMaterial);
+    this.aura.frustumCulled = false;
+    this.aura.renderOrder = 3;
+    this.group.add(this.aura);
+
     this.points = new THREE.Points(this.pointGeometry, this.pointMaterial);
     this.points.frustumCulled = false;
     this.points.renderOrder = 6;
@@ -268,6 +293,7 @@ export class AnamnesisField {
       transparent: true,
       opacity: 0,
       depthWrite: false,
+      depthTest: false,
       blending: THREE.AdditiveBlending,
     });
     this.chronology = new THREE.Line(this.pathGeometry, this.pathMaterial);
@@ -297,7 +323,7 @@ export class AnamnesisField {
       },
       transparent: true,
       depthWrite: false,
-      depthTest: true,
+      depthTest: false,
       blending: THREE.AdditiveBlending,
     });
     this.threads = new THREE.LineSegments(this.threadGeometry, this.threadMaterial);
@@ -343,30 +369,33 @@ export class AnamnesisField {
     }
     setAttributeUpdate(this.pathGeometry.getAttribute('position') as THREE.BufferAttribute);
 
-    const threadCount = Math.min(MAX_THREADS, threads.length);
-    this.renderedThreads = threadCount;
-    for (let index = 0; index < threadCount; index += 1) {
+    const candidateThreadCount = Math.min(MAX_THREADS, threads.length);
+    let writtenThreads = 0;
+    for (let index = 0; index < candidateThreadCount; index += 1) {
       const thread = threads[index];
       const from = points[thread.from];
       const to = points[thread.to];
       if (!from || !to) continue;
-      writePoint(this.threadPositions, index * 2, from.position);
-      writePoint(this.threadPositions, index * 2 + 1, to.position);
+      writePoint(this.threadPositions, writtenThreads * 2, from.position);
+      writePoint(this.threadPositions, writtenThreads * 2 + 1, to.position);
       for (let endpoint = 0; endpoint < 2; endpoint += 1) {
-        const attributeIndex = index * 2 + endpoint;
+        const attributeIndex = writtenThreads * 2 + endpoint;
         this.threadStrength[attributeIndex] = thread.similarity;
         this.threadFamily[attributeIndex] = thread.familyId;
         this.threadTransposition[attributeIndex] = thread.transposition;
-        this.threadPhase[attributeIndex] = (index * 0.61803398875) % 1;
+        this.threadPhase[attributeIndex] = (writtenThreads * 0.61803398875) % 1;
       }
+      writtenThreads += 1;
     }
-    this.threadGeometry.setDrawRange(0, threadCount * 2);
+    this.renderedThreads = writtenThreads;
+    this.threadGeometry.setDrawRange(0, writtenThreads * 2);
     for (const name of ['position', 'aStrength', 'aFamily', 'aTransposition', 'aPhase']) {
       setAttributeUpdate(this.threadGeometry.getAttribute(name) as THREE.BufferAttribute);
     }
 
     this.currentPointIndex = pointCount - 1;
     this.pointMaterial.uniforms.uCurrentIndex.value = this.currentPointIndex;
+    this.auraMaterial.uniforms.uCurrentIndex.value = this.currentPointIndex;
     if (pointCount > 0) {
       const current = points[pointCount - 1].position;
       this.beacon.position.set(current[0], current[1], current[2]);
@@ -394,18 +423,21 @@ export class AnamnesisField {
       ['uPaletteD', palette.d],
     ] as const) {
       this.pointMaterial.uniforms[name].value.copy(value);
+      this.auraMaterial.uniforms[name].value.copy(value);
       this.threadMaterial.uniforms[name].value.copy(value);
     }
-    this.pointMaterial.uniforms.uCoreGlow.value.set(
-      palette.coreGlow.r,
-      palette.coreGlow.g,
-      palette.coreGlow.b
-    );
-    this.pointMaterial.uniforms.uAccent.value.set(
-      palette.accent.r,
-      palette.accent.g,
-      palette.accent.b
-    );
+    for (const material of [this.pointMaterial, this.auraMaterial]) {
+      material.uniforms.uCoreGlow.value.set(
+        palette.coreGlow.r,
+        palette.coreGlow.g,
+        palette.coreGlow.b
+      );
+      material.uniforms.uAccent.value.set(
+        palette.accent.r,
+        palette.accent.g,
+        palette.accent.b
+      );
+    }
     this.threadMaterial.uniforms.uAccent.value.set(
       palette.accent.r,
       palette.accent.g,
@@ -435,19 +467,24 @@ export class AnamnesisField {
     this.returnPulse = Math.max(0, this.returnPulse - dt * 0.28);
 
     const pointOpacity = this.opacity * (this.renderedPoints > 0 ? 1 : 0);
-    this.pointMaterial.uniforms.uTime.value = time;
+    const pointScale = Math.max(0.72, Math.min(1.35, viewportHeight / 900));
+    for (const material of [this.pointMaterial, this.auraMaterial]) {
+      material.uniforms.uTime.value = time;
+      material.uniforms.uReturnFamily.value = this.returnFamily;
+      material.uniforms.uReturnPulse.value = this.returnPulse;
+      material.uniforms.uHoverIndex.value = this.hoverIndex;
+    }
     this.pointMaterial.uniforms.uOpacity.value = pointOpacity;
-    this.pointMaterial.uniforms.uPointScale.value = Math.max(0.72, Math.min(1.35, viewportHeight / 900));
-    this.pointMaterial.uniforms.uReturnFamily.value = this.returnFamily;
-    this.pointMaterial.uniforms.uReturnPulse.value = this.returnPulse;
-    this.pointMaterial.uniforms.uHoverIndex.value = this.hoverIndex;
+    this.pointMaterial.uniforms.uPointScale.value = pointScale;
+    this.auraMaterial.uniforms.uOpacity.value = pointOpacity * (this.expanded ? 0.68 : 0.32);
+    this.auraMaterial.uniforms.uPointScale.value = pointScale;
 
     this.threadMaterial.uniforms.uTime.value = time;
-    this.threadMaterial.uniforms.uOpacity.value = this.opacity * (this.expanded ? 0.9 : 0.36);
+    this.threadMaterial.uniforms.uOpacity.value = this.opacity * (this.expanded ? 1.2 : 0.44);
     this.threadMaterial.uniforms.uReturnFamily.value = this.returnFamily;
     this.threadMaterial.uniforms.uReturnPulse.value = this.returnPulse;
 
-    this.pathMaterial.opacity = this.opacity * (this.expanded ? 0.18 : 0.055);
+    this.pathMaterial.opacity = this.opacity * (this.expanded ? 0.46 : 0.10);
     this.beaconMaterial.opacity = pointOpacity * (0.5 + 0.35 * Math.sin(time * 2.7));
     const beaconScale = 1.1 + Math.sin(time * 2.1) * 0.14 + this.returnPulse * 1.35;
     this.beacon.scale.setScalar(beaconScale);
@@ -489,6 +526,7 @@ export class AnamnesisField {
     this.pointGeometry.dispose();
     this.pathGeometry.dispose();
     this.threadGeometry.dispose();
+    this.auraMaterial.dispose();
     this.pointMaterial.dispose();
     this.pathMaterial.dispose();
     this.threadMaterial.dispose();

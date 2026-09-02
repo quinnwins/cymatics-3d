@@ -43,6 +43,7 @@ describe('AnamnesisField', () => {
     expect(field.getRenderedPointCount()).toBe(3);
     expect(field.getRenderedThreadCount()).toBe(1);
     expect(field.points.geometry.drawRange.count).toBe(3);
+    expect(field.aura.geometry).toBe(field.points.geometry);
     expect(field.threads.geometry.drawRange.count).toBe(2);
 
     field.celebrateReturn(threads[0]);
@@ -50,6 +51,48 @@ describe('AnamnesisField', () => {
     field.update(2, 0.25, 900);
     expect(field.group.visible).toBe(true);
     expect(field.beacon.position.toArray()).toEqual(points[2].position);
+
+    field.dispose();
+  });
+
+  it('compacts invalid echo references instead of drawing stale thread segments', () => {
+    const field = new AnamnesisField(ColorPalettes.getPalette('cosmic-nebula'));
+    const points = [
+      point(0, [4, 0, 0], 0),
+      point(1, [0, 0.5, 4], 0),
+    ];
+    const threads: EchoThread[] = [
+      {
+        id: 0,
+        from: 99,
+        to: 0,
+        similarity: 0.99,
+        harmonicSimilarity: 0.99,
+        timbralSimilarity: 0.99,
+        transposition: 0,
+        familyId: 0,
+        timeGapSeconds: 8,
+      },
+      {
+        id: 1,
+        from: 1,
+        to: 0,
+        similarity: 0.93,
+        harmonicSimilarity: 0.94,
+        timbralSimilarity: 0.9,
+        transposition: 2,
+        familyId: 0,
+        timeGapSeconds: 4,
+      },
+    ];
+
+    field.setData(points, threads);
+
+    expect(field.getRenderedThreadCount()).toBe(1);
+    expect(field.threads.geometry.drawRange.count).toBe(2);
+    const positions = field.threads.geometry.getAttribute('position') as THREE.BufferAttribute;
+    expect([positions.getX(0), positions.getY(0), positions.getZ(0)]).toEqual(points[1].position);
+    expect([positions.getX(1), positions.getY(1), positions.getZ(1)]).toEqual(points[0].position);
 
     field.dispose();
   });
