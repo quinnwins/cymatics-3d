@@ -69,11 +69,11 @@ void main() {
     + familyPulse * 3.0
     + current * 6.4
     + hovered * 7.2;
-  float layerScale = mix(1.0, 2.15, uLayer);
+  float layerScale = mix(1.0, 2.35, uLayer);
   gl_PointSize = clamp(
     pointSize * perspective * uPointScale * layerScale,
     mix(1.6, 4.2, uLayer),
-    mix(18.0, 34.0, uLayer)
+    mix(18.0, 38.0, uLayer)
   );
 
   vec3 chronology = palette(fract(aProgress * 0.83 + aPitch / 18.0));
@@ -108,11 +108,11 @@ void main() {
   float core = exp(-radius * radius * 7.2);
   float halo = exp(-radius * radius * 1.75);
   float coreProfile = core + halo * (0.42 + vCore * 0.32);
-  float auraProfile = halo * (0.72 + core * 0.28);
+  float auraProfile = halo * (0.82 + core * 0.36);
   float profile = mix(coreProfile, auraProfile, uLayer);
-  float alpha = clamp(vAlpha * profile, 0.0, mix(0.96, 0.46, uLayer));
+  float alpha = clamp(vAlpha * profile, 0.0, mix(0.96, 0.52, uLayer));
   if (alpha < 0.002) discard;
-  float radiance = mix(1.05 + core * 1.42 + vCore * 0.62, 0.82 + halo * 0.72 + vCore * 0.24, uLayer);
+  float radiance = mix(1.05 + core * 1.42 + vCore * 0.62, 0.92 + halo * 0.88 + vCore * 0.28, uLayer);
   gl_FragColor = vec4(vColor * radiance, alpha);
 }
 `;
@@ -476,7 +476,7 @@ export class AnamnesisField {
     }
     this.pointMaterial.uniforms.uOpacity.value = pointOpacity;
     this.pointMaterial.uniforms.uPointScale.value = pointScale;
-    this.auraMaterial.uniforms.uOpacity.value = pointOpacity * (this.expanded ? 0.68 : 0.32);
+    this.auraMaterial.uniforms.uOpacity.value = pointOpacity * (this.expanded ? 0.78 : 0.36);
     this.auraMaterial.uniforms.uPointScale.value = pointScale;
 
     this.threadMaterial.uniforms.uTime.value = time;
@@ -484,7 +484,7 @@ export class AnamnesisField {
     this.threadMaterial.uniforms.uReturnFamily.value = this.returnFamily;
     this.threadMaterial.uniforms.uReturnPulse.value = this.returnPulse;
 
-    this.pathMaterial.opacity = this.opacity * (this.expanded ? 0.46 : 0.10);
+    this.pathMaterial.opacity = this.opacity * (this.expanded ? 0.52 : 0.11);
     this.beaconMaterial.opacity = pointOpacity * (0.5 + 0.35 * Math.sin(time * 2.7));
     const beaconScale = 1.1 + Math.sin(time * 2.1) * 0.14 + this.returnPulse * 1.35;
     this.beacon.scale.setScalar(beaconScale);

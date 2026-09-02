@@ -203,6 +203,10 @@ async function main() {
       };
     });
 
+    // Always preserve visual proof, including on a failed legibility gate, so
+    // artistic regressions remain inspectable instead of collapsing to numbers.
+    await page.screenshot({ path: SCREENSHOT_PATH, fullPage: false });
+
     if (visualProof.outerLit < 900 || visualProof.spanX < 340 || visualProof.spanY < 170) {
       throw new Error(`Anamnesis is technically present but not visually legible: ${JSON.stringify(visualProof)}`);
     }
@@ -220,7 +224,6 @@ async function main() {
       throw new Error(`Memory relic lifecycle failed: ${JSON.stringify(relicProof)}`);
     }
 
-    await page.screenshot({ path: SCREENSHOT_PATH, fullPage: false });
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.body.classList.contains('soundform-anamnesis'));
 
