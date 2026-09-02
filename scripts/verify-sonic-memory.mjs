@@ -1,0 +1,250 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import puppeteer from 'puppeteer-core';
+import { preview } from 'vite';
+
+const ROOT = process.cwd();
+const SCREENSHOT_DIR = path.join(ROOT, 'qa_screenshots');
+const SCREENSHOT_PATH = path.join(SCREENSHOT_DIR, 'sonic-memory-smoke.png');
+
+function findChrome() {
+  const candidates = [
+    process.env.CHROME_PATH,
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  ].filter(Boolean);
+
+  return candidates.find(candidate => fs.existsSync(candidate));
+}
+
+function isCriticalResourceFailure(url, status) {
+  if (status < 400) return false;
+  if (status >= 500) return true;
+  return /\.(?:js|css|wasm)(?:\?|$)/i.test(url);
+}
+
+async function main() {
+  const executablePath = findChrome();
+  if (!executablePath) {
+    throw new Error('Google Chrome or Chromium was not found for the Sonic Memory smoke test.');
+  }
+
+  fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+
+  const server = await preview({
+    root: ROOT,
+    preview: {
+      host: '127.0.0.1',
+      port: 5197,
+      strictPort: true,
+    },
+  });
+
+  const browser = await puppeteer.launch({
+    executablePath,
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--autoplay-policy=no-user-gesture-required',
+      '--enable-webgl',
+      '--ignore-gpu-blocklist',
+      '--enable-unsafe-swiftshader',
+      '--use-gl=angle',
+      '--use-angle=swiftshader',
+    ],
+  });
+
+  const errors = [];
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
+  page.on('pageerror', error => errors.push(`pageerror: ${error.message}`));
+  page.on('console', message => {
+    const text = message.text();
+    // Chrome emits a generic console error for optional resources such as a
+    // missing favicon. Response tracking below still fails closed for code,
+    // stylesheets, WASM, and every server-side error.
+    if (message.type() === 'error' && !text.startsWith('Failed to load resource:')) {
+      errors.push(`console: ${text}`);
+    }
+  });
+  page.on('response', response => {
+    const status = response.status();
+    const url = response.url();
+    if (isCriticalResourceFailure(url, status)) {
+      errors.push(`resource: ${status} ${url}`);
+    }
+  });
+
+  try {
+    await page.goto('http://127.0.0.1:5197', {
+      waitUntil: 'networkidle0',
+      timeout: 30_000,
+    });
+    await page.waitForSelector('#sonic-memory-control .sm-pill', { timeout: 15_000 });
+    await page.waitForSelector('#canvas-container canvas', { timeout: 15_000 });
+
+    const boot = await page.evaluate(() => {
+      const app = window.__soundformApp;
+      const visualizer = app?.visualizer;
+      const sculpture = visualizer?.cymaticsMesh?.temporalSculpture;
+      return {
+        hasApp: Boolean(app),
+        hasSculpture: Boolean(sculpture),
+        pointCount: sculpture?.getPointCount?.() ?? 0,
+        webgl2: Boolean(visualizer?.renderer?.capabilities?.isWebGL2),
+      };
+    });
+
+    if (!boot.hasApp || !boot.hasSculpture) {
+      throw new Error(`Sonic Memory did not boot: ${JSON.stringify(boot)}`);
+    }
+    if (boot.pointCount < 4096) {
+      throw new Error(`Sonic Memory point field is incomplete: ${boot.pointCount}`);
+    }
+    if (!boot.webgl2) {
+      throw new Error('Sonic Memory smoke test did not receive a WebGL2 renderer.');
+    }
+
+    // A real pointer gesture unlocks Web Audio before starting the deterministic demo.
+    await page.mouse.click(720, 450);
+    await page.evaluate(() => {
+      const engine = window.__audioEngine;
+      engine?.ensureInitializedSync?.();
+      engine?.playDemoTrack?.('cosmic-odyssey');
+    });
+    await new Promise(resolve => setTimeout(resolve, 2200));
+
+    const live = await page.evaluate(() => {
+      const sculpture = window.__soundformApp?.visualizer?.cymaticsMesh?.temporalSculpture;
+      const uniforms = sculpture?.material?.uniforms;
+      return {
+        signal: uniforms?.uSignal?.value ?? 0,
+        historyHead: uniforms?.uHistoryHead?.value ?? 0,
+        visible: sculpture?.points?.visible ?? false,
+      };
+    });
+
+    if (!live.visible || live.signal <= 0 || live.historyHead <= 0) {
+      throw new Error(`Live audio did not populate Sonic Memory: ${JSON.stringify(live)}`);
+    }
+
+    await page.click('#sonic-memory-control .sm-pill');
+    await page.waitForSelector('#sm-panel:not([hidden])');
+
+    // Freeze first so Time Lens movement can be measured against a stable ring-buffer head.
+    await page.click('[data-action="freeze"]');
+    await page.waitForFunction(() => document.querySelector('#sonic-memory-control em')?.textContent === 'FROZEN');
+    const frozenLive = await page.evaluate(() => {
+      const uniforms = window.__soundformApp?.visualizer?.cymaticsMesh?.temporalSculpture?.material?.uniforms;
+      return { time: uniforms?.uTime?.value ?? 0, head: uniforms?.uHistoryHead?.value ?? 0 };
+    });
+
+    // Time Lens: move the center two seconds into stored history. Software
+    // WebGL can render this dense scene slowly, so wait for an actual renderer
+    // update instead of assuming a short sleep contains a new animation frame.
+    await page.$eval('[data-control="lookback"]', element => {
+      element.value = '2';
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.waitForFunction(
+      () => document.querySelector('[data-value="lookback"]')?.value === '−2.0 s',
+      { timeout: 5_000 }
+    );
+    await page.waitForFunction(
+      headBefore => {
+        const uniforms = window.__soundformApp?.visualizer?.cymaticsMesh?.temporalSculpture?.material?.uniforms;
+        const currentHead = uniforms?.uHistoryHead?.value ?? 0;
+        return Math.abs(currentHead - headBefore) >= 0.01;
+      },
+      { timeout: 8_000 },
+      frozenLive.head
+    );
+    const frozenPast = await page.evaluate(() => {
+      const uniforms = window.__soundformApp?.visualizer?.cymaticsMesh?.temporalSculpture?.material?.uniforms;
+      return { time: uniforms?.uTime?.value ?? 0, head: uniforms?.uHistoryHead?.value ?? 0 };
+    });
+
+    if (Math.abs(frozenPast.time - frozenLive.time) > 0.0001) {
+      throw new Error(`The Time Lens advanced frozen shader phase: ${JSON.stringify({ frozenLive, frozenPast })}`);
+    }
+
+    // A frozen sculpture must remain stable after the lookback selection is applied.
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const frozenAfter = await page.evaluate(() => {
+      const uniforms = window.__soundformApp?.visualizer?.cymaticsMesh?.temporalSculpture?.material?.uniforms;
+      return { time: uniforms?.uTime?.value ?? 0, head: uniforms?.uHistoryHead?.value ?? 0 };
+    });
+    if (Math.abs(frozenAfter.time - frozenPast.time) > 0.0001 || Math.abs(frozenAfter.head - frozenPast.head) > 0.0001) {
+      throw new Error(`Frozen sculpture moved: ${JSON.stringify({ frozenPast, frozenAfter })}`);
+    }
+
+    // Return to the present and use a fully populated memory span for clean visual proof.
+    const visualSettings = [
+      ['lookback', '0'],
+      ['memory', '2'],
+      ['gain', '1.35'],
+      ['warp', '1.25'],
+    ];
+    for (const [control, value] of visualSettings) {
+      await page.$eval(`[data-control="${control}"]`, (element, nextValue) => {
+        element.value = nextValue;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      }, value);
+    }
+    await page.waitForFunction(() => document.querySelector('[data-value="lookback"]')?.value === 'NOW');
+
+    // Resume briefly so the present-day two-second sculpture has a complete,
+    // visually dense record, then freeze the hero frame for deterministic proof.
+    await page.click('[data-action="freeze"]');
+    await page.waitForFunction(() => document.querySelector('#sonic-memory-control em')?.textContent === 'LIVE');
+    await new Promise(resolve => setTimeout(resolve, 900));
+    await page.click('[data-action="freeze"]');
+    await page.waitForFunction(() => document.querySelector('#sonic-memory-control em')?.textContent === 'FROZEN');
+
+    // Produce clean visual proof rather than obscuring the result with every
+    // workstation layer. The feature remains available in all apparatus modes.
+    await page.evaluate(() => {
+      const visualizer = window.__soundformApp?.visualizer;
+      visualizer?.setCymaticsLayers?.({ plate: false, droplet: true, trap: false });
+      visualizer?.setCameraMode?.('orbit');
+      if (visualizer?.camera && visualizer?.controls) {
+        visualizer.camera.position.set(0, 1.5, 7.9);
+        visualizer.controls.target.set(0, 0.45, 0);
+        visualizer.controls.update();
+      }
+    });
+
+    await page.click('[data-action="immersive"]');
+    await page.waitForFunction(() => document.body.classList.contains('soundform-immersive'));
+    await page.click('[data-close]');
+    await page.waitForFunction(() => document.querySelector('#sm-panel')?.hasAttribute('hidden'));
+    await new Promise(resolve => setTimeout(resolve, 600));
+    await page.screenshot({ path: SCREENSHOT_PATH, fullPage: false });
+
+    // Immersive mode remains escapable without a mouse.
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.body.classList.contains('soundform-immersive'));
+
+    if (errors.length > 0) {
+      throw new Error(`Browser reported errors:\n${errors.join('\n')}`);
+    }
+
+    console.log('Sonic Memory browser smoke test passed.', {
+      pointCount: boot.pointCount,
+      signal: Number(live.signal.toFixed(3)),
+      screenshot: SCREENSHOT_PATH,
+    });
+  } finally {
+    await browser.close();
+    await new Promise(resolve => server.httpServer.close(resolve));
+  }
+}
+
+main().catch(error => {
+  console.error(error);
+  process.exit(1);
+});

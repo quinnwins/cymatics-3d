@@ -8,12 +8,14 @@
  * - Spherical Harmonics (L0 breathing, L1 dipole, L2 quadrupole, L3 octupole, L4 star lobes) & radial Bessel waves.
  * - Calibrated 3-point studio lighting, subsurface scattering (SSS), chromatic lipid/fluid Fresnel rim,
  *   internal acoustic pressure core glow, and glowing standing wave nodal lines.
+ * - Sonic Memory layer: the current spectrum begins at the core while older sound remains farther away.
  * - Responds to ModalSweeperControls (n, m, l sliders, geometry, frequency) smoothly at 120 FPS.
  */
 
 import * as THREE from 'three';
 import { CYMATICS_VERTEX_SHADER, CYMATICS_FRAGMENT_SHADER } from './shaders/cymaticsShader';
 import { PalettePreset } from './ColorPalettes';
+import { TemporalSculpture } from './TemporalSculpture';
 
 export type ChamberGeometryType = 'cube' | 'cylinder' | 'sphere' | 0 | 1 | 2;
 
@@ -21,6 +23,7 @@ export class CymaticsMesh {
   public group: THREE.Group;
   public mesh: THREE.Mesh;
   public innerCore: THREE.Mesh;
+  public temporalSculpture: TemporalSculpture;
 
   private material: THREE.ShaderMaterial;
   private innerCoreMaterial: THREE.ShaderMaterial;
@@ -28,6 +31,8 @@ export class CymaticsMesh {
   private chamberTypeInt = 0; // 0=Cube, 1=Cylinder, 2=Sphere
   private fundamentalHz = 297.0;
   private acousticPressure = 1.0;
+  private temporalContextVisible = true;
+  private visualStyleListener?: EventListener;
 
   constructor(initialPalette: PalettePreset) {
     this.group = new THREE.Group();
@@ -117,6 +122,23 @@ export class CymaticsMesh {
 
     this.innerCore = new THREE.Mesh(innerGeo, this.innerCoreMaterial);
     this.group.add(this.innerCore);
+
+    // 4. The song's rolling spectral history becomes a point-cloud sculpture.
+    this.temporalSculpture = new TemporalSculpture(initialPalette);
+    this.group.add(this.temporalSculpture.group);
+
+    // Sonic Memory is an acoustic lens, not merely a droplet decoration. Keep
+    // it available in plate and particle-only views while hiding it in other labs.
+    if (typeof window !== 'undefined') {
+      this.visualStyleListener = ((event: CustomEvent<{ style?: string }>) => {
+        const style = event.detail?.style;
+        this.temporalContextVisible = style === 'cymatics' || style === 'cymatics-2d';
+        this.temporalSculpture.setVisible(this.temporalContextVisible);
+        this.group.visible = this.mesh.visible || this.temporalContextVisible;
+      }) as EventListener;
+      window.addEventListener('visual-style-changed', this.visualStyleListener);
+    }
+
     this.group.position.y = 0.45;
   }
 
@@ -236,6 +258,8 @@ export class CymaticsMesh {
     icu.uTime.value = time;
     icu.uAudioBass.value = bands.x;
 
+    this.temporalSculpture.update(time, bands, highs, fundamentalHz, camera);
+
     // Organic levitating droplet axial precession and wobble
     this.mesh.rotation.y = time * 0.18 + bands.y * 0.3;
     this.mesh.rotation.x = Math.sin(time * 0.12) * 0.22 + bands.x * 0.15;
@@ -262,19 +286,24 @@ export class CymaticsMesh {
     const icu = this.innerCoreMaterial.uniforms;
     icu.uColor.value.copy(palette.coreGlow);
     icu.uAccent.value.copy(palette.accent);
+    this.temporalSculpture.setPalette(palette);
   }
 
   public setVisible(visible: boolean): void {
-    this.group.visible = visible;
+    this.mesh.visible = visible;
+    this.innerCore.visible = visible;
+    this.temporalSculpture.setVisible(this.temporalContextVisible);
+    this.group.visible = visible || this.temporalContextVisible;
   }
 
   public isVisible(): boolean {
-    return this.group.visible;
+    return this.mesh.visible;
   }
 
   public setDropletVisible(visible: boolean): void {
     this.mesh.visible = visible;
     this.innerCore.visible = visible;
+    this.group.visible = visible || this.temporalContextVisible;
   }
 
   public isDropletVisible(): boolean {
@@ -282,9 +311,13 @@ export class CymaticsMesh {
   }
 
   public dispose(): void {
+    if (this.visualStyleListener && typeof window !== 'undefined') {
+      window.removeEventListener('visual-style-changed', this.visualStyleListener);
+    }
     this.mesh.geometry.dispose();
     this.material.dispose();
     this.innerCore.geometry.dispose();
     this.innerCoreMaterial.dispose();
+    this.temporalSculpture.dispose();
   }
 }

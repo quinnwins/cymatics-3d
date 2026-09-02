@@ -1,0 +1,58 @@
+name: Validate SoundForm
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-build-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Keep functional coverage deterministic, then give the deliberate
+      # sub-1.5 ms voice-DSP microbenchmark an uncontended process of its own.
+      - name: Run functional tests
+        run: npm test -- --reporter=verbose --maxWorkers=1 --minWorkers=1 --exclude src/math/VoiceBiometricsPhysics.test.ts
+
+      - name: Run voice DSP suite and benchmark in isolation
+        run: npx vitest run src/math/VoiceBiometricsPhysics.test.ts --reporter=verbose --maxWorkers=1 --minWorkers=1
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Run Sonic Memory in headless Chrome
+        run: node scripts/verify-sonic-memory.mjs
+
+      - name: Upload deployable build and visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soundform-dist-and-sonic-memory-qa
+          path: |
+            dist
+            qa_screenshots/sonic-memory-smoke.png
+          if-no-files-found: ignore
+          retention-days: 7
