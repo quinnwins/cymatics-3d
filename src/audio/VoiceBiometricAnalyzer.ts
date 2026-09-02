@@ -77,6 +77,8 @@ export class VoiceBiometricAnalyzer {
   }
 
   public async startMicrophone(): Promise<boolean> {
+    this.stopMicrophone();
+
     if (this.ctx.state === 'suspended') {
       await this.ctx.resume();
     }

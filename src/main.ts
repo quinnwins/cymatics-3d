@@ -12,6 +12,7 @@ import { VoiceBiometricsControls } from './ui/VoiceBiometricsControls';
 import { VoiceTelemetryHUD } from './ui/VoiceTelemetryHUD';
 import { NobelDiscoveryControls } from './ui/NobelDiscoveryControls';
 import { NobelTelemetryHUD } from './ui/NobelTelemetryHUD';
+import { MicrofluidicTelemetryHUD } from './ui/MicrofluidicTelemetryHUD';
 import { PresentationTourHUD } from './ui/PresentationTourHUD';
 import { PresentationTourEngine } from './visualizer/PresentationTourEngine';
 import { AcousticDataExporter } from './ui/AcousticDataExporter';
@@ -32,6 +33,7 @@ class App {
   private voiceTelemetryHUD: VoiceTelemetryHUD;
   private nobelDiscoveryControls: NobelDiscoveryControls;
   private nobelTelemetryHUD: NobelTelemetryHUD;
+  private microfluidicTelemetryHUD: MicrofluidicTelemetryHUD;
   private presentationTourHUD: PresentationTourHUD;
   private presentationTourEngine: PresentationTourEngine;
   private spectrumHUD: SpectrumHUD;
@@ -159,6 +161,7 @@ class App {
       mode => this.switchMode(mode)
     );
     this.nobelTelemetryHUD = new NobelTelemetryHUD(this.rightSidebarRoot);
+    this.microfluidicTelemetryHUD = new MicrofluidicTelemetryHUD(this.rightSidebarRoot);
 
     this.spectrumHUD = new SpectrumHUD(this.audioEngine, this.visualizer);
     this.physicsDrawer = new PhysicsDrawer(this.visualizer);
@@ -171,6 +174,13 @@ class App {
         const frontier = this.visualizer.nobelDiscoveryLab.state.frontierId;
         const telemetry = this.visualizer.nobelDiscoveryLab.getTelemetry();
         this.nobelTelemetryHUD.update(frontier, telemetry);
+      } else if (this.currentMode === 'bio') {
+        const isSorter = this.visualizer.bioAcousticResonator.getViewMode() === 'microfluidic-sorter';
+        this.microfluidicTelemetryHUD.setVisible(isSorter);
+        if (isSorter) {
+          const telemetry = this.visualizer.bioAcousticResonator.getMicrofluidicTelemetry(0.1);
+          this.microfluidicTelemetryHUD.update(telemetry);
+        }
       }
     }, 100);
 
@@ -442,6 +452,10 @@ class App {
 
     if (this.currentMode === 'music' || this.currentMode === 'cymatics' || this.currentMode === 'frequency' || this.currentMode === 'modal') {
       this.rightSidebarRoot.appendChild(this.modalSweeperControls.getElement());
+    } else if (this.currentMode === 'bio') {
+      this.rightSidebarRoot.appendChild(this.microfluidicTelemetryHUD.getElement());
+      const isSorter = this.visualizer.bioAcousticResonator.getViewMode() === 'microfluidic-sorter';
+      this.microfluidicTelemetryHUD.setVisible(isSorter);
     } else if (this.currentMode === 'voice') {
       this.rightSidebarRoot.appendChild(this.voiceTelemetryHUD.getElement());
       this.voiceTelemetryHUD.setVisible(true);

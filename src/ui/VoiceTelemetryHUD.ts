@@ -257,10 +257,14 @@ export class VoiceTelemetryHUD {
     }
 
     if (this.patientAdviceEl) {
-      if (report.healthStatus === 'pathological-dysphonia' || report.f0Hz < 100) {
-        this.patientAdviceEl.textContent = 'Your vocal cords are heavy with fluid buildup, causing air leakage and deep raspy pitch. Play the 110 Hz Balancing Tone to assist smooth vibration.';
+      if (report.healthStatus === 'pathological-dysphonia') {
+        this.patientAdviceEl.textContent = 'Your vocal cords show signs of strain or air leakage. Play the 110 Hz Balancing Tone to promote low-impact closure.';
+      } else if (report.healthStatus === 'neurological-tremor') {
+        this.patientAdviceEl.textContent = 'Rhythmic vocal oscillation detected. Play the 6 Hz Theta Balancing Tone to assist neuromuscular stabilization.';
       } else if (report.healthStatus === 'mild-strain') {
         this.patientAdviceEl.textContent = 'Mild tension detected in the throat. Relax shoulders and take a slow diaphragmatic breath before speaking.';
+      } else if (report.healthStatus === 'respiratory-fatigue') {
+        this.patientAdviceEl.textContent = 'Subglottic pressure drop detected. Play the 528 Hz Restorative Tone to pace diaphragmatic recharge.';
       } else {
         this.patientAdviceEl.textContent = 'Your vocal cords are oscillating smoothly with optimal acoustic projection and balanced resonance.';
       }

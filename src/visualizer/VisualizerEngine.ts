@@ -680,11 +680,24 @@ export class VisualizerEngine {
       const isVoice = this.currentStyle === 'voice-biometrics';
       const isNobel = this.currentStyle === 'nobel-lab';
       const isSorter = isBio && this.bioAcousticResonator.getViewMode() === 'microfluidic-sorter';
-      const radius = isCymatics ? 8.6 : isPlate ? 8.2 : isSorter ? 12.5 : isTherapy ? 8.2 : isBio ? 6.8 : isVoice ? 7.6 : isNobel ? 7.8 : 9.5;
-      const targetY = (isCymatics || isPlate || isBio || isTherapy || isVoice || isNobel) ? 0.45 : 0.0;
+      const radius = isCymatics ? 8.6 : isPlate ? 8.2 : isSorter ? 18.5 : isTherapy ? 8.2 : isBio ? 6.8 : isVoice ? 7.6 : isNobel ? 7.8 : 9.5;
+      const targetY = isSorter ? 0.0 : (isCymatics || isPlate || isBio || isTherapy || isVoice || isNobel) ? 0.45 : 0.0;
 
       // Camera Choreography
-      if (isVoice) {
+      if (isSorter) {
+        // Elevated 3/4 Isometric Perspective for Longitudinal Microfluidic Channel Clarity
+        const baseAngle = 0.65 + Math.sin(time * 0.06 * this.autoRotateSpeed) * 0.18;
+        const camX = Math.sin(baseAngle) * radius;
+        const camZ = Math.cos(baseAngle) * radius;
+        const camY = 8.5 + Math.sin(time * 0.12) * 0.35;
+        this.camera.position.set(
+          camX + this.recoilOffset.x,
+          camY + this.recoilOffset.y,
+          camZ + this.recoilOffset.z
+        );
+        this.camera.lookAt(0, targetY, 0);
+        this.controls.target.set(0, targetY, 0);
+      } else if (isVoice) {
         // Frontal Parallax Arc for Side-by-Side Dual-Stage Clarity (Zero Occlusion)
         const sweepX = Math.sin(time * 0.12 * this.autoRotateSpeed) * 1.6;
         const sweepY = 1.6 + Math.sin(time * 0.18) * 0.25;
@@ -701,7 +714,7 @@ export class VisualizerEngine {
         const baseAngle = time * 0.10 * this.autoRotateSpeed;
         const lissX = Math.sin(baseAngle) * radius + Math.sin(time * 0.23) * 0.25;
         const lissZ = Math.cos(baseAngle) * radius + Math.cos(time * 0.19) * 0.25;
-        const baseHeight = isCymatics ? 3.0 : isPlate ? 3.4 : isSorter ? 3.0 : isTherapy ? 2.2 : isBio ? 1.6 : isNobel ? 2.2 : 3.2;
+        const baseHeight = isCymatics ? 3.0 : isPlate ? 3.4 : isTherapy ? 2.2 : isBio ? 1.6 : isNobel ? 2.2 : 3.2;
         const lissY = baseHeight + Math.sin(time * 0.15) * 0.45 + Math.cos(time * 0.31) * 0.20;
 
         this.camera.position.set(
