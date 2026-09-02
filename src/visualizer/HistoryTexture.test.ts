@@ -51,18 +51,38 @@ describe('HistoryTexture', () => {
     history.dispose();
   });
 
-  it('treats AudioEngine’s uninitialized zero-filled FFT buffer as silence', () => {
+  it('expands ordinary musical levels into a visible temporal field', () => {
+    const history = new HistoryTexture();
+    const ordinaryMusic = new Float32Array(2048).fill(-45);
+
+    history.pushSpectralFrame(ordinaryMusic, 0, 220);
+
+    const bytes = (history as unknown as { data: Uint8Array }).data;
+    expect(bytes[0]).toBeGreaterThan(85);
+    expect(bytes[0]).toBeLessThan(130);
+    expect(temporalMemory.getUniformState().signal).toBeGreaterThan(0.1);
+
+    history.dispose();
+  });
+
+  it('does not let AudioEngine’s pre-playback zero buffer consume temporal history', () => {
     const history = new HistoryTexture();
     const uninitializedSpectrum = new Float32Array(2048);
 
-    history.pushSpectralFrame(uninitializedSpectrum, 0, 0);
+    for (let frame = 0; frame < 100; frame += 1) {
+      now += 25;
+      history.pushSpectralFrame(uninitializedSpectrum, 0, 0);
+    }
 
     const bytes = (history as unknown as { data: Uint8Array }).data;
     for (let i = 0; i < history.width; i += 1) {
       expect(bytes[i * 4]).toBe(0);
       expect(bytes[i * 4 + 2]).toBe(0);
     }
-    expect(temporalMemory.getUniformState().signal).toBe(0);
+    const state = temporalMemory.getUniformState();
+    expect(history.getWriteHead()).toBe(0);
+    expect(state.availableFrames).toBe(0);
+    expect(state.signal).toBe(0);
 
     history.dispose();
   });
