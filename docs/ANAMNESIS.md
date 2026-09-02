@@ -31,6 +31,12 @@ Anamnesis samples the live analysis stream every **400 ms**. The default capacit
 
 Long performances are thinned rather than truncated. The beginning remains present, preserving the arc of the performance instead of maintaining only a sliding tail.
 
+### Independent clocks
+
+The analysis clock is intentionally independent from the WebGL render loop. A lightweight 100 ms scheduler offers observations to the model, while the model admits at most one moment per 400 ms. That separation matters on dense scenes and software-rendered or mobile GPUs: musical time continues at the source cadence even when visual frames arrive slowly.
+
+Rendering may become less fluid under load, but the remembered structure of the performance does not stretch or lose sections merely because the GPU is busy.
+
 ### Feature representation
 
 Each moment contains derived, non-audio features:
