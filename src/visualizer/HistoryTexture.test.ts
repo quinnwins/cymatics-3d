@@ -51,6 +51,27 @@ describe('HistoryTexture', () => {
     history.dispose();
   });
 
+  it('normalizes ordinary browser playback levels into a visible dynamic range', () => {
+    const history = new HistoryTexture();
+    const spectrum = new Float32Array(2048).fill(-88);
+    for (let index = 16; index < 340; index += 17) {
+      spectrum[index] = -50 - (index % 5);
+    }
+
+    history.pushSpectralFrame(spectrum, 0.1, 330);
+
+    const bytes = (history as unknown as { data: Uint8Array }).data;
+    let peak = 0;
+    for (let index = 0; index < history.width; index += 1) {
+      peak = Math.max(peak, bytes[index * 4]);
+    }
+
+    expect(peak).toBeGreaterThan(140);
+    expect(temporalMemory.getUniformState().signal).toBeGreaterThan(0.45);
+
+    history.dispose();
+  });
+
   it('treats AudioEngine’s uninitialized zero-filled FFT buffer as silence', () => {
     const history = new HistoryTexture();
     const uninitializedSpectrum = new Float32Array(2048);
