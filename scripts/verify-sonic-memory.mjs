@@ -182,6 +182,29 @@ async function main() {
       throw new Error(`Frozen sculpture moved: ${JSON.stringify({ frozenPast, frozenAfter })}`);
     }
 
+    // Return to the present and use a fully populated memory span for clean visual proof.
+    const visualSettings = [
+      ['lookback', '0'],
+      ['memory', '2'],
+      ['gain', '1.35'],
+      ['warp', '1.25'],
+    ];
+    for (const [control, value] of visualSettings) {
+      await page.$eval(`[data-control="${control}"]`, (element, nextValue) => {
+        element.value = nextValue;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      }, value);
+    }
+    await page.waitForFunction(() => document.querySelector('[data-value="lookback"]')?.value === 'NOW');
+
+    // Resume briefly so the present-day two-second sculpture has a complete,
+    // visually dense record, then freeze the hero frame for deterministic proof.
+    await page.click('[data-action="freeze"]');
+    await page.waitForFunction(() => document.querySelector('#sonic-memory-control em')?.textContent === 'LIVE');
+    await new Promise(resolve => setTimeout(resolve, 900));
+    await page.click('[data-action="freeze"]');
+    await page.waitForFunction(() => document.querySelector('#sonic-memory-control em')?.textContent === 'FROZEN');
+
     // Produce clean visual proof rather than obscuring the result with every
     // workstation layer. The feature remains available in all apparatus modes.
     await page.evaluate(() => {
@@ -189,7 +212,7 @@ async function main() {
       visualizer?.setCymaticsLayers?.({ plate: false, droplet: true, trap: false });
       visualizer?.setCameraMode?.('orbit');
       if (visualizer?.camera && visualizer?.controls) {
-        visualizer.camera.position.set(0, 1.7, 7.4);
+        visualizer.camera.position.set(0, 1.5, 7.9);
         visualizer.controls.target.set(0, 0.45, 0);
         visualizer.controls.update();
       }
@@ -199,7 +222,7 @@ async function main() {
     await page.waitForFunction(() => document.body.classList.contains('soundform-immersive'));
     await page.click('[data-close]');
     await page.waitForFunction(() => document.querySelector('#sm-panel')?.hasAttribute('hidden'));
-    await new Promise(resolve => setTimeout(resolve, 450));
+    await new Promise(resolve => setTimeout(resolve, 600));
     await page.screenshot({ path: SCREENSHOT_PATH, fullPage: false });
 
     // Immersive mode remains escapable without a mouse.
