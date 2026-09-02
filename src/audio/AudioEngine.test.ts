@@ -314,4 +314,60 @@ describe('AudioEngine Transport & Scrubber', () => {
     expect(audioEngine.getAudioElement().playbackRate).toBe(1.25);
     expect(audioEngine.getAudioElement().defaultPlaybackRate).toBe(1.25);
   });
+
+  describe('Audio Isolation & stopAll() Lifecycle', () => {
+    it('should halt all procedural demo tracks synchronously when stopAll() is called', async () => {
+      await audioEngine.playDemoTrack('cyber-pulse');
+      expect(audioEngine.getIsPlaying()).toBe(true);
+      expect(audioEngine.demoGenerator?.getIsPlaying()).toBe(true);
+
+      audioEngine.stopAll();
+
+      expect(audioEngine.demoGenerator?.getIsPlaying()).toBe(false);
+      expect(audioEngine.getIsPlaying()).toBe(false);
+    });
+
+    it('should halt frequency pure tones synchronously when stopAll() is called', () => {
+      audioEngine.playFrequency(432);
+      expect(audioEngine.synthesizer?.getIsPlaying()).toBe(true);
+      expect(audioEngine.getIsPlaying()).toBe(true);
+
+      audioEngine.stopAll();
+
+      expect(audioEngine.synthesizer?.getIsPlaying()).toBe(false);
+      expect(audioEngine.getIsPlaying()).toBe(false);
+    });
+
+    it('should pause HTML audio element and clear streaming tracks when stopAll() is called', async () => {
+      const mockTrack = {
+        id: 'apple-isolation-test',
+        title: 'Quantum Field',
+        artist: 'Harmonic Array',
+        album: 'Acoustic Cosmos',
+        artworkUrl: 'https://example.com/art.jpg',
+        durationMs: 120000,
+        previewUrl: 'https://example.com/stream.m4a',
+        source: 'apple-music' as const,
+        hasDirectAudio: true,
+      };
+
+      await audioEngine.loadStreamTrack(mockTrack);
+      expect(audioEngine.getActiveStreamingTrack()).not.toBeNull();
+
+      const pauseSpy = vi.spyOn(audioEngine.getAudioElement(), 'pause');
+      audioEngine.stopAll();
+
+      expect(pauseSpy).toHaveBeenCalled();
+      expect(audioEngine.getActiveStreamingTrack()).toBeNull();
+    });
+
+    it('should notify all subscribers when stopAll() is called', () => {
+      const subscriber = vi.fn();
+      audioEngine.subscribe(subscriber);
+
+      audioEngine.stopAll();
+
+      expect(subscriber).toHaveBeenCalled();
+    });
+  });
 });

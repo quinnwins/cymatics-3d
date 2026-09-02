@@ -104,9 +104,7 @@ export class PresentationTourEngine {
     if (this.timerHandle) clearTimeout(this.timerHandle);
     this.detachKeyboardListener();
     this.hud.setVisible(false);
-    this.audioEngine.stopFrequency();
-    this.audioEngine.stopPersonalizedSoundMedicine();
-    this.audioEngine.stopMicrophone();
+    this.audioEngine.stopAll();
   }
 
   public getIsRunning(): boolean {

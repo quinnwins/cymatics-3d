@@ -218,6 +218,7 @@ class App {
       this.presentationTourEngine.stopTour();
     }
     this.physicsDrawer.resetDefaults();
+    this.audioEngine.stopAll();
     if (this.currentMode === 'music' || this.currentMode === 'cymatics') {
       this.visualizer.setStyle('cymatics');
       this.audioEngine.playDemoTrack('cosmic-odyssey');
@@ -332,10 +333,7 @@ class App {
     }
 
     // Reset audio and lab specific states when changing modes
-    this.audioEngine.stopFrequency();
-    this.audioEngine.stopPersonalizedSoundMedicine();
-    this.audioEngine.stopVoiceBiometrics();
-    this.audioEngine.stopMicrophone();
+    this.audioEngine.stopAll();
     this.visualizer.vocalBiometricsLab.setTherapyActive(false);
 
     if (normalizedMode !== 'voice') {

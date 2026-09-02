@@ -217,6 +217,25 @@ export class AudioEngine {
     this.notifyChange();
   }
 
+  /**
+   * Universal silence command: synchronously terminates all procedural demo synthesis,
+   * frequency oscillators, binaural beats, sound medicine entrainment, HTML5 audio playback,
+   * active streaming preview CDN streams, and microphone inputs across the entire application.
+   */
+  public stopAll(): void {
+    this.demoGenerator?.stop();
+    this.synthesizer?.stop();
+    this.soundMedicine?.stop();
+    if (this.audioElement) {
+      this.audioElement.pause();
+    }
+    this.stopMicrophoneInternal();
+    this.voiceBiometrics?.stopMicrophone();
+    this.activeStreamingTrack = null;
+    this.analyzer?.setExternalBands(null);
+    this.notifyChange();
+  }
+
   // --- Frequency Synthesizer Control ---
   public startFrequencyTone(freqHz: number): void {
     this.ensureInitializedSync();
