@@ -4,12 +4,12 @@ import { temporalMemory } from './TemporalMemory';
 /**
  * GPU audio spatiotemporal ring-buffer texture.
  *
- * Stores 512 spectral bins across 512 fixed-rate history frames.
- * Encodes:
- * - R: normalized spectral magnitude [0..2.5]
+ * Stores 512 log-distributed spectral samples across 512 fixed-rate history frames.
+ * Encodes normalized unsigned-byte channels:
+ * - R: spectral magnitude
  * - G: signed spectral motion, remapped to [0..1]
- * - B: transient / bass impulse [0..1]
- * - A: normalized pitch [0..1]
+ * - B: transient / bass impulse
+ * - A: detected pitch
  */
 export class HistoryTexture {
   public texture: THREE.DataTexture;
@@ -17,13 +17,13 @@ export class HistoryTexture {
   public readonly height = 512;
   public readonly captureRateHz = 48;
 
-  private data: Float32Array;
+  private data: Uint8Array;
   private previousMagnitudes: Float32Array;
   private writeHead = 0;
   private lastWriteAt = -Infinity;
 
   constructor() {
-    this.data = new Float32Array(this.width * this.height * 4);
+    this.data = new Uint8Array(this.width * this.height * 4);
     this.previousMagnitudes = new Float32Array(this.width);
 
     this.texture = new THREE.DataTexture(
@@ -31,7 +31,7 @@ export class HistoryTexture {
       this.width,
       this.height,
       THREE.RGBAFormat,
-      THREE.FloatType
+      THREE.UnsignedByteType
     );
     this.texture.minFilter = THREE.LinearFilter;
     this.texture.magFilter = THREE.LinearFilter;
@@ -51,8 +51,8 @@ export class HistoryTexture {
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const normalizedCurrentHead = (this.writeHead + 0.5) / this.height;
 
-    // Freezing must preserve both the texture and its visible signal strength.
     if (!temporalMemory.shouldCapture()) {
+      temporalMemory.recordIdle();
       return normalizedCurrentHead;
     }
 
@@ -72,35 +72,47 @@ export class HistoryTexture {
 
     let peakSignal = 0;
     let positiveFlux = 0;
+    const sourceMax = Math.max(0, fftData.length - 1);
 
     for (let i = 0; i < this.width; i += 1) {
       const idx = rowOffset + i * 4;
-      const rawDb = fftData[i];
+
+      // The analyser bins are linear. Resample them logarithmically so the texture
+      // keeps bass resolution while still reaching the full available spectrum.
+      const textureBin = i / Math.max(1, this.width - 1);
+      const sourceIndex = Math.min(
+        sourceMax,
+        Math.round(Math.pow(textureBin, 2.15) * sourceMax)
+      );
+      const rawDb = fftData[sourceIndex];
       const db = Number.isFinite(rawDb) ? rawDb : -100;
       const magnitude = db > -90 ? Math.pow(10, (db + 10) / 45) : 0;
-      const safeMagnitude = Number.isFinite(magnitude)
-        ? Math.max(0, Math.min(2.5, magnitude))
+      const normalizedMagnitude = Number.isFinite(magnitude)
+        ? Math.max(0, Math.min(1, magnitude / 2.5))
         : 0;
 
       const previous = this.previousMagnitudes[i];
-      const delta = safeMagnitude - previous;
-      const signedMotion = 0.5 + Math.max(-0.5, Math.min(0.5, delta * 0.65));
+      const delta = normalizedMagnitude - previous;
+      const signedMotion = 0.5 + Math.max(-0.5, Math.min(0.5, delta * 1.6));
       positiveFlux += Math.max(0, delta);
-      peakSignal = Math.max(peakSignal, safeMagnitude);
+      peakSignal = Math.max(peakSignal, normalizedMagnitude);
 
-      this.data[idx + 0] = safeMagnitude;
-      this.data[idx + 1] = signedMotion;
+      this.data[idx + 0] = Math.round(normalizedMagnitude * 255);
+      this.data[idx + 1] = Math.round(signedMotion * 255);
       this.data[idx + 2] = 0;
-      this.data[idx + 3] = pitchNorm;
-      this.previousMagnitudes[i] = safeMagnitude;
+      this.data[idx + 3] = Math.round(pitchNorm * 255);
+      this.previousMagnitudes[i] = normalizedMagnitude;
     }
 
-    const normalizedFlux = Math.min(1, (positiveFlux / this.width) * 10);
+    const normalizedFlux = Math.min(1, (positiveFlux / this.width) * 18);
     const impulse = Math.min(1, safeBassImpulse * 0.55 + normalizedFlux * 0.9);
+    const encodedImpulse = Math.round(impulse * 255);
     for (let i = 0; i < this.width; i += 1) {
-      this.data[rowOffset + i * 4 + 2] = impulse;
+      this.data[rowOffset + i * 4 + 2] = encodedImpulse;
     }
 
+    // One 1 MB upload at 48 Hz is considerably lighter than uploading a
+    // 4 MB float texture on every display refresh, while retaining 512×512 history.
     this.texture.needsUpdate = true;
     temporalMemory.recordFrame(row, Math.min(1, peakSignal * 0.85 + impulse * 0.35), now);
     this.writeHead = (this.writeHead + 1) % this.height;
