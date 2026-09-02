@@ -156,8 +156,16 @@ export class PhysicsDrawer {
 
   public resetDefaults(): void {
     if (!this.visualizer) return;
-    this.visualizer.waveSpeed = 6.0;
-    this.visualizer.waveDamping = 0.12;
+    if (typeof this.visualizer.setWaveSpeed === 'function') {
+      this.visualizer.setWaveSpeed(6.0);
+    } else {
+      this.visualizer.waveSpeed = 6.0;
+    }
+    if (typeof this.visualizer.setWaveDamping === 'function') {
+      this.visualizer.setWaveDamping(0.12);
+    } else {
+      this.visualizer.waveDamping = 0.12;
+    }
     this.visualizer.bloomStrength = 0.22;
     if (typeof this.visualizer.setBloomStrength === 'function') {
       this.visualizer.setBloomStrength(0.22);
@@ -493,7 +501,11 @@ export class PhysicsDrawer {
     const speedSlider = this.element.querySelector('#slider-wave-speed') as HTMLInputElement;
     speedSlider?.addEventListener('input', () => {
       const val = parseFloat(speedSlider.value);
-      this.visualizer.waveSpeed = val;
+      if (typeof this.visualizer.setWaveSpeed === 'function') {
+        this.visualizer.setWaveSpeed(val);
+      } else {
+        this.visualizer.waveSpeed = val;
+      }
       const label = this.element.querySelector('#val-wave-speed');
       if (label) label.textContent = val.toFixed(1);
       const pct = Math.round(((val - 1.0) / 11.0) * 100);
@@ -505,7 +517,11 @@ export class PhysicsDrawer {
     const dampingSlider = this.element.querySelector('#slider-wave-damping') as HTMLInputElement;
     dampingSlider?.addEventListener('input', () => {
       const val = parseFloat(dampingSlider.value);
-      this.visualizer.waveDamping = val;
+      if (typeof this.visualizer.setWaveDamping === 'function') {
+        this.visualizer.setWaveDamping(val);
+      } else {
+        this.visualizer.waveDamping = val;
+      }
       const label = this.element.querySelector('#val-wave-damping');
       if (label) label.textContent = val.toFixed(2);
       const pct = Math.round(((val - 0.02) / 0.33) * 100);

@@ -276,7 +276,7 @@ export class ModalSweeperControls {
         this.visualizer.setStyle('cymatics-2d');
       } else {
         this.visualizer.setStyle('cymatics');
-        const visMode = apparatus === '3d-droplet' ? 'droplet' : apparatus === '3d-particles' ? 'particles' : 'both';
+        const visMode = apparatus === '3d-droplet' ? 'droplet' : apparatus === '3d-particles' ? 'particles' : 'all';
         this.visualizer.setCymaticsVisibilityMode(visMode);
       }
     }

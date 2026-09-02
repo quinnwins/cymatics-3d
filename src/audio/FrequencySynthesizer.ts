@@ -25,18 +25,13 @@ export class FrequencySynthesizer {
   private harmonicGains: GainNode[] = [];
 
   // Stereo Binaural Beats Sub-Graph
-  private binauralMerger: ChannelMergerNode | null = null;
-  private binauralLeftPanner: StereoPannerNode | null = null;
   private binauralRightPanner: StereoPannerNode | null = null;
   private binauralRightOsc: OscillatorNode | null = null;
   private binauralRightGain: GainNode | null = null;
   private binauralBeatOffset = 7.83; // Schumann default
   private isBinauralActive = false;
 
-  // Therapy Dual-Oscillator & Heterodyne System
-  private therapyMasterGain: GainNode;
-  private therapyPrimaryGain: GainNode;
-  private therapyInversionGain: GainNode;
+  // Therapy Heterodyne Modulation System
   private heterodyneLfo: OscillatorNode | null = null;
   private heterodyneGain: GainNode | null = null;
 
@@ -59,14 +54,6 @@ export class FrequencySynthesizer {
     this.masterGain = this.ctx.createGain();
     this.masterGain.gain.setValueAtTime(0, this.ctx.currentTime);
     this.masterGain.connect(destinationNode);
-
-    // Setup Therapy Cancellation Sub-Graph
-    this.therapyMasterGain = this.ctx.createGain();
-    this.therapyPrimaryGain = this.ctx.createGain();
-    this.therapyInversionGain = this.ctx.createGain();
-
-    this.therapyPrimaryGain.gain.setValueAtTime(1.0, this.ctx.currentTime);
-    this.therapyInversionGain.gain.setValueAtTime(-1.0, this.ctx.currentTime);
 
     this.setupHarmonicGraph();
     this.setupBinauralGraph();
@@ -104,9 +91,6 @@ export class FrequencySynthesizer {
   private setupBinauralGraph(): void {
     try {
       if (typeof this.ctx.createStereoPanner === 'function') {
-        this.binauralLeftPanner = this.ctx.createStereoPanner();
-        this.binauralLeftPanner.pan.setValueAtTime(-0.9, this.ctx.currentTime);
-
         this.binauralRightPanner = this.ctx.createStereoPanner();
         this.binauralRightPanner.pan.setValueAtTime(0.9, this.ctx.currentTime);
 

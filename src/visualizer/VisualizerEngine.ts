@@ -85,6 +85,17 @@ export class VisualizerEngine {
   public autoRotateSpeed = 0.5;
   public groundGridVisible = false;
 
+  // Zero-GC Pre-allocated Vectors for 120 FPS Render Loop
+  private tempVBands03 = new THREE.Vector4();
+  private tempVBands45 = new THREE.Vector2();
+  private tempShockwaves: THREE.Vector4[] = [
+    new THREE.Vector4(),
+    new THREE.Vector4(),
+    new THREE.Vector4(),
+    new THREE.Vector4(),
+  ];
+  private tempViewDir = new THREE.Vector3();
+
   // Performance telemetry
   public fps = 60;
   private frameCount = 0;
@@ -372,27 +383,66 @@ export class VisualizerEngine {
     this.gpuAcousticParticles.setVisible(this.cymaticsLayers.trap);
 
     // Calibrated spatial positioning for multi-layer physical coherence:
-    if (this.cymaticsLayers.plate) {
-      this.cymaticsPlateMesh.group.position.y = 0.0;
-      // When 2D plate is active, droplet levitates above the plate
-      this.cymaticsMesh.group.position.y = 0.65;
-      this.gpuAcousticParticles.group.position.y = 0.45;
-      this.chamberEnclosure.group.position.y = 0.45;
-      this.volumetricChladni.group.position.y = 0.45;
-    } else {
+    const has3DShape = this.cymaticsLayers.droplet || this.cymaticsLayers.trap;
+
+    if (this.cymaticsLayers.plate && has3DShape) {
+      // When 2D plate is selected WITH the 3D shape, position the 2D board directly at the bottom base of the 3D shape
+      if (this.cymaticsLayers.trap) {
+        // 3D particle trap & chamber enclosure extend from y = 0.45 - 1.95 = -1.50 up to y = 2.40
+        this.cymaticsPlateMesh.group.position.y = -1.50;
+      } else {
+        // 3D fluid droplet only (radius 1.15 centered at y = 0.45, bottom boundary at y = -0.70)
+        this.cymaticsPlateMesh.group.position.y = -0.80;
+      }
       this.cymaticsMesh.group.position.y = 0.45;
       this.gpuAcousticParticles.group.position.y = 0.45;
       this.chamberEnclosure.group.position.y = 0.45;
       this.volumetricChladni.group.position.y = 0.45;
+      if (this.scientificGroundDatum) {
+        this.scientificGroundDatum.mesh.position.y = this.cymaticsLayers.trap ? -1.94 : -1.24;
+      }
+    } else if (this.cymaticsLayers.plate) {
+      // 2D plate standalone mode (no 3D shape)
+      this.cymaticsPlateMesh.group.position.y = 0.0;
+      this.cymaticsMesh.group.position.y = 0.45;
+      this.gpuAcousticParticles.group.position.y = 0.45;
+      this.chamberEnclosure.group.position.y = 0.45;
+      this.volumetricChladni.group.position.y = 0.45;
+      if (this.scientificGroundDatum) {
+        this.scientificGroundDatum.mesh.position.y = 0.0;
+      }
+    } else {
+      // 3D shape only (no 2D plate)
+      this.cymaticsMesh.group.position.y = 0.45;
+      this.gpuAcousticParticles.group.position.y = 0.45;
+      this.chamberEnclosure.group.position.y = 0.45;
+      this.volumetricChladni.group.position.y = 0.45;
+      if (this.scientificGroundDatum) {
+        this.scientificGroundDatum.mesh.position.y = 0.0;
+      }
     }
   }
 
   public setChamberGeometry(geometry: 'cube' | 'cylinder' | 'sphere'): void {
     this.cymaticsMesh.setChamberType(geometry);
-    this.cymaticsPlateMesh.setChamberType(geometry === 'cylinder' ? 'circle' : 'square');
+    this.cymaticsPlateMesh.setChamberType(geometry === 'cylinder' || geometry === 'sphere' ? 'circle' : 'square');
     this.volumetricChladni.setChamberType(geometry === 'cube' ? 0 : geometry === 'cylinder' ? 1 : 2);
     this.gpuAcousticParticles.setChamberGeometry(geometry);
     this.chamberEnclosure.setChamberType(geometry);
+  }
+
+  public setWaveSpeed(speed: number): void {
+    this.waveSpeed = speed;
+    if (this.cymaticsPlateMesh) {
+      this.cymaticsPlateMesh.setWaveSpeed(speed);
+    }
+  }
+
+  public setWaveDamping(damping: number): void {
+    this.waveDamping = damping;
+    if (this.cymaticsPlateMesh) {
+      this.cymaticsPlateMesh.setWaveDamping(damping);
+    }
   }
 
   public setBloomStrength(strength: number): void {
@@ -442,6 +492,14 @@ export class VisualizerEngine {
   public setGroundGridVisible(visible: boolean): void {
     this.groundGridVisible = visible;
     this.scientificGroundDatum.setVisible(visible);
+    if (this.scientificGroundDatum) {
+      const has3DShape = this.cymaticsLayers.droplet || this.cymaticsLayers.trap;
+      if (this.cymaticsLayers.plate && has3DShape) {
+        this.scientificGroundDatum.mesh.position.y = this.cymaticsLayers.trap ? -1.94 : -1.24;
+      } else {
+        this.scientificGroundDatum.mesh.position.y = 0.0;
+      }
+    }
   }
 
   public getGroundGridVisible(): boolean {
@@ -536,10 +594,17 @@ export class VisualizerEngine {
     const rawFft = this.audioEngine.getRawFrequencyData();
     this.historyTexture.pushSpectralFrame(rawFft, bands.subBass, fundamentalHz);
 
-    // Vector uniforms
-    const vBands03 = new THREE.Vector4(bands.subBass, bands.bass, bands.lowMid, bands.mid);
-    const vBands45 = new THREE.Vector2(bands.highMid, bands.high);
-    const vShockwaves = shockwaves.map(sw => new THREE.Vector4(sw.birthTime, sw.strength, sw.speed, 0));
+    // Zero-GC Vector uniforms
+    this.tempVBands03.set(bands.subBass, bands.bass, bands.lowMid, bands.mid);
+    this.tempVBands45.set(bands.highMid, bands.high);
+    const shockwaveCount = Math.min(shockwaves.length, 4);
+    for (let i = 0; i < 4; i++) {
+      if (i < shockwaveCount) {
+        this.tempShockwaves[i].set(shockwaves[i].birthTime, shockwaves[i].strength, shockwaves[i].speed, 0);
+      } else {
+        this.tempShockwaves[i].set(0, 0, 0, 0);
+      }
+    }
 
     // Update 3D visual components
     if (this.groundGridVisible) {
@@ -548,20 +613,20 @@ export class VisualizerEngine {
     const dt = this.lastAnimTime > 0 ? Math.min(0.1, time - this.lastAnimTime) : 0.016;
     this.lastAnimTime = time;
 
-    this.cymaticsMesh.update(time, vBands03, vBands45, fundamentalHz, dt, this.camera);
-    this.cymaticsPlateMesh.update(time, vBands03, vBands45, fundamentalHz, dt, this.camera);
-    this.volumetricChladni.update(time, vBands03, vBands45, fundamentalHz, this.camera);
+    this.cymaticsMesh.update(time, this.tempVBands03, this.tempVBands45, fundamentalHz, dt, this.camera);
+    this.cymaticsPlateMesh.update(time, this.tempVBands03, this.tempVBands45, fundamentalHz, dt, this.camera);
+    this.volumetricChladni.update(time, this.tempVBands03, this.tempVBands45, fundamentalHz, this.camera);
     if (this.gpuAcousticParticles.isVisible()) {
       const activeModes = this.cymaticsMesh.getModes();
       this.gpuAcousticParticles.setModalNumbers(activeModes.x, activeModes.y, activeModes.z);
-      this.gpuAcousticParticles.update(time, dt, vBands03, vBands45, vShockwaves, fundamentalHz);
+      this.gpuAcousticParticles.update(time, dt, this.tempVBands03, this.tempVBands45, this.tempShockwaves, fundamentalHz);
     }
     if (this.chamberEnclosure.isVisible()) {
-      this.chamberEnclosure.update(time, dt, vBands03, vBands45, this.camera);
+      this.chamberEnclosure.update(time, dt, this.tempVBands03, this.tempVBands45, this.camera);
     }
-    this.bioAcousticResonator.update(time, dt, this.camera, vBands03);
-    this.acousticTherapyLab.update(time, dt, this.camera, vBands03);
-    this.nobelDiscoveryLab.update(time, dt, this.camera, vBands03);
+    this.bioAcousticResonator.update(time, dt, this.camera, this.tempVBands03);
+    this.acousticTherapyLab.update(time, dt, this.camera, this.tempVBands03);
+    this.nobelDiscoveryLab.update(time, dt, this.camera, this.tempVBands03);
 
     if (this.audioEngine.voiceBiometrics) {
       const voiceReport = this.audioEngine.voiceBiometrics.update();
@@ -573,25 +638,28 @@ export class VisualizerEngine {
       this.lastShockwaveBirth = shockwaves[0].birthTime;
       const kickMag = Math.min(0.35, shockwaves[0].strength * 0.08);
       // Push camera outward along viewing ray
-      const viewDir = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize();
-      this.recoilVelocity.addScaledVector(viewDir, kickMag * 22.0);
+      this.tempViewDir.subVectors(this.camera.position, this.controls.target).normalize();
+      this.recoilVelocity.addScaledVector(this.tempViewDir, kickMag * 22.0);
     }
 
     // Exact Analytical Critically Damped Harmonic Return (zeta = 1.0, omega = 14 rad/s)
     const omega = 14.0;
     const expTerm = Math.exp(-omega * dt);
 
-    const updateAxis = (pos: number, vel: number): [number, number] => {
-      const c1 = pos;
-      const c2 = vel + omega * pos;
-      const newPos = (c1 + c2 * dt) * expTerm;
-      const newVel = (vel - omega * c2 * dt) * expTerm;
-      return [newPos, newVel];
-    };
+    const c1x = this.recoilOffset.x;
+    const c2x = this.recoilVelocity.x + omega * c1x;
+    const nx = (c1x + c2x * dt) * expTerm;
+    const vx = (this.recoilVelocity.x - omega * c2x * dt) * expTerm;
 
-    const [nx, vx] = updateAxis(this.recoilOffset.x, this.recoilVelocity.x);
-    const [ny, vy] = updateAxis(this.recoilOffset.y, this.recoilVelocity.y);
-    const [nz, vz] = updateAxis(this.recoilOffset.z, this.recoilVelocity.z);
+    const c1y = this.recoilOffset.y;
+    const c2y = this.recoilVelocity.y + omega * c1y;
+    const ny = (c1y + c2y * dt) * expTerm;
+    const vy = (this.recoilVelocity.y - omega * c2y * dt) * expTerm;
+
+    const c1z = this.recoilOffset.z;
+    const c2z = this.recoilVelocity.z + omega * c1z;
+    const nz = (c1z + c2z * dt) * expTerm;
+    const vz = (this.recoilVelocity.z - omega * c2z * dt) * expTerm;
 
     this.recoilOffset.set(nx, ny, nz);
     this.recoilVelocity.set(vx, vy, vz);
