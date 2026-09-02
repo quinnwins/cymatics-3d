@@ -1,0 +1,83 @@
+name: Apply Anamnesis Payload
+
+on:
+  push:
+    branches:
+      - codex/anamnesis-song-memory
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/anamnesis-song-memory
+          fetch-depth: 0
+
+      - name: Decode and validate implementation payload
+        run: |
+          cat scripts/.anamnesis-payload/*.b64 > /tmp/anamnesis-payload.b64
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          import hashlib
+          import io
+          import tarfile
+
+          encoded = Path('/tmp/anamnesis-payload.b64').read_text()
+          payload = base64.b64decode(encoded)
+          expected = 'be073f65910148c2a91f750279afe1eb00b76a02c68b25dcfe91ff21231ba2c9'
+          actual = hashlib.sha256(payload).hexdigest()
+          if actual != expected:
+              raise SystemExit(f'payload checksum mismatch: {actual}')
+
+          root = Path.cwd().resolve()
+          allowed = {
+              'README.md',
+              'docs/ANAMNESIS.md',
+              '.github/workflows/validate.yml',
+              'scripts/verify-anamnesis.mjs',
+              'src/visualizer/AnamnesisModel.ts',
+              'src/visualizer/AnamnesisModel.test.ts',
+              'src/visualizer/AnamnesisField.ts',
+              'src/visualizer/AnamnesisField.test.ts',
+              'src/visualizer/AnamnesisExperience.ts',
+              'src/visualizer/SonicMemoryControls.ts',
+          }
+
+          with tarfile.open(fileobj=io.BytesIO(payload), mode='r:gz') as archive:
+              members = archive.getmembers()
+              names = {member.name for member in members if member.isfile()}
+              if names != allowed:
+                  raise SystemExit(f'unexpected payload paths: {sorted(names ^ allowed)}')
+              for member in members:
+                  target = (root / member.name).resolve()
+                  if target != root and root not in target.parents:
+                      raise SystemExit(f'unsafe payload path: {member.name}')
+              archive.extractall(root)
+          PY
+
+          # A GitHub Actions token should not be responsible for modifying the
+          # repository's permanent workflow policy. That one small change is
+          # applied separately after this atomic source commit.
+          git checkout -- .github/workflows/validate.yml
+          rm -rf scripts/.anamnesis-payload
+
+      - name: Commit Anamnesis
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A scripts/.anamnesis-payload
+          git add README.md docs/ANAMNESIS.md scripts/verify-anamnesis.mjs
+          git add src/visualizer/AnamnesisModel.ts src/visualizer/AnamnesisModel.test.ts
+          git add src/visualizer/AnamnesisField.ts src/visualizer/AnamnesisField.test.ts
+          git add src/visualizer/AnamnesisExperience.ts src/visualizer/SonicMemoryControls.ts
+          git commit -m "feat: let the song remember itself"
+          git push origin HEAD:codex/anamnesis-song-memory
