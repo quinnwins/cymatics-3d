@@ -8,6 +8,7 @@ describe('HistoryTexture', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    temporalMemory.resetHistoryState();
     temporalMemory.setEnabled(true);
     temporalMemory.setFrozen(false);
     now = 1000;
