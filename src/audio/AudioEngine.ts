@@ -617,7 +617,7 @@ export class AudioEngine {
   }
 
   public setPlaybackSpeed(speed: number): void {
-    const clamped = Math.max(0.25, Math.min(4.0, speed));
+    const clamped = Math.max(0.1, Math.min(4.0, speed));
     if (this.playbackSpeed === clamped) return;
     this.playbackSpeed = clamped;
 

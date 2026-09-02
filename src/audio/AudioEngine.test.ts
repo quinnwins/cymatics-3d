@@ -296,8 +296,8 @@ describe('AudioEngine Transport & Scrubber', () => {
     expect(audioEngine.getAudioElement().defaultPlaybackRate).toBe(1.5);
 
     // Clamping limits
-    audioEngine.setPlaybackSpeed(0.1);
-    expect(audioEngine.getPlaybackSpeed()).toBe(0.25);
+    audioEngine.setPlaybackSpeed(0.02);
+    expect(audioEngine.getPlaybackSpeed()).toBe(0.1);
 
     audioEngine.setPlaybackSpeed(5.0);
     expect(audioEngine.getPlaybackSpeed()).toBe(4.0);
