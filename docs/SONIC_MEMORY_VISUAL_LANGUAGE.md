@@ -21,3 +21,5 @@ Sonic Memory should be recognizable before anyone reads a label.
 ## QA target
 
 The isolated automated hero frame must show a volumetric structure extending well beyond the central emitter. A passing state check is not sufficient; image analysis must confirm that luminous structure occupies a substantial radial area outside the droplet-sized core.
+
+The browser acceptance test therefore hides the ordinary droplet and measures Sonic Memory directly from WebGL pixels. It fails when the temporal field is too small, too dim, or confined to the emitter—even when every object and uniform exists correctly in memory.
