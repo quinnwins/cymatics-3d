@@ -1,10 +1,10 @@
 # SoundForm 3D
 ### Real-Time 3D Computational Acoustics, Volumetric Wave Mechanics & Live Vocal DSP Engine
 
-[![Vitest Automated Tests](https://img.shields.io/badge/Vitest-65%2F65_Passing-emerald.svg)](./src/)
-[![WebGL2 Shaders](https://img.shields.io/badge/WebGL2-120_FPS_Raymarching-purple.svg)](./src/visualizer/)
+[![Validate SoundForm](https://github.com/quinnwins/cymatics-3d/actions/workflows/validate.yml/badge.svg)](https://github.com/quinnwins/cymatics-3d/actions/workflows/validate.yml)
+[![WebGL2 Shaders](https://img.shields.io/badge/WebGL2-GPU_Visuals-purple.svg)](./src/visualizer/)
 [![Web Audio DSP](https://img.shields.io/badge/Web_Audio-YIN_%26_LPC--16-cyan.svg)](./src/math/)
-[![TypeScript Build](https://img.shields.io/badge/TypeScript-0_Errors_Strict-blue.svg)](./src/)
+[![TypeScript Build](https://img.shields.io/badge/TypeScript-Strict-blue.svg)](./src/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Technical Whitepaper](https://img.shields.io/badge/Whitepaper-Mathematical_Derivations-gold.svg)](./TECHNICAL_WHITEPAPER.md)
 
@@ -12,7 +12,24 @@
 
 ## Overview
 
-**SoundForm 3D** is a browser-based, GPU-accelerated computational physics, bio-acoustics, and digital signal processing (DSP) platform. Built in TypeScript, WebGL2/GLSL, and Web Audio API, SoundForm 3D delivers real-time volumetric standing wave raymarching, 262k particle acoustic radiation force fields ($\mathbf{F}=-\nabla U$), non-thermal histotripsy cavitation, oncotripsy dynamic resonance, and zero-allocation live vocal tract reconstruction at 120 FPS.
+**SoundForm 3D** is a browser-based, GPU-accelerated computational physics, bio-acoustics, and digital signal processing playground. Built in TypeScript, WebGL2/GLSL, and Web Audio API, it brings together live music visualization, volumetric standing waves, dense acoustic particle fields, deformable droplets, vocal DSP, and speculative sound-powered moonshot labs.
+
+The project is intentionally allowed to be both technical and imaginative: some modes visualize measured audio, some explore mathematical models, and some ask unapologetic “what if?” questions.
+
+## Signature Experience: Sonic Memory
+
+SoundForm no longer reacts only to the current FFT frame. **Sonic Memory** turns recent music into a living three-dimensional temporal sculpture:
+
+- the central emitter is the sound happening **now**;
+- increasing radius samples progressively older spectral frames;
+- drum hits and transients become outward-moving shells;
+- harmony leaves persistent volumetric architecture behind it;
+- a frozen sculpture can still be rotated, recolored, and explored;
+- the **Time Lens** moves the entire form backward through stored sound;
+- air, water, tissue, acrylic, glass, and steel alter the visual propagation model;
+- immersive mode and one-click capture turn the engine into a performance instrument.
+
+See [`docs/SONIC_MEMORY.md`](./docs/SONIC_MEMORY.md) for the signal model and controls.
 
 ```
                             ┌────────────────────────────────────────────────────────┐
@@ -24,9 +41,9 @@
          ▼                   ▼                         ▼                         ▼                   ▼
     Music Space         3D Cymatics               Cancer Lab                 Nobel Lab          Voice Studio
   ──────────────      ────────────────          ──────────────             ─────────────       ──────────────
-  • 6-Band FFT        • Helmholtz 3D Waves      • Oncotripsy Resonance     • Mechanogenomics   • YIN Pitch f0
+  • Sonic Memory      • Helmholtz 3D Waves      • Oncotripsy Resonance     • Mechanogenomics   • YIN Pitch f0
   • Shockwaves        • Taubin Raymarching      • Histotripsy Shockwaves   • BBB Opening       • LPC-16 DSP
-  • Ballistics        • 262k Gor'kov Particles  • SDT Cavitation & ROS     • Viral Shatter     • 3D Vocal Tract
+  • Time Lens         • 262k Particle Fields    • SDT Cavitation & ROS     • Viral Shatter     • 3D Vocal Tract
   • Particle Nebula   • Phase Cancellation      • Acousto-Immunotherapy    • Senolytic Lysis   • MDVP Biomarkers
 ```
 
@@ -35,32 +52,33 @@
 ## Studio Experiences
 
 ### 1. Music Space (3D Psychoacoustic Visualizer)
-* **Mathematical Core:** 4096-point log-spaced FFT energy decomposition across 6 psychoacoustic perceptual bands (Sub-bass $\to$ High).
-* **Ballistics Engine:** Continuous exponential attack/release filters ($\tau_{\text{attack}} = 18\text{ ms}, \tau_{\text{release}} = 220\text{ ms}$) with rolling dynamic threshold transient flux detection.
+* **Sonic Memory:** A 512 × 512 spectral ring buffer maps time onto radius so the present begins at the center and recent music remains visible outward.
+* **Mathematical Core:** 4096-point FFT energy decomposition across six psychoacoustic perceptual bands (Sub-bass $\to$ High), plus pitch and transient analysis.
+* **Ballistics Engine:** Continuous exponential attack/release filters ($\tau_{\text{attack}} = 18\text{ ms}, \tau_{\text{release}} = 220\text{ ms}$) with rolling dynamic-threshold transient flux detection.
 * **Camera Dynamics:** 6-DOF critically damped harmonic return springs ($\zeta = 1.0, \omega = 14\text{ rad/s}$) responding to audio shockwaves.
 
 ### 2. 3D Cymatics Lab (Volumetric Standing Waves & Levitation)
-* **Mathematical Core:** First-order Taubin distance approximation $d(\mathbf{x}) = \frac{|\psi(\mathbf{x})|}{\|\nabla \psi(\mathbf{x})\| + \epsilon}$ solving 3D Helmholtz standing waves ($p=0$) in rectangular, cylindrical, and spherical geometries.
-* **GPGPU Particles:** Ping-pong floating-point framebuffers (FBOs) simulating **262,144 concurrent motile particles** trapped by the Gor'kov radiation force field ($\mathbf{F}_{\text{rad}} = -\nabla U$).
-* **Optics:** 3-channel spectral Beer-Lambert absorption with Henyey-Greenstein Mie scattering and thin-film chromatic dispersion.
+* **Mathematical Core:** First-order Taubin distance approximation $d(\mathbf{x}) = \frac{|\psi(\mathbf{x})|}{\|\nabla \psi(\mathbf{x})\| + \epsilon}$ exploring 3D Helmholtz standing-wave nodal fields in rectangular, cylindrical, and spherical geometries.
+* **Dense Particle Fields:** Up to **262,144 concurrent GPU-rendered particles** projected and animated around nodal or antinodal structures.
+* **Optics:** 3-channel spectral Beer-Lambert-inspired absorption with Henyey-Greenstein-style scattering and thin-film chromatic dispersion.
 
 ### 3. Bio-Acoustic Oncology & Cancer Lab
-* **Oncotripsy Resonance:** Ortiz-Mittelstein finite-strain dynamic hyperelasticity selectively lysing cancer cells ($Q \sim 3.2 - 7.5$) while sparing healthy tissue ($Q \sim 12.0$).
-* **Calibrated Clinical AFM Database:** 5 human phenotypes (Glioblastoma U87-MG, Pancreatic PANC-1, Triple-Negative Breast MDA-MB-231, Hepatocellular Carcinoma HepG2, Osteosarcoma SaOS-2).
-* **Non-Thermal Histotripsy:** Keller-Miksis viscoelastic cavitation ODE, water-hammer microjet shockwaves ($p_{\text{wh}} > 0.25\text{ GPa}$), and Pennes bioheat thermal suppression proof ($\Delta T < 1.2^\circ\text{C}$).
-* **Sonodynamic Therapy (SDT):** Sonoluminescence cavitation flashes triggering protoporphyrin IX (PpIX) singlet oxygen ($^1\text{O}_2$) mitochondrial apoptosis and lipid ferroptosis.
-* **Acousto-Immunotherapy:** Acoustic radiation steering of CD8+ cytotoxic T-cell swarms forming immunological synapses on dense tumor spheroids.
+* **Oncotripsy Resonance:** Ortiz-Mittelstein-inspired finite-strain dynamic hyperelasticity exploring differential resonant responses between modeled cell profiles.
+* **Speculative Phenotype Library:** Five tumor-cell-line-inspired profiles plus a healthy comparison profile for moonshot experimentation.
+* **Non-Thermal Histotripsy:** Keller-Miksis-inspired cavitation, water-hammer microjet shockwaves, and low-duty-cycle thermal modeling.
+* **Sonodynamic Therapy (SDT):** Cavitation and reactive-oxygen visualizations around modeled sensitizer behavior.
+* **Acousto-Immunotherapy:** Acoustic steering concepts for CD8+ T-cell swarms interacting with dense tumor spheroids.
 
-### 4. Nobel Prize Discovery Lab
-* **Acoustic Mechanogenomics:** LINC complex tension ($F_{\text{WLC}} \sim 18 - 30\text{ pN}$), Nuclear Pore Complex dilation ($9\text{--}42\text{ nm}$), histone acetylation, and p53 tumor-suppressor euchromatin transcription kinetics.
-* **FUS Blood-Brain Barrier (BBB) Dilation:** Microbubble cavitation shear stress opening Claudin-5 paracellular pores ($1\text{ nm} \to 45\text{ nm}$) for glioblastoma nanomedicine delivery.
-* **Viral Capsid Lamb Resonance:** 3D elastic spherical shell quadrupolar vibration eigenmodes accumulating fatigue damage to shatter viral capsids ($> 620:1$ selectivity).
-* **Targeted Senolytic Clearance:** Biomechanical stiffness phenotype ($E_{\text{sen}} = 14.5\text{ kPa}$ vs $E_{\text{young}} = 2.8\text{ kPa}$) triggering Caspase-3 apoptosis and SASP cytokine plume dispersion.
+### 4. Nobel Discovery Lab
+* **Acoustic Mechanogenomics:** LINC-complex tension, nuclear-pore dilation, chromatin motion, and transcription-inspired visual systems.
+* **FUS Blood-Brain Barrier Dilation:** Microbubble cavitation and paracellular-pore exploration for imagined nanomedicine delivery.
+* **Viral Capsid Resonance:** Elastic-shell eigenmode and cyclic-fatigue concepts applied to viral capsid structures.
+* **Targeted Senolytic Clearance:** Stiffness-phenotype and apoptosis-inspired speculative simulations.
 
 ### 5. Vocal Holography & Live DSP
-* **Sub-Sample YIN Pitch:** Un-mocked implementation of De Cheveigné & Kawahara (2002) extracting fundamental frequency $f_0$ from live microphone audio.
-* **Clinical Perturbation Metrics:** Multi-Dimensional Voice Program (MDVP) formulas for Jitter (Local, RAP, PPQ5), Shimmer (Local, dB, APQ11), Harmonics-to-Noise Ratio (HNR), and Cepstral Peak Prominence (CPP).
-* **LPC-16 Levinson-Durbin:** Linear Predictive Coding calculating reflection coefficients $k_i$ and solving Kelly-Lochbaum lossless tube areas $A_{i+1} = A_i \frac{1-k_i}{1+k_i}$ to deform a 3D vocal tract tube mesh in real time.
+* **Sub-Sample YIN Pitch:** An implementation of De Cheveigné & Kawahara-style pitch extraction from live microphone audio.
+* **Voice Metrics:** Jitter, shimmer, HNR, CPP, and related exploratory perturbation metrics.
+* **LPC-16 Levinson-Durbin:** Linear Predictive Coding and Kelly-Lochbaum tube-area reconstruction driving a deformable 3D vocal-tract mesh.
 
 ---
 
@@ -68,26 +86,30 @@
 
 | Engineering Choice | Alternative Rejected | Rationale & Trade-off |
 | :--- | :--- | :--- |
-| **Volumetric Taubin Raymarching** | Marching Cubes CPU Mesh Extraction | Marching cubes causes CPU-GPU memory bus bottlenecks at 60 FPS; Taubin raymarching evaluates implicit fields directly in the fragment shader with analytic normals. |
-| **GPGPU Ping-Pong FBOs** | WebGL Particle Buffer Updating (`gl.bufferSubData`) | CPU particle updates thrash garbage collection; Ping-Pong FBOs compute Gor'kov acceleration and position updates directly on the GPU for 262k+ particles with zero memory allocation. |
-| **Native Web Audio Nodes** | Pure AudioWorklet for all synthesis | AudioWorklet introduces asynchronous WASM/JS script-loading latency; native node graphs pre-allocate transfer curves in C++ for deterministic execution safety. |
-| **Non-Thermal Histotripsy Mode** | Continuous HIFU Thermal Coagulation | Continuous HIFU causes thermal spread and collateral scar tissue; microsecond histotripsy pulses keep $\Delta T < 1.2^\circ\text{C}$ and $\text{CEM43} < 0.0001\text{ min}$, producing sharp, acellular mechanical fractionation. |
+| **Volumetric Taubin Raymarching** | Marching Cubes CPU Mesh Extraction | Evaluates implicit nodal fields directly in the fragment shader rather than continually transferring polygonized meshes from CPU to GPU. |
+| **Deterministic GPU Particle Projection** | CPU particle buffer updates | Keeps dense node/antinode structures responsive while avoiding continual `gl.bufferSubData` traffic and garbage collection. |
+| **Byte-Packed Temporal History** | 32-bit float history texture | Preserves a 512 × 512 full-spectrum history while reducing texture upload bandwidth by 75% and improving filter compatibility. |
+| **Native Web Audio Nodes** | Pure AudioWorklet for all synthesis | Uses browser-native node graphs for simple, low-latency synthesis and analysis while reserving custom DSP for the algorithms that need it. |
 
 ---
 
+## Run Locally
+
+```bash
+npm ci
+npm run dev
+```
+
 ## Automated Verification & Testing
 
-Run the full automated test suite (Vitest):
+Run the full automated test suite:
+
 ```bash
 npm test
 ```
 
-Strict TypeScript compilation check:
-```bash
-npx tsc --noEmit
-```
+Strict TypeScript and production build:
 
-Production build:
 ```bash
 npm run build
 ```
@@ -99,4 +121,4 @@ npm run build
 This project is licensed under the MIT License — see the [LICENSE](./LICENSE) file for details.
 
 ---
-*SoundForm 3D — Computational Acoustics & Volumetric Wave Engine.*
+*SoundForm 3D — see sound as matter, space, and memory.*
