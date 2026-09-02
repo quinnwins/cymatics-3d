@@ -567,7 +567,7 @@ export class AnamnesisExperience {
     const style = document.createElement('style');
     style.id = 'anamnesis-styles';
     style.textContent = `
-      #anamnesis-hud{position:fixed;z-index:92;inset:0;display:none;align-items:flex-start;justify-content:center;padding:clamp(28px,6vh,76px) 24px;pointer-events:none;opacity:0;transition:opacity .45s ease;color:#f8fafc;font-family:Inter,system-ui,sans-serif}
+      #anamnesis-hud{position:fixed;z-index:92;inset:0 0 88px 0;display:none;align-items:flex-start;justify-content:center;padding:clamp(16px,3vh,40px) 24px 8px;pointer-events:none;opacity:0;transition:opacity .45s ease;color:#f8fafc;font-family:Inter,system-ui,sans-serif}
       body.soundform-anamnesis #anamnesis-hud{display:flex;opacity:1}#anamnesis-hud *{box-sizing:border-box}
       #anamnesis-hud .ana-card{width:min(620px,calc(100vw - 32px));text-align:center;pointer-events:none;text-shadow:0 2px 18px #000;background:radial-gradient(ellipse at 50% 0%,#0a1223b8 0%,#03071180 52%,transparent 76%);padding:22px 26px 28px;border-radius:28px}
       body.soundform-anamnesis #anamnesis-hud .ana-card{pointer-events:auto}
@@ -585,8 +585,9 @@ export class AnamnesisExperience {
       #anamnesis-whisper{position:fixed;z-index:90;top:clamp(70px,12vh,130px);left:50%;transform:translate(-50%,-12px);opacity:0;pointer-events:none;color:#e0f2fe;text-align:center;font:700 9px/1.5 ui-monospace,SFMono-Regular,monospace;letter-spacing:.18em;text-shadow:0 2px 18px #000,0 0 28px #22d3ee88;transition:opacity .6s ease,transform .6s ease;max-width:calc(100vw - 40px)}
       #anamnesis-whisper.is-visible{opacity:1;transform:translate(-50%,0)}
       #anamnesis-tooltip{position:fixed;z-index:94;display:none;pointer-events:none;min-width:112px;padding:8px 10px;border:1px solid #67e8f944;border-radius:12px;background:#020711e8;color:#e0f2fe;font:8px/1.45 ui-monospace,SFMono-Regular,monospace;letter-spacing:.07em;box-shadow:0 12px 38px #000b;backdrop-filter:blur(12px)}
-      body.soundform-anamnesis #header-root,body.soundform-anamnesis #left-sidebar-root,body.soundform-anamnesis #right-sidebar-root,body.soundform-anamnesis #bottom-transport-root,body.soundform-anamnesis #center-prompt-root,body.soundform-anamnesis #sonic-memory-control{opacity:0!important;pointer-events:none!important;transition:opacity .35s ease!important}
-      @media(max-width:700px){#anamnesis-hud{padding-top:34px}#anamnesis-hud .ana-card{padding:18px 12px 20px}#anamnesis-hud .ana-stats{gap:10px;font-size:8px}#anamnesis-hud .ana-thought{font-size:8px}}
+      body.soundform-anamnesis #header-root,body.soundform-anamnesis #left-sidebar-root,body.soundform-anamnesis #right-sidebar-root,body.soundform-anamnesis #center-prompt-root{opacity:0!important;pointer-events:none!important;transition:opacity .35s ease!important}
+      body.soundform-anamnesis #bottom-transport-root{opacity:1!important;pointer-events:auto!important;z-index:95!important}
+      @media(max-width:700px){#anamnesis-hud{padding-top:24px}#anamnesis-hud .ana-card{padding:16px 12px 18px}#anamnesis-hud .ana-stats{gap:10px;font-size:8px}#anamnesis-hud .ana-thought{font-size:8px}}
       @media(prefers-reduced-motion:reduce){#anamnesis-hud,#anamnesis-whisper{transition:none}}
     `;
     document.head.appendChild(style);
@@ -700,14 +701,8 @@ export class AnamnesisExperience {
     this.root.querySelector<HTMLElement>('[data-thought]')!.textContent = thought;
 
     if (this.whisper) {
-      const show = Boolean(this.temporaryMessage)
-        && time < this.temporaryMessageUntil
-        && !this.expanded
-        && this.enabled
-        && this.contextVisible
-        && this.isMemorySource(this.audio.getMode());
-      this.whisper.textContent = this.temporaryMessage;
-      this.whisper.classList.toggle('is-visible', show);
+      this.whisper.textContent = '';
+      this.whisper.classList.remove('is-visible');
     }
   }
 

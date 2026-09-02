@@ -35,7 +35,6 @@ export class AudioControlsBar {
   // Real-time telemetry state
   private currentFreq = 432;
   private currentWaveform: WaveformType = 'sine';
-  private anamnesisExpanded = false;
 
   // State cache for intelligent in-place DOM updates
   private lastRenderState: {
@@ -125,29 +124,6 @@ export class AudioControlsBar {
       }
     }) as EventListener);
 
-    window.addEventListener(TEMPORAL_MEMORY_EVENT, () => {
-      this.syncMemoryButton();
-    });
-
-    window.addEventListener('soundform-anamnesis-state', ((e: CustomEvent<{ expanded?: boolean }>) => {
-      this.anamnesisExpanded = Boolean(e.detail?.expanded);
-      this.syncMemoryButton();
-    }) as EventListener);
-  }
-
-  private syncMemoryButton(): void {
-    const btn = this.element.querySelector('#btn-sonic-memory');
-    if (!btn) return;
-    const isExpanded = this.anamnesisExpanded;
-    btn.className = `p-2 rounded-xl ${
-      isExpanded
-        ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/50 shadow-sm shadow-cyan-500/20'
-        : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 border border-white/10 hover:border-white/20'
-    } cursor-pointer transition-all active:scale-95 flex items-center gap-1.5 text-xs font-semibold shrink-0`;
-    const icon = btn.querySelector('svg');
-    if (icon) {
-      icon.setAttribute('class', `w-3.5 h-3.5 ${isExpanded ? 'text-cyan-400' : 'text-slate-500'}`);
-    }
   }
 
   public dispose(): void {
@@ -595,24 +571,6 @@ export class AudioControlsBar {
             <span class="hidden 2xl:inline text-[11px]">Export</span>
           </button>
 
-          <!-- Song Memory ("The Song Remembers") Action Button -->
-          <button
-            id="btn-sonic-memory"
-            type="button"
-            class="p-2 rounded-xl ${
-              this.anamnesisExpanded
-                ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/50 shadow-sm shadow-cyan-500/20'
-                : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 border border-white/10 hover:border-white/20'
-            } cursor-pointer transition-all active:scale-95 flex items-center gap-1.5 text-xs font-semibold shrink-0"
-            aria-label="The Song Remembers (Whole-Song Memory)"
-            data-tooltip="The Song Remembers (A or M)"
-          >
-            <svg class="w-3.5 h-3.5 shrink-0 ${this.anamnesisExpanded ? 'text-cyan-400' : 'text-slate-500'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-            <span class="hidden 2xl:inline text-[11px]">Memory</span>
-          </button>
 
           <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block shrink-0"></div>
 
@@ -740,14 +698,7 @@ export class AudioControlsBar {
       if (this.onExport) this.onExport();
     });
 
-    // Song Memory ("The Song Remembers") Action Button
-    this.element.querySelector('#btn-sonic-memory')?.addEventListener('click', () => {
-      if (this.onToggleMemory) {
-        this.onToggleMemory();
-      } else {
-        window.dispatchEvent(new CustomEvent('soundform-anamnesis-toggle'));
-      }
-    });
+
 
     // Volume Slider & Mute
     const volSlider = this.element.querySelector('#volume-slider') as HTMLInputElement;

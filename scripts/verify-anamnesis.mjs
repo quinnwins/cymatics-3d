@@ -60,11 +60,10 @@ async function main() {
 
   try {
     await page.goto('http://127.0.0.1:5198', { waitUntil: 'networkidle0', timeout: 30_000 });
-    await page.waitForFunction(() => Boolean(window.__anamnesis && window.__soundformApp), { timeout: 15_000 });
-    await page.waitForSelector('#btn-sonic-memory', { timeout: 15_000 });
+    await page.waitForSelector('#bottom-transport-root', { timeout: 15_000 });
 
     // Enable Memory so live Web Audio feeds the long-memory model.
-    await page.evaluate(() => document.querySelector('#btn-sonic-memory')?.click());
+    await page.evaluate(() => window.__anamnesis?.setEnabled?.(true));
     await page.waitForFunction(() => window.__anamnesis?.getState?.().enabled === true, { timeout: 15_000 });
 
     // Prove that ordinary live Web Audio feeds the long-memory model.
@@ -158,10 +157,10 @@ async function main() {
       throw new Error(`Phrase recurrence did not become a visible memory: ${JSON.stringify(recurrence)}`);
     }
 
-    // Enter through the actual product control directly
+    // Enter through the actual product hotkey directly
     const isExpanded = await page.evaluate(() => window.__anamnesis?.getState?.().expanded === true);
     if (!isExpanded) {
-      await page.click('#btn-sonic-memory');
+      await page.keyboard.press('KeyA');
     }
     await page.waitForFunction(() => document.body.classList.contains('soundform-anamnesis'));
     await page.waitForFunction(() => window.__anamnesis?.getState?.().expanded === true);
