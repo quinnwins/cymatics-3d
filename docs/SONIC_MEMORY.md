@@ -2,17 +2,18 @@
 
 Sonic Memory turns a song into a living three-dimensional record of its recent past.
 
-Most music visualizers deform one object from the latest FFT frame. SoundForm now keeps a spectral history and maps **time onto distance from the emitter**:
+Most music visualizers deform one object from the latest FFT frame. SoundForm keeps a rolling spectrum and maps **time onto distance from the emitter**:
 
 - the center is the sound happening now;
 - increasing radius contains progressively older spectral frames;
 - transients become bright traveling shells;
 - sustained harmony becomes persistent volumetric architecture;
-- pausing the history freezes a rotatable sound sculpture.
+- freezing history preserves a rotatable sound sculpture;
+- the Time Lens can move the entire sculpture backward through stored sound.
 
 ## Signal representation
 
-`HistoryTexture` stores 512 spectral bins across 512 history frames. Each texel contains:
+`HistoryTexture` stores 512 logarithmically distributed full-spectrum samples across 512 history frames. A normalized RGBA byte texture keeps the history broadly compatible and reduces upload bandwidth by 75% compared with the original float texture. Each texel contains:
 
 | Channel | Meaning |
 | --- | --- |
@@ -29,7 +30,8 @@ For every point in the Sonic Memory volume, the shader calculates an age from no
 
 ```text
 ageFrames = radius × memorySeconds × captureRate × mediumInfluence ÷ propagation
-historyRow = latestRow - ageFrames
+centerRow  = latestRow − lookbackSeconds × captureRate
+sampleRow  = centerRow − ageFrames
 ```
 
 Angular position selects spectral content, with a deliberate low-frequency bias so bass and lower harmonics carry the large structure while upper frequencies form filaments and detail. Spectral motion twists the field; detected transients sharpen outward-moving shells.
@@ -41,10 +43,11 @@ The medium selector preserves the relative ordering of sound speeds while compre
 Open the **SONIC MEMORY** pill above the transport:
 
 - **Memory on/off** — reveal or hide the temporal field.
-- **Freeze sculpture** — stop writing new spectral frames while audio continues.
+- **Freeze sculpture** — hold the history, phase, broad-band movement, pitch, and visual presence while audio can continue.
 - **Immersive view** — remove the workstation chrome for a clean full-screen performance.
 - **Capture frame** — save the current canvas as a PNG.
 - **Memory** — set the recent time horizon.
+- **Time Lens** — move the center of the sculpture from now toward an older stored moment.
 - **Propagation** — change how quickly the present expands into the past.
 - **Presence** — control visual density and displacement.
 - **Spatial twist** — move from ordered shells toward helical structures.
@@ -56,6 +59,7 @@ Keyboard shortcuts:
 - `M` toggles Sonic Memory.
 - `F` freezes or resumes the sculpture.
 - `I` enters or exits immersive view.
+- `Escape` closes the panel or exits immersive view.
 
 ## Design intent
 
