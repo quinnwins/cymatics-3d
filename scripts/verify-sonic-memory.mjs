@@ -20,6 +20,12 @@ function findChrome() {
   return candidates.find(candidate => fs.existsSync(candidate));
 }
 
+function isCriticalResourceFailure(url, status) {
+  if (status < 400) return false;
+  if (status >= 500) return true;
+  return /\.(?:js|css|wasm)(?:\?|$)/i.test(url);
+}
+
 async function main() {
   const executablePath = findChrome();
   if (!executablePath) {
@@ -57,7 +63,20 @@ async function main() {
   await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
   page.on('pageerror', error => errors.push(`pageerror: ${error.message}`));
   page.on('console', message => {
-    if (message.type() === 'error') errors.push(`console: ${message.text()}`);
+    const text = message.text();
+    // Chrome emits a generic console error for optional resources such as a
+    // missing favicon. Response tracking below still fails closed for code,
+    // stylesheets, WASM, and every server-side error.
+    if (message.type() === 'error' && !text.startsWith('Failed to load resource:')) {
+      errors.push(`console: ${text}`);
+    }
+  });
+  page.on('response', response => {
+    const status = response.status();
+    const url = response.url();
+    if (isCriticalResourceFailure(url, status)) {
+      errors.push(`resource: ${status} ${url}`);
+    }
   });
 
   try {
@@ -126,7 +145,7 @@ async function main() {
 
     // Time Lens: move the center two seconds into stored history. Software
     // WebGL can render this dense scene slowly, so wait for an actual renderer
-    // update instead of assuming a 150 ms sleep contains a new animation frame.
+    // update instead of assuming a short sleep contains a new animation frame.
     await page.$eval('[data-control="lookback"]', element => {
       element.value = '2';
       element.dispatchEvent(new Event('input', { bubbles: true }));
@@ -163,13 +182,29 @@ async function main() {
       throw new Error(`Frozen sculpture moved: ${JSON.stringify({ frozenPast, frozenAfter })}`);
     }
 
-    // Immersive mode must enter cleanly and remain escapable from the keyboard.
+    // Produce clean visual proof rather than obscuring the result with every
+    // workstation layer. The feature remains available in all apparatus modes.
+    await page.evaluate(() => {
+      const visualizer = window.__soundformApp?.visualizer;
+      visualizer?.setCymaticsLayers?.({ plate: false, droplet: true, trap: false });
+      visualizer?.setCameraMode?.('orbit');
+      if (visualizer?.camera && visualizer?.controls) {
+        visualizer.camera.position.set(0, 1.7, 7.4);
+        visualizer.controls.target.set(0, 0.45, 0);
+        visualizer.controls.update();
+      }
+    });
+
+    await page.click('[data-close]');
+    await page.click('#sonic-memory-control .sm-pill');
     await page.click('[data-action="immersive"]');
     await page.waitForFunction(() => document.body.classList.contains('soundform-immersive'));
+    await new Promise(resolve => setTimeout(resolve, 450));
+    await page.screenshot({ path: SCREENSHOT_PATH, fullPage: false });
+
+    // Immersive mode remains escapable without a mouse.
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.body.classList.contains('soundform-immersive'));
-
-    await page.screenshot({ path: SCREENSHOT_PATH, fullPage: false });
 
     if (errors.length > 0) {
       throw new Error(`Browser reported errors:\n${errors.join('\n')}`);
