@@ -92,6 +92,23 @@ export class HistoryTexture {
       }
     }
 
+    let framePeakDb = -100;
+    if (!zeroFilledFallback) {
+      for (let i = 0; i < fftData.length; i += 1) {
+        const candidate = fftData[i];
+        if (Number.isFinite(candidate)) framePeakDb = Math.max(framePeakDb, candidate);
+      }
+    }
+
+    // Web Audio spectra commonly peak around -55 to -35 dB after a safe master
+    // gain. Normalize the shape relative to each frame's peak, then retain its
+    // absolute loudness as a separate multiplier. Quiet and loud recordings
+    // become legible without flattening their dynamics into the same sculpture.
+    const absoluteLevel = Math.pow(
+      Math.max(0, Math.min(1, (framePeakDb + 90) / 60)),
+      0.82
+    );
+
     let peakSignal = 0;
     let positiveFlux = 0;
     const sourceMax = fftData.length - 1;
@@ -108,9 +125,12 @@ export class HistoryTexture {
       );
       const rawDb = fftData[sourceIndex];
       const db = zeroFilledFallback ? -100 : Number.isFinite(rawDb) ? rawDb : -100;
-      const magnitude = db > -90 ? Math.pow(10, (db + 10) / 45) : 0;
-      const normalizedMagnitude = Number.isFinite(magnitude)
-        ? Math.max(0, Math.min(1, magnitude / 2.5))
+      const relativeDb = db - framePeakDb;
+      const spectralShape = !zeroFilledFallback && absoluteLevel > 0 && relativeDb > -72
+        ? Math.pow(10, relativeDb / 38)
+        : 0;
+      const normalizedMagnitude = Number.isFinite(spectralShape)
+        ? Math.max(0, Math.min(1, spectralShape * absoluteLevel))
         : 0;
 
       const previous = this.previousMagnitudes[i];
