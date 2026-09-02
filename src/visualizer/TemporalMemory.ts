@@ -26,6 +26,7 @@ export interface TemporalMemoryUniformState {
   historyRows: number;
   historyRate: number;
   memoryFrames: number;
+  availableFrames: number;
   enabled: number;
   gain: number;
   warp: number;
@@ -76,6 +77,7 @@ export class TemporalMemoryController {
   private texture: THREE.DataTexture | null = null;
   private historyRows = 512;
   private historyHead = 0;
+  private availableFrames = 0;
   private framesPerSecond = 48;
   private lastFrameAt = 0;
   private signal = 0;
@@ -97,6 +99,7 @@ export class TemporalMemoryController {
 
   public recordFrame(row: number, peakSignal: number, nowMs = performance.now()): void {
     this.historyHead = (Math.max(0, row) + 0.5) / this.historyRows;
+    this.availableFrames = Math.min(this.historyRows - 2, this.availableFrames + 1);
     this.signal += (clamp(peakSignal, 0, 1.5) - this.signal) * 0.32;
 
     if (this.lastFrameAt > 0) {
@@ -112,6 +115,7 @@ export class TemporalMemoryController {
 
   public resetHistoryState(): void {
     this.historyHead = 0;
+    this.availableFrames = 0;
     this.framesPerSecond = 48;
     this.lastFrameAt = 0;
     this.signal = 0;
@@ -136,13 +140,17 @@ export class TemporalMemoryController {
     const requestedFrames =
       this.settings.memorySeconds * this.framesPerSecond * mediumInfluence / this.settings.propagation;
     const lookbackFrames = this.settings.lookbackSeconds * this.framesPerSecond;
+    // While a song is starting, stretch the history collected so far across
+    // the sculpture instead of leaving most of the volume blank for six seconds.
+    const populatedFrames = Math.max(2, this.availableFrames);
 
     return {
       texture: this.texture,
       historyHead: wrap01(this.historyHead - lookbackFrames / this.historyRows),
       historyRows: this.historyRows,
       historyRate: this.framesPerSecond,
-      memoryFrames: clamp(requestedFrames, 2, this.historyRows - 2),
+      memoryFrames: clamp(Math.min(requestedFrames, populatedFrames), 2, this.historyRows - 2),
+      availableFrames: this.availableFrames,
       enabled: this.settings.enabled ? 1 : 0,
       gain: this.settings.gain,
       warp: this.settings.warp,
