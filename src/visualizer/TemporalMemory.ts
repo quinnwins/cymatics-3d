@@ -87,6 +87,9 @@ export class TemporalMemoryController {
   public registerTexture(texture: THREE.DataTexture, rows: number): void {
     this.texture = texture;
     this.historyRows = Math.max(2, Math.round(rows));
+    // A newly registered texture is empty. Reset the temporal envelope so
+    // stale state from a replaced renderer cannot illuminate silent history.
+    this.resetHistoryState();
     this.requestControls();
     this.emit();
   }
@@ -104,6 +107,13 @@ export class TemporalMemoryController {
 
   public recordIdle(): void {
     this.signal *= 0.96;
+  }
+
+  public resetHistoryState(): void {
+    this.historyHead = 0;
+    this.framesPerSecond = 48;
+    this.lastFrameAt = 0;
+    this.signal = 0;
   }
 
   public shouldCapture(): boolean {
