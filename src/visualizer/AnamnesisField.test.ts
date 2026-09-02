@@ -54,6 +54,7 @@ describe('AnamnesisField', () => {
     const aura = field.aura.material as THREE.ShaderMaterial;
     expect(aura.uniforms.uLayer.value).toBe(1);
     expect(aura.uniforms.uOpacity.value).toBeGreaterThan(0);
+    expect(aura.uniforms.uPointScale.value).toBe(1);
 
     field.dispose();
   });
