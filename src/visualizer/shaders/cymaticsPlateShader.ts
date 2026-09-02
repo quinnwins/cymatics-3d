@@ -280,35 +280,50 @@ void main() {
     float nMode = max(1.0, uModes.x);
     float mMode = max(1.0, uModes.y);
 
-    // 1. Chladni wave value at this particle's coordinate
+    // 1. Physical Chladni standing wave modal value at this coordinate
     float chladni1 = cos(nMode * PI * p.x) * cos(mMode * PI * p.y) - 0.72 * cos(mMode * PI * p.x) * cos(nMode * PI * p.y);
     float bessel1 = evalBesselJ(mMode, nMode * PI * r * 1.6) * cos(mMode * theta);
     float modalVal = mix(chladni1, bessel1, uChamberType);
 
-    // 2. Exact Numerical Gradient of Acoustic Pressure Field
-    float eps = 0.02;
-    float c_dx = (cos(nMode * PI * (p.x + eps)) * cos(mMode * PI * p.y) - 0.72 * cos(mMode * PI * (p.x + eps)) * cos(nMode * PI * p.y) - chladni1) / eps;
-    float c_dy = (cos(nMode * PI * p.x) * cos(mMode * PI * (p.y + eps)) - 0.72 * cos(mMode * PI * p.x) * cos(nMode * PI * (p.y + eps)) - chladni1) / eps;
-    vec2 gradP = vec2(c_dx, c_dy);
+    // 2. Exact Numerical Gradient of Acoustic Modal Field (for both Cartesian & Bessel)
+    float eps = 0.015;
+    vec2 p_dx = p + vec2(eps, 0.0);
+    vec2 p_dy = p + vec2(0.0, eps);
+
+    float r_dx = length(p_dx);
+    float th_dx = atan(p_dx.y, p_dx.x);
+    float c_dx = cos(nMode * PI * p_dx.x) * cos(mMode * PI * p_dx.y) - 0.72 * cos(mMode * PI * p_dx.x) * cos(nMode * PI * p_dx.y);
+    float b_dx = evalBesselJ(mMode, nMode * PI * r_dx * 1.6) * cos(mMode * th_dx);
+    float val_dx = mix(c_dx, b_dx, uChamberType);
+
+    float r_dy = length(p_dy);
+    float th_dy = atan(p_dy.y, p_dy.x);
+    float c_dy = cos(nMode * PI * p_dy.x) * cos(mMode * PI * p_dy.y) - 0.72 * cos(mMode * PI * p_dy.x) * cos(nMode * PI * p_dy.y);
+    float b_dy = evalBesselJ(mMode, nMode * PI * r_dy * 1.6) * cos(mMode * th_dy);
+    float val_dy = mix(c_dy, b_dy, uChamberType);
+
+    vec2 gradP = vec2((val_dx - modalVal) / eps, (val_dy - modalVal) / eps);
     float gradLen = length(gradP);
     vec2 normGrad = gradLen > 1e-4 ? gradP / gradLen : vec2(0.0);
 
     // 3. Gor'kov Acoustic Radiation Trapping Force:
-    // Pushes dust grains directly toward nodal lines (modalVal == 0)
-    float gorkovStrength = 0.55 + uBandEnergies.x * 0.35;
-    vec2 trapDisp = -modalVal * normGrad * gorkovStrength * smoothstep(0.0, 0.35, abs(modalVal));
+    // Pushes sand grains precisely toward nodal lines (modalVal == 0)
+    float bassKick = uBandEnergies.x * 1.8 + uBandEnergies.y * 1.2;
+    float gorkovStrength = 0.85 + uBandEnergies.x * 0.25;
+    float distToNode = modalVal / (gradLen + 0.18);
+    vec2 trapDisp = -distToNode * normGrad * gorkovStrength;
 
-    // 4. Acoustic Micro-Streaming Surface Jitter
+    // 4. Acoustic Micro-Streaming Surface Jitter & Dynamic Beat Dancing
     float speedFactor = uWaveSpeed * 0.18;
-    float streamSpeed = uTime * (1.2 + uBandEnergies.x * 1.5) * speedFactor + aParticlePhase;
+    float streamSpeed = uTime * (2.2 + bassKick * 2.8) * speedFactor + aParticlePhase;
     vec2 streamVortex = vec2(
-        sin(p.y * 4.0 + streamSpeed + aParticleSeed * 6.28),
-        cos(p.x * 4.0 + streamSpeed + aParticleSeed * 6.28)
-    ) * (0.008 + uBandEnergies.z * 0.015);
+        sin(p.y * 5.0 + streamSpeed + aParticleSeed * 6.28),
+        cos(p.x * 5.0 + streamSpeed + aParticleSeed * 6.28)
+    ) * (0.006 + bassKick * 0.016 + uBandEnergies.z * 0.01);
 
-    vec2 finalP = p + trapDisp * 0.85 + streamVortex;
+    vec2 finalP = p + trapDisp + streamVortex;
     
-    // Strict Boundary Clamping: Sand stays strictly inside the plate perimeter rim!
+    // Strict Boundary Clamping: Sand stays strictly inside the plate perimeter rim
     if (uChamberType < 0.5) {
         finalP = clamp(finalP, vec2(-0.93), vec2(0.93));
     } else {
@@ -319,11 +334,10 @@ void main() {
     }
     
     // 5. Strict Surface Confinement (Sand rides directly ON the vibrating plate metal)
-    float bassKick = uBandEnergies.x * 1.8 + uBandEnergies.y * 1.2;
     float plateDispY = (modalVal * 0.04) * sin(uTime * (uFundamentalFreq * 0.05 + 16.0) * speedFactor) * (1.0 + bassKick);
     
-    // Tiny micro-vibration skittering height directly on the metal surface (max ~0.008)
-    float microSkitter = abs(modalVal) * (0.002 + bassKick * 0.006) * (0.5 + 0.5 * sin(uTime * 28.0 * speedFactor + aParticlePhase * 5.0));
+    // Micro-vibration skittering height directly on the metal surface
+    float microSkitter = abs(modalVal) * (0.0025 + bassKick * 0.007) * (0.5 + 0.5 * sin(uTime * 30.0 * speedFactor + aParticlePhase * 5.0));
     
     // Sand rests flat right on the plate surface
     float yPos = 0.004 + plateDispY + microSkitter;
@@ -336,9 +350,9 @@ void main() {
     vec3 palColor = oklabCosinePalette(tPal, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
     
     // Nodal sand particles glow with crisp quartz white / golden accent tint
-    float isNodal = smoothstep(0.35, 0.0, abs(modalVal));
+    float isNodal = smoothstep(0.28, 0.0, abs(modalVal));
     vec3 dustColor = mix(palColor, uAccent * 1.4, 0.35 + isNodal * 0.45);
-    dustColor += vec3(isNodal * 0.4 * (1.0 + bassKick * 0.8));
+    dustColor += vec3(isNodal * 0.45 * (1.0 + bassKick * 0.8));
     
     vColor = vec4(dustColor, 0.9 + isNodal * 0.1);
     vIntensity = 1.0 + bassKick * 0.8 + isNodal * 0.8;

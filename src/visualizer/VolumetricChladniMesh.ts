@@ -174,6 +174,10 @@ export class VolumetricChladniMesh {
     }
   }
 
+  public setChamberGeometry(type: ChamberGeometryType): void {
+    this.setChamberType(type);
+  }
+
   public getChamberType(): number {
     return this.currentChamberType;
   }
@@ -184,6 +188,10 @@ export class VolumetricChladniMesh {
   public setModes(n: number, m: number, l: number): void {
     this.modes.set(n, m, l);
     this.material.uniforms.uModes.value.copy(this.modes);
+  }
+
+  public setModalNumbers(n: number, m: number, l: number): void {
+    this.setModes(n, m, l);
   }
 
   public getModes(): THREE.Vector3 {

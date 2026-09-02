@@ -32,7 +32,7 @@ export class WavePhysics {
    * Converts a frequency (Hz) to musical note info.
    */
   public static frequencyToNote(freq: number): NoteInfo {
-    if (freq <= 0) return { name: '---', octave: 0, frequency: 0, cents: 0 };
+    if (!Number.isFinite(freq) || freq <= 0) return { name: '---', octave: 0, frequency: 0, cents: 0 };
     const midi = 69 + 12 * Math.log2(freq / 440);
     const roundedMidi = Math.round(midi);
     const cents = Math.round((midi - roundedMidi) * 100);
@@ -57,6 +57,7 @@ export class WavePhysics {
    * Calculates acoustic wavenumber k = 2 * PI * f / c.
    */
   public static wavenumber(freq: number, speedOfSound = this.SPEED_OF_SOUND_AIR): number {
+    if (!Number.isFinite(freq) || speedOfSound <= 0) return 0;
     return (2 * Math.PI * freq) / speedOfSound;
   }
 

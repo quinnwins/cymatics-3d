@@ -188,7 +188,7 @@ float evalBesselJ(float m, float u) {
     float sum = 0.0;
     const int N = 8;
     for (int i = 0; i < N; i++) {
-        float phi_i = float(i) * PI / float(N);
+        float phi_i = (float(i) + 0.5) * PI / float(N);
         sum += cos(m * phi_i - absU * sin(phi_i));
     }
     return sum / float(N);

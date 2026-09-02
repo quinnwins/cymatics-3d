@@ -844,8 +844,8 @@ export class VoiceBiometricsPhysics {
     buffer: Float32Array,
     order = VoiceBiometricsPhysics.LPC_ORDER
   ): { reflectionCoeffs: number[]; radiiCm: number[]; formants: [number, number, number, number] } {
-    const p = order;
-    const N = buffer.length;
+    const p = Math.min(order, VoiceBiometricsPhysics.LPC_ORDER);
+    const N = Math.min(buffer.length, ZeroAllocDSPWorkspace.BUFFER_SIZE);
 
     const s = ZeroAllocDSPWorkspace.preEmphBuffer;
     const r = ZeroAllocDSPWorkspace.lpcR;
@@ -912,9 +912,9 @@ export class VoiceBiometricsPhysics {
 
     // Unit-Circle LPC Spectral Peak Formant Evaluation
     const formants: [number, number, number, number] = [
-      Math.max(200, Math.min(1100, 250 + (1 - reflectionCoeffs[0]) * 400)),
-      Math.max(800, Math.min(2600, 1100 + (1 + reflectionCoeffs[1]) * 800)),
-      Math.max(2000, Math.min(3400, 2400 + reflectionCoeffs[2] * 500)),
+      Math.max(200, Math.min(1100, 250 + (1 - (reflectionCoeffs[0] ?? 0)) * 400)),
+      Math.max(800, Math.min(2600, 1100 + (1 + (reflectionCoeffs[1] ?? 0)) * 800)),
+      Math.max(2000, Math.min(3400, 2400 + (reflectionCoeffs[2] ?? 0) * 500)),
       3500,
     ];
 

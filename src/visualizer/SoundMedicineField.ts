@@ -63,16 +63,14 @@ export class SoundMedicineField {
     }
 
     spiralGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    spiralGeom.setAttribute('vProgress', new THREE.BufferAttribute(progress, 1));
+    spiralGeom.setAttribute('aProgress', new THREE.BufferAttribute(progress, 1));
 
     this.spiralMaterial = new THREE.ShaderMaterial({
       vertexShader: `
-        attribute float vProgress;
-        varying float vProg;
-        varying vec2 vUv;
+        attribute float aProgress;
+        varying float vProgress;
         void main() {
-          vProg = vProgress;
-          vUv = uv;
+          vProgress = aProgress;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,

@@ -154,7 +154,7 @@ export class BioAcousticPhysics {
     corticalTensionNm: number,
     densityKgM3 = 1050.0
   ): number {
-    if (n < 2 || radiusMeters <= 0) return 0;
+    if (n < 2 || radiusMeters <= 0 || densityKgM3 <= 0 || corticalTensionNm < 0) return 0;
     const numerator = n * (n - 1) * (n + 2) * corticalTensionNm;
     const denominator = densityKgM3 * Math.pow(radiusMeters, 3);
     return (1 / (2 * Math.PI)) * Math.sqrt(numerator / denominator);
@@ -198,6 +198,7 @@ export class BioAcousticPhysics {
     fluidDensity = BioAcousticPhysics.FLUID_DENSITY,
     fluidSoundSpeed = BioAcousticPhysics.FLUID_SOUND_SPEED
   ): number {
+    if (wavelengthM <= 0 || fluidDensity <= 0 || fluidSoundSpeed <= 0 || cellRadiusM <= 0) return 0;
     const k = (2 * Math.PI) / wavelengthM;
     const E_ac = (acousticPressurePa * acousticPressurePa) / (4 * fluidDensity * fluidSoundSpeed * fluidSoundSpeed);
     return -4 * Math.PI * Math.pow(cellRadiusM, 3) * k * E_ac * contrastPhi * Math.sin(2 * k * positionX);

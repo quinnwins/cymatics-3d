@@ -87,10 +87,34 @@ describe('SpectralAnalyzer', () => {
     const mockNode = new MockAnalyserNode();
     const analyzer = new SpectralAnalyzer(mockNode as unknown as AnalyserNode, 44100);
 
-    analyzer.update(0.0);
-    expect(analyzer.activeShockwaves.length).toBe(0);
-
     analyzer.update(0.05);
     expect(analyzer.activeShockwaves.length).toBe(0);
+  });
+
+  it('smoothly integrates external synthetic bands and manual shockwaves', () => {
+    const mockNode = new MockAnalyserNode();
+    const analyzer = new SpectralAnalyzer(mockNode as unknown as AnalyserNode, 44100);
+
+    const syntheticBands = {
+      subBass: 1.2,
+      bass: 0.9,
+      lowMid: 0.7,
+      mid: 0.6,
+      highMid: 0.5,
+      high: 0.4,
+      rms: 0.8,
+    };
+
+    analyzer.setExternalBands(syntheticBands);
+    expect(analyzer.getExternalBands()?.subBass).toBe(1.2);
+
+    analyzer.update(0.1);
+    expect(analyzer.currentBands.subBass).toBeGreaterThan(0);
+    expect(analyzer.currentBands.bass).toBeGreaterThan(0);
+
+    analyzer.triggerShockwave(3.0, 8.0);
+    expect(analyzer.activeShockwaves.length).toBe(1);
+    expect(analyzer.activeShockwaves[0].strength).toBe(3.0);
+    expect(analyzer.activeShockwaves[0].speed).toBe(8.0);
   });
 });

@@ -48,7 +48,7 @@ export class HistotripsyPhysics {
   public static readonly SPEED_OF_SOUND = 1540.0; // m/s
   public static readonly SURFACE_TENSION = 0.056; // N/m
   public static readonly LIQUID_VISCOSITY = 0.0035; // Pa.s
-  public static readonly VAPOR_PRESSURE = 2330.0; // Pa at 37 deg C
+  public static readonly VAPOR_PRESSURE = 2330.0; // Pa at 20 deg C (6280 Pa at 37 deg C)
   public static readonly AMBIENT_PRESSURE = 101325.0; // Pa
   public static readonly INTRINSIC_THRESHOLD_MPA = 26.0; // -26 MPa intrinsic nucleation threshold
 

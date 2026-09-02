@@ -25,8 +25,14 @@
         <!-- Left Sidebar: Primary Controls, Presets & Action Decks -->
         <aside id="left-sidebar-root" class="sidebar-panel sidebar-left pointer-events-auto flex flex-col gap-2.5 max-h-full overflow-y-auto custom-scrollbar z-20 transition-all duration-300 w-80 sm:w-92 md:w-96 shrink-0"></aside>
 
-        <!-- Center Overlay for Audio Activation / Status Prompts -->
-        <div id="center-prompt-root" class="pointer-events-none relative z-25 flex-1 flex items-center justify-center"></div>
+        <!-- Center Overlay for Audio Activation / Status Prompts & Floating Viewport HUD -->
+        <div id="center-viewport-overlay" class="pointer-events-none relative z-20 flex-1 flex flex-col justify-between items-center h-full px-1">
+          <!-- Top Floating Viewport HUD Dock -->
+          <div id="viewport-hud-root" class="pointer-events-auto w-full flex justify-end items-center"></div>
+
+          <!-- Center Overlay for Audio Activation / Status Prompts -->
+          <div id="center-prompt-root" class="pointer-events-none flex items-center justify-center flex-1"></div>
+        </div>
 
         <!-- Right Sidebar: Live Spectrum Analyzer, Real-Time Biophysical Telemetry HUDs & Physics Deck -->
         <aside id="right-sidebar-root" class="sidebar-panel sidebar-right pointer-events-auto flex flex-col gap-2.5 max-h-full overflow-y-auto custom-scrollbar z-20 transition-all duration-300 w-72 sm:w-80 md:w-84 shrink-0"></aside>

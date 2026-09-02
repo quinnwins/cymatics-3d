@@ -120,11 +120,6 @@ void main() {
     float alpha = clamp(0.40 + fresnel * 0.45 + borderGlow * 0.5 + wireframe * 0.35 + vDisplacement * 0.5, 0.0, 0.96);
     alpha *= exp(-0.035 * vRadius);
 
-    if (isnan(finalRgb.r) || isnan(finalRgb.g) || isnan(finalRgb.b) || isnan(alpha) ||
-        isinf(finalRgb.r) || isinf(finalRgb.g) || isinf(finalRgb.b) || isinf(alpha)) {
-        discard;
-    }
-
     gl_FragColor = vec4(clamp(finalRgb, 0.0, 10.0), clamp(alpha, 0.0, 1.0));
 }
 `;

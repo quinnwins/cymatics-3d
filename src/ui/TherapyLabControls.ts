@@ -1,13 +1,14 @@
 /**
  * TherapyLabControls.ts
- * SoundForm 3D - Frontier Control Deck for "Can We Cure Cancer with Frequency?"
+ * SoundForm 3D — Targeted Ultrasound Oncology & Acoustic Resonance Therapy Deck
  *
  * Capabilities:
- * - 7 Specialized Experiment Tabs (Phase Cancel, Oncotripsy, Time-Reversal, Vortex OAM, Sonodynamic SDT, PIEZO1 Ca2+, Immune Swarm).
+ * - 8 Specialized Experiment Modalities (Phase Cancel, Oncotripsy, Histotripsy, Time-Reversal, Vortex Torsion, Sonodynamic SDT, PIEZO1 Ca2+, Immune Swarm).
  * - Real-Time Web Audio Destructive Phase Cancellation.
  * - Holland/Caltech 11th-Harmonic Heterodyne Fatigue Modulation.
  * - Clinical AFM Human Cancer Selector (Glioblastoma, Pancreatic, Breast, Osteosarcoma).
  * - Dual View: Single Co-Culture Pair vs 3D Multicellular Spheroid Cluster.
+ * - 1-Click IEC 61102 Clinical Protocol & SOP Exporter.
  */
 
 import * as THREE from 'three';
@@ -15,6 +16,7 @@ import { AudioEngine } from '../audio/AudioEngine';
 import { VisualizerEngine } from '../visualizer/VisualizerEngine';
 import { TherapyExperiment } from '../visualizer/AcousticTherapyLab';
 import { OncotripsyPhysics } from '../math/OncotripsyPhysics';
+import { ClinicalProtocolExporter } from './ClinicalProtocolExporter';
 import { EngineMode } from './Header';
 
 export class TherapyLabControls {
@@ -51,87 +53,87 @@ export class TherapyLabControls {
     this.render();
   }
 
+  public getElement(): HTMLElement {
+    return this.container;
+  }
+
   private preventEventBleeding(): void {
     this.container.addEventListener('wheel', e => e.stopPropagation(), { passive: false });
-    this.container.addEventListener('pointerdown', e => e.stopPropagation());
   }
 
   private render(): void {
     const telemetry = this.visualizer.acousticTherapyLab.getTelemetry();
     const profiles = Object.values(OncotripsyPhysics.CLINICAL_PROFILES);
 
-    this.container.innerHTML = `
-      <!-- Biophysics Studio Hub Switcher -->
-      <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border border-white/10 text-xs">
-        <button id="hub-btn-bio" class="flex-1 py-1 px-1.5 rounded-xl font-semibold text-center transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-white/5">
-          Cell Mechanics
-        </button>
-        <button id="hub-btn-therapy" class="flex-1 py-1 px-1.5 rounded-xl font-bold text-center transition-all cursor-pointer glass-btn-active text-rose-300 shadow-sm ring-1 ring-rose-500/30">
-          Cancer Lab
-        </button>
-        <button id="hub-btn-nobel" class="flex-1 py-1 px-1.5 rounded-xl font-semibold text-center transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-white/5">
-          Nobel Lab
-        </button>
-      </div>
+    const freqPct = Math.min(100, Math.max(0, Math.round(((this.frequencyHz - 20) / 480) * 100)));
+    const phasePct = Math.min(100, Math.max(0, Math.round((this.phaseDeg / 360) * 100)));
+    const powerPct = Math.min(100, Math.max(0, Math.round(((this.acousticPower - 0.1) / 2.9) * 100)));
 
+    this.container.innerHTML = `
       <!-- Top Title & Controls Header -->
-      <div class="flex flex-col gap-2 border-b border-white/10 pb-2.5">
+      <div class="flex flex-col gap-2.5 border-b border-white/10 pb-2.5">
         <div class="flex items-center justify-between gap-2">
           <div class="flex items-center gap-2 min-w-0">
-            <div class="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-rose-400 font-mono text-xs font-bold shrink-0 shadow-sm">
-              LAB
+            <div class="w-8 h-8 rounded-xl bg-slate-900 border border-white/15 flex items-center justify-center text-rose-400 font-mono text-xs font-bold shrink-0 shadow-sm">
+              Rx
             </div>
             <div class="min-w-0">
               <div class="flex items-center gap-1.5 flex-wrap">
                 <h3 class="text-xs sm:text-sm font-bold text-white whitespace-nowrap">
-                  Targeted Ultrasound
+                  Sound Therapy
                 </h3>
                 <span class="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-rose-500/10 text-rose-300 border border-rose-500/30 whitespace-nowrap">
-                  Therapy
+                  Ultrasound
                 </span>
               </div>
-              <p class="text-[10px] text-gray-400 font-medium truncate">
-                Resonance frequencies & wave cancel
+              <p class="text-[10px] text-slate-400 font-medium truncate">
+                Resonance ablation & wave cancel
               </p>
             </div>
           </div>
 
-          <!-- Dynamic Hero Action Button Container -->
-          <div id="hero-action-container" class="shrink-0">
-            ${this.getHeroButtonHtml()}
+          <!-- Top Export SOP & Dynamic Hero Action Button -->
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button
+              id="btn-export-clinical-sop"
+              title="Export IEC 61102 Clinical Protocol & SOP"
+              class="glass-btn px-2.5 py-1.5 rounded-xl text-xs font-semibold text-cyan-300 hover:text-white border border-cyan-500/30 hover:bg-cyan-500/20 active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
+            >
+              <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <span class="hidden sm:inline">Protocol</span>
+            </button>
+            <div id="hero-action-container">
+              ${this.getHeroButtonHtml()}
+            </div>
           </div>
         </div>
 
         <!-- View Toggle -->
-        <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border-white/5 text-xs">
-          <button id="view-single-pair" class="flex-1 py-1 px-2 rounded-xl font-semibold transition-all cursor-pointer ${
-            this.viewMode === 'co-culture-pair'
-              ? 'glass-btn-active font-bold shadow-sm text-cyan-300'
-              : 'text-gray-400 hover:text-white'
+        <div class="segmented-track p-1 text-xs">
+          <button id="view-single-pair" class="segmented-pill flex-1 flex items-center justify-center ${
+            this.viewMode === 'co-culture-pair' ? 'is-active glass-btn-active font-bold' : ''
           }">
             Single Cell Pair
           </button>
-          <button id="view-spheroid" class="flex-1 py-1 px-2 rounded-xl font-semibold transition-all cursor-pointer ${
-            this.viewMode === 'spheroid-cluster'
-              ? 'glass-btn-active font-bold shadow-sm text-cyan-300'
-              : 'text-gray-400 hover:text-white'
+          <button id="view-spheroid" class="segmented-pill flex-1 flex items-center justify-center ${
+            this.viewMode === 'spheroid-cluster' ? 'is-active glass-btn-active font-bold' : ''
           }">
-            Cell Cluster
+            Spheroid Cluster
           </button>
         </div>
       </div>
 
-      <!-- 8 Experiment Modalities Grid (Clean, balanced 4x2 grid, zero scrollbar) -->
+      <!-- 8 Experiment Modalities Grid -->
       <div class="flex flex-col gap-1.5">
         <div class="flex items-center justify-between">
           <span class="text-[10px] font-semibold text-slate-300">Therapy Modalities:</span>
-          <span class="text-[9px] font-mono text-cyan-400">8 Active Methods</span>
+          <span class="text-[9px] font-mono text-cyan-400">8 Active Protocols</span>
         </div>
         <div class="grid grid-cols-2 gap-1.5" id="experiment-tabs-grid">
           <button data-experiment="phase-cancel" class="tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
             this.currentExperiment === 'phase-cancel'
               ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm ring-1 ring-cyan-400/50 border-cyan-400'
-              : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/50'
+              : 'bg-slate-950/60 text-slate-300 hover:text-white hover:bg-slate-900 border-white/5'
           }">
             <div class="truncate">Wave Cancellation</div>
             <div class="text-[9px] font-mono opacity-70">Anti-Phase 180°</div>
@@ -139,84 +141,84 @@ export class TherapyLabControls {
           <button data-experiment="oncotripsy" class="tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
             this.currentExperiment === 'oncotripsy'
               ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm ring-1 ring-cyan-400/50 border-cyan-400'
-              : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/50'
+              : 'bg-slate-950/60 text-slate-300 hover:text-white hover:bg-slate-900 border-white/5'
           }">
-            <div class="truncate">Resonance Burst</div>
-            <div class="text-[9px] font-mono opacity-70">Targeted Lysis</div>
+            <div class="truncate">Oncotripsy (Ablation)</div>
+            <div class="text-[9px] font-mono opacity-70">Holland Resonance</div>
           </button>
           <button data-experiment="histotripsy" class="tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
             this.currentExperiment === 'histotripsy'
               ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm ring-1 ring-cyan-400/50 border-cyan-400'
-              : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/50'
+              : 'bg-slate-950/60 text-slate-300 hover:text-white hover:bg-slate-900 border-white/5'
           }">
-            <div class="truncate">Shockwave Burst</div>
-            <div class="text-[9px] font-mono opacity-70">Histotripsy Cavitation</div>
+            <div class="truncate">Histotripsy (Cavitation)</div>
+            <div class="text-[9px] font-mono opacity-70">Microbubble Rupture</div>
           </button>
           <button data-experiment="time-reversal" class="tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
             this.currentExperiment === 'time-reversal'
               ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm ring-1 ring-cyan-400/50 border-cyan-400'
-              : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/50'
+              : 'bg-slate-950/60 text-slate-300 hover:text-white hover:bg-slate-900 border-white/5'
           }">
-            <div class="truncate">Targeted Focus</div>
-            <div class="text-[9px] font-mono opacity-70">Phase Conjugate</div>
+            <div class="truncate">Time-Reversal Focus</div>
+            <div class="text-[9px] font-mono opacity-70">Skull Phase Conjugate</div>
           </button>
           <button data-experiment="vortex-torsion" class="tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
             this.currentExperiment === 'vortex-torsion'
               ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm ring-1 ring-cyan-400/50 border-cyan-400'
-              : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/50'
+              : 'bg-slate-950/60 text-slate-300 hover:text-white hover:bg-slate-900 border-white/5'
           }">
-            <div class="truncate">Acoustic Vortex</div>
-            <div class="text-[9px] font-mono opacity-70">Helical OAM</div>
+            <div class="truncate">Vortex Torsion (OAM)</div>
+            <div class="text-[9px] font-mono opacity-70">Helical Trapping Beam</div>
           </button>
           <button data-experiment="sonodynamic-sdt" class="tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
             this.currentExperiment === 'sonodynamic-sdt'
               ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm ring-1 ring-cyan-400/50 border-cyan-400'
-              : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/50'
+              : 'bg-slate-950/60 text-slate-300 hover:text-white hover:bg-slate-900 border-white/5'
           }">
-            <div class="truncate">Micro-Bubbles</div>
-            <div class="text-[9px] font-mono opacity-70">Cavitation Flash</div>
+            <div class="truncate">Sonodynamic SDT</div>
+            <div class="text-[9px] font-mono opacity-70">ROS Free Radical Storm</div>
           </button>
           <button data-experiment="calcium-piezo1" class="tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
             this.currentExperiment === 'calcium-piezo1'
               ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm ring-1 ring-cyan-400/50 border-cyan-400'
-              : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/50'
+              : 'bg-slate-950/60 text-slate-300 hover:text-white hover:bg-slate-900 border-white/5'
           }">
-            <div class="truncate">Cell Ion Channels</div>
-            <div class="text-[9px] font-mono opacity-70">PIEZO1 Ca²⁺ Flux</div>
+            <div class="truncate">PIEZO1 Ion Flux</div>
+            <div class="text-[9px] font-mono opacity-70">Ca²⁺ Apoptotic Influx</div>
           </button>
           <button data-experiment="immune-swarm" class="tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
             this.currentExperiment === 'immune-swarm'
               ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm ring-1 ring-cyan-400/50 border-cyan-400'
-              : 'bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/50'
+              : 'bg-slate-950/60 text-slate-300 hover:text-white hover:bg-slate-900 border-white/5'
           }">
-            <div class="truncate">Immune Swarm</div>
-            <div class="text-[9px] font-mono opacity-70">T-Cell Swarm</div>
+            <div class="truncate">Immune Swarm (DAMPs)</div>
+            <div class="text-[9px] font-mono opacity-70">T-Cell Cytotoxic Homing</div>
           </button>
         </div>
       </div>
 
-      <!-- Clinical AFM Tumor Profile Selector -->
+      <!-- Human Cancer Model Selector -->
       <div class="flex flex-col gap-1.5">
         <div class="flex items-center justify-between">
-          <span class="text-[10px] font-semibold text-slate-300">Tumor Target Models:</span>
-          <span class="text-[9px] font-mono text-slate-400">Clinical AFM Stiffness</span>
+          <span class="text-[10px] font-semibold text-slate-300">Target Cancer Cell Line:</span>
+          <span class="text-[9px] font-mono text-rose-400 font-bold">AFM Elasticity Calibrated</span>
         </div>
         <div class="grid grid-cols-2 gap-1.5">
           ${profiles
             .map(
               p => `
-            <button data-tumor-id="${p.id}" class="btn-tumor-profile text-left p-2 rounded-xl border transition-all flex flex-col gap-0.5 cursor-pointer ${
+            <button
+              data-tumor-id="${p.id}"
+              class="btn-tumor-profile text-left p-2 rounded-xl border transition-all flex flex-col gap-0.5 cursor-pointer ${
                 this.currentTumorId === p.id
-                  ? 'bg-rose-500/20 border-rose-500/80 text-rose-200 font-bold shadow-sm ring-1 ring-rose-500/40'
-                  : 'bg-slate-800/60 border-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-600'
-              }">
-              <div class="flex items-center gap-1.5 min-w-0">
-                <span class="w-2 h-2 rounded-full shrink-0" style="background-color: #${p.colorHex.toString(16).padStart(6, '0')}"></span>
-                <span class="font-medium text-xs truncate">${p.name.split('(')[0].trim()}</span>
-              </div>
-              <div class="flex items-center justify-between text-[10px] font-mono text-slate-400 pl-3.5">
-                <span>${p.resonantFreqHz} Hz</span>
-                <span>${p.youngsModulusKPa} kPa</span>
+                  ? 'glass-panel-accent border-rose-500/80 shadow-sm ring-1 ring-rose-500/50'
+                  : 'bg-slate-950/60 border-white/5 hover:bg-slate-900'
+              }"
+            >
+              <span class="text-xs font-bold text-slate-200 truncate">${p.name}</span>
+              <div class="flex justify-between text-[10px] text-slate-400 font-mono">
+                <span>E: ${p.youngsModulusKPa.toFixed(1)} kPa</span>
+                <span class="text-rose-400 font-semibold">${p.resonantFreqHz} Hz</span>
               </div>
             </button>
           `
@@ -225,350 +227,220 @@ export class TherapyLabControls {
         </div>
       </div>
 
-      <!-- Live Biophysics & Telemetry HUD -->
-      <div class="grid grid-cols-2 gap-2 p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] font-mono">
-        <div class="flex flex-col gap-0.5 min-w-0">
-          <span class="text-[9px] text-slate-400 uppercase tracking-wider">Tumor Disruption</span>
-          <span id="tel-lysis-val" class="text-rose-400 font-bold truncate">${telemetry.cancerLysisPercent.toFixed(1)}% <span class="text-[9px] text-rose-400/80 font-normal">(${(telemetry.cancerStrain * 100).toFixed(1)}%)</span></span>
+      <!-- Interactive Frequency & Phase Sliders Section -->
+      <div class="flex flex-col gap-2.5 bg-slate-950/70 rounded-2xl p-3 border border-white/5 shadow-inner">
+        <!-- Frequency Slider -->
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="font-medium text-slate-300 flex items-center gap-1.5">
+              <span>Frequency</span>
+              <button id="btn-lock-cancer-freq" class="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 text-[9px] font-mono border border-rose-500/30 transition-all cursor-pointer font-bold">
+                Lock Resonance
+              </button>
+            </span>
+            <span id="ctrl-freq-val" class="text-cyan-400 font-bold tabular-nums">${this.frequencyHz.toFixed(1)} Hz</span>
+          </div>
+          <input
+            id="ctrl-freq-slider"
+            type="range"
+            min="20"
+            max="500"
+            step="1"
+            value="${this.frequencyHz}"
+            aria-label="Therapeutic excitation frequency"
+            style="background: linear-gradient(to right, #38bdf8 ${freqPct}%, rgba(255, 255, 255, 0.1) ${freqPct}%);"
+            class="w-full min-w-0 cursor-pointer slider-cyan"
+          />
         </div>
-        <div class="flex flex-col gap-0.5 min-w-0">
-          <span class="text-[9px] text-slate-400 uppercase tracking-wider">Healthy Tissue Safe</span>
-          <span id="tel-healthy-val" class="text-emerald-400 font-bold truncate">${telemetry.healthyPreservedPercent.toFixed(1)}%</span>
+
+        <!-- Phase Angle Slider -->
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="font-medium text-slate-300 flex items-center gap-1.5">
+              <span>Phase Angle (ΔΦ)</span>
+              <button id="btn-set-180" class="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25 text-[9px] font-mono border border-cyan-500/30 transition-all cursor-pointer font-bold">
+                Anti-Phase (180°)
+              </button>
+            </span>
+            <span id="ctrl-phase-val" class="text-emerald-400 font-bold tabular-nums">${this.phaseDeg.toFixed(0)}°</span>
+          </div>
+          <input
+            id="ctrl-phase-slider"
+            type="range"
+            min="0"
+            max="360"
+            step="1"
+            value="${this.phaseDeg}"
+            aria-label="Acoustic phase offset angle"
+            style="background: linear-gradient(to right, #34d399 ${phasePct}%, rgba(255, 255, 255, 0.1) ${phasePct}%);"
+            class="w-full min-w-0 cursor-pointer slider-emerald"
+          />
         </div>
-        <div class="flex flex-col gap-0.5 min-w-0">
-          <span class="text-[9px] text-slate-400 uppercase tracking-wider">Sound Pressure</span>
-          <span id="tel-pressure-val" class="text-cyan-400 font-bold truncate">${telemetry.netPressurePa.toFixed(2)} Pa</span>
-        </div>
-        <div class="flex flex-col gap-0.5 min-w-0">
-          <span class="text-[9px] text-slate-400 uppercase tracking-wider">Noise Cancellation</span>
-          <span id="tel-cancel-val" class="text-amber-400 font-bold truncate">${telemetry.cancellationEfficiencyPercent.toFixed(1)}% Silenced</span>
+
+        <!-- Acoustic Power Slider & Heterodyne Toggle -->
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="font-medium text-slate-300 flex items-center gap-1.5">
+              <span>Acoustic Power</span>
+              <button id="btn-toggle-heterodyne" class="px-1.5 py-0.5 rounded ${
+                this.isHeterodyneActive ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+              } text-[9px] font-mono transition-all cursor-pointer">
+                11th Harmonic: ${this.isHeterodyneActive ? 'ON' : 'OFF'}
+              </button>
+            </span>
+            <span id="ctrl-power-val" class="text-amber-400 font-bold tabular-nums">${this.acousticPower.toFixed(2)}x</span>
+          </div>
+          <input
+            id="ctrl-power-slider"
+            type="range"
+            min="0.1"
+            max="3.0"
+            step="0.05"
+            value="${this.acousticPower}"
+            aria-label="Acoustic excitation power multiplier"
+            style="background: linear-gradient(to right, #fbbf24 ${powerPct}%, rgba(255, 255, 255, 0.1) ${powerPct}%);"
+            class="w-full min-w-0 cursor-pointer slider-amber"
+          />
         </div>
       </div>
 
-      <!-- Interactive Controls Section -->
-      <div class="flex flex-col gap-2.5 bg-slate-800/40 rounded-2xl p-2.5 sm:p-3 border border-slate-700/40">
-        <!-- Frequency Sweeper & Auto-Lock -->
-        <div class="flex flex-col gap-1.5 bg-slate-900/50 p-2.5 rounded-xl border border-white/5">
-          <div class="flex items-center justify-between text-xs">
-            <div class="flex items-center gap-1.5">
-              <span class="font-semibold text-slate-200">Frequency</span>
-              <button id="btn-lock-cancer-freq" class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[10px] font-mono border border-rose-500/30 transition-all cursor-pointer">
-                Match Tumor Pitch
-              </button>
-            </div>
-            <span id="ctrl-freq-val" class="font-mono text-cyan-400 font-bold">${this.frequencyHz.toFixed(1)} Hz</span>
-          </div>
-          <input 
-            id="ctrl-freq-slider" 
-            type="range" 
-            min="40" 
-            max="400" 
-            step="1" 
-            value="${this.frequencyHz}"
-            class="w-full cursor-pointer"
-          />
-          <div class="flex justify-between text-[10px] text-slate-400 font-mono">
-            <span>40 Hz (Low)</span>
-            <span id="ctrl-freq-resonant-label">Resonant: ${this.frequencyHz.toFixed(0)} Hz</span>
-            <span>400 Hz</span>
-          </div>
+      <!-- Real-Time Clinical Safety & Lysis Telemetry HUD -->
+      <div class="grid grid-cols-2 gap-2 p-2.5 rounded-2xl bg-slate-950/80 border border-white/10 text-xs font-mono shadow-inner">
+        <div class="flex flex-col gap-0.5">
+          <span class="text-[9px] text-slate-400 font-semibold">CANCER ABLATION</span>
+          <span id="tel-lysis-val" class="text-rose-400 font-bold tabular-nums">
+            ${telemetry.cancerLysisPercent.toFixed(1)}% <span class="text-[9px] text-rose-400/80 font-normal">(${(telemetry.cancerStrain * 100).toFixed(1)}%)</span>
+          </span>
         </div>
-
-        <!-- Dynamic Vortex vs Phase Offset Controls Panel -->
-        <div id="dynamic-wave-controls" class="flex flex-col gap-1.5 bg-slate-900/50 p-2.5 rounded-xl border border-white/5">
-          <div id="vortex-controls-block" class="${this.currentExperiment === 'vortex-torsion' ? 'flex flex-col gap-1.5' : 'hidden'}">
-            <div class="flex items-center justify-between text-xs">
-              <span class="font-semibold text-slate-200">Vortex Spiral Intensity</span>
-              <span id="ctrl-vortex-val" class="font-mono text-cyan-400 font-bold">Level ${this.vortexCharge}</span>
-            </div>
-            <div class="grid grid-cols-3 gap-1.5 mt-0.5">
-              <button data-charge="1" class="btn-charge py-1.5 rounded-lg border text-xs font-mono transition-all text-center cursor-pointer ${
-                this.vortexCharge === 1
-                  ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400 shadow-sm'
-                  : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
-              }">Single</button>
-              <button data-charge="2" class="btn-charge py-1.5 rounded-lg border text-xs font-mono transition-all text-center cursor-pointer ${
-                this.vortexCharge === 2
-                  ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400 shadow-sm'
-                  : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
-              }">Double</button>
-              <button data-charge="3" class="btn-charge py-1.5 rounded-lg border text-xs font-mono transition-all text-center cursor-pointer ${
-                this.vortexCharge === 3
-                  ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400 shadow-sm'
-                  : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
-              }">Triple</button>
-            </div>
-            <div class="text-[10px] text-slate-400 font-mono">Twists sound wave into a rotational beam</div>
-          </div>
-
-          <div id="phase-controls-block" class="${this.currentExperiment !== 'vortex-torsion' ? 'flex flex-col gap-1.5' : 'hidden'}">
-            <div class="flex items-center justify-between text-xs">
-              <div class="flex items-center gap-1.5">
-                <span class="font-semibold text-slate-200">Phase Offset</span>
-                <button id="btn-set-180" class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-[10px] font-mono border border-emerald-500/30 transition-all cursor-pointer">
-                  Set to 180° (Silent)
-                </button>
-              </div>
-              <span id="ctrl-phase-val" class="font-mono text-emerald-400 font-bold">${this.phaseDeg.toFixed(0)}°</span>
-            </div>
-            <input 
-              id="ctrl-phase-slider" 
-              type="range" 
-              min="0" 
-              max="360" 
-              step="1" 
-              value="${this.phaseDeg}"
-              class="w-full cursor-pointer"
-            />
-            <div class="flex justify-between text-[10px] text-slate-400 font-mono">
-              <span>0° (Combine)</span>
-              <span>180° (Cancel Wave)</span>
-              <span>360°</span>
-            </div>
-          </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-[9px] text-slate-400 font-semibold">HEALTHY TISSUE</span>
+          <span id="tel-healthy-val" class="text-emerald-400 font-bold tabular-nums">${telemetry.healthyPreservedPercent.toFixed(1)}%</span>
         </div>
-
-        <!-- Acoustic Power & Heterodyne Toggle -->
-        <div class="flex flex-col gap-1.5 bg-slate-900/50 p-2.5 rounded-xl border border-white/5">
-          <div class="flex items-center justify-between text-xs">
-            <div class="flex items-center gap-1.5">
-              <span class="font-semibold text-slate-200">Power Level</span>
-              <button id="btn-toggle-heterodyne" class="px-2 py-0.5 rounded cursor-pointer ${
-                this.isHeterodyneActive
-                  ? 'bg-amber-500 text-slate-950 font-semibold shadow-sm'
-                  : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30'
-              } text-[10px] font-mono transition-all">
-                Harmonic Pulse: ${this.isHeterodyneActive ? 'ON' : 'OFF'}
-              </button>
-            </div>
-            <span id="ctrl-power-val" class="font-mono text-amber-400 font-bold">${this.acousticPower.toFixed(2)}x</span>
-          </div>
-          <input 
-            id="ctrl-power-slider" 
-            type="range" 
-            min="0.1" 
-            max="3.0" 
-            step="0.05" 
-            value="${this.acousticPower}"
-            class="w-full cursor-pointer"
-          />
-          <div class="flex justify-between text-[10px] text-slate-400 font-mono">
-            <span>0.1x (Gentle)</span>
-            <span>1.0x (Resonant)</span>
-            <span>3.0x (High Power)</span>
-          </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-[9px] text-slate-400 font-semibold">NET PRESSURE</span>
+          <span id="tel-pressure-val" class="text-slate-200 font-bold tabular-nums">${telemetry.netPressurePa.toFixed(2)} Pa</span>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-[9px] text-slate-400 font-semibold">WAVE CANCELLATION</span>
+          <span id="tel-cancel-val" class="text-cyan-400 font-bold tabular-nums">${telemetry.cancellationEfficiencyPercent.toFixed(1)}% Silenced</span>
         </div>
       </div>
     `;
 
     this.bindEvents();
-    this.syncAudioEngine();
   }
 
   private getHeroButtonHtml(): string {
-    if (this.currentExperiment === 'oncotripsy') {
-      return `<button id="btn-hero-action" data-action="oncotripsy" class="px-2.5 py-1.5 rounded-xl font-semibold text-xs bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 active:scale-95 transition-all flex items-center gap-1 cursor-pointer">
-                <span>Trigger Burst</span>
-              </button>`;
-    }
-    if (this.currentExperiment === 'histotripsy') {
-      return `<button id="btn-hero-action" data-action="histotripsy" class="px-2.5 py-1.5 rounded-xl font-semibold text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 active:scale-95 transition-all flex items-center gap-1 cursor-pointer">
-                <span>Shockwave Cavitation</span>
-              </button>`;
-    }
-    if (this.currentExperiment === 'sonodynamic-sdt') {
-      return `<button id="btn-hero-action" data-action="sonodynamic-sdt" class="px-2.5 py-1.5 rounded-xl font-semibold text-xs bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30 active:scale-95 transition-all flex items-center gap-1 cursor-pointer">
-                <span>Micro-Bubbles</span>
-              </button>`;
-    }
-    if (this.currentExperiment === 'calcium-piezo1') {
-      return `<button id="btn-hero-action" data-action="calcium-piezo1" class="px-2.5 py-1.5 rounded-xl font-semibold text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 active:scale-95 transition-all flex items-center gap-1 cursor-pointer">
-                <span>Calcium Flow</span>
-              </button>`;
-    }
-    if (this.currentExperiment === 'immune-swarm') {
-      return `<button id="btn-hero-action" data-action="immune-swarm" class="px-2.5 py-1.5 rounded-xl font-semibold text-xs bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 active:scale-95 transition-all flex items-center gap-1 cursor-pointer">
-                <span>Deploy T-Cells</span>
-              </button>`;
-    }
-    return `<button id="btn-hero-action" data-action="antiphase" class="px-2.5 py-1.5 rounded-xl font-semibold text-xs ${
-      this.isAntiPhaseActive
-        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-        : 'bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700'
-    } transition-all flex items-center gap-1 cursor-pointer">
-      <span>${this.isAntiPhaseActive ? 'Cancel Active' : 'Cancel (180°)'}</span>
-    </button>`;
-  }
-
-  private updateHeroButton(): void {
-    const heroContainer = this.container.querySelector<HTMLElement>('#hero-action-container');
-    if (heroContainer) {
-      heroContainer.innerHTML = this.getHeroButtonHtml();
-      this.bindHeroEvent();
+    switch (this.currentExperiment) {
+      case 'phase-cancel':
+        return `
+          <button id="btn-hero-phase-cancel" class="px-2.5 py-1.5 rounded-xl text-xs font-bold ${
+            this.isAntiPhaseActive
+              ? 'bg-rose-500 text-slate-950 shadow-md shadow-rose-500/40'
+              : 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/40 hover:bg-cyan-400'
+          } transition-all active:scale-95 cursor-pointer">
+            ${this.isAntiPhaseActive ? 'Cancel Wave' : 'Silence Sound'}
+          </button>
+        `;
+      case 'oncotripsy':
+        return `
+          <button id="btn-hero-oncotripsy" class="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-rose-500 text-slate-950 shadow-md shadow-rose-500/40 hover:bg-rose-400 transition-all active:scale-95 cursor-pointer">
+            Trigger Ablation
+          </button>
+        `;
+      case 'histotripsy':
+        return `
+          <button id="btn-hero-histotripsy" class="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 shadow-md shadow-amber-500/40 hover:bg-amber-400 transition-all active:scale-95 cursor-pointer">
+            Trigger Shockwave
+          </button>
+        `;
+      case 'time-reversal':
+        return `
+          <button id="btn-hero-time-reversal" class="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-purple-500 text-slate-950 shadow-md shadow-purple-500/40 hover:bg-purple-400 transition-all active:scale-95 cursor-pointer">
+            Focus Wave
+          </button>
+        `;
+      default:
+        return `
+          <button id="btn-hero-pulse" class="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/40 hover:bg-cyan-400 transition-all active:scale-95 cursor-pointer">
+            Execute Pulse
+          </button>
+        `;
     }
   }
 
   private bindHeroEvent(): void {
-    const heroBtn = this.container.querySelector<HTMLButtonElement>('#btn-hero-action');
-    if (!heroBtn) return;
-
-    heroBtn.addEventListener('click', () => {
-      const action = heroBtn.getAttribute('data-action');
-      if (action === 'oncotripsy') {
-        this.visualizer.acousticTherapyLab.triggerOncotripsyBurst();
-        this.syncAudioEngine();
-      } else if (action === 'histotripsy') {
-        this.visualizer.acousticTherapyLab.triggerHistotripsyBurst();
-        this.syncAudioEngine();
-      } else if (action === 'sonodynamic-sdt') {
-        this.visualizer.acousticTherapyLab.triggerSonodynamicFlash();
-      } else if (action === 'calcium-piezo1') {
-        this.visualizer.acousticTherapyLab.triggerPiezo1CalciumWave();
-      } else if (action === 'immune-swarm') {
-        this.visualizer.acousticTherapyLab.tCellSwarm.setDampSources([
-          this.viewMode === 'spheroid-cluster' ? new THREE.Vector3(0, 0.4, 0) : new THREE.Vector3(-1.8, 0.4, 0),
-        ]);
-      } else if (action === 'antiphase') {
+    const heroBtn = this.container.querySelector('#btn-hero-phase-cancel, #btn-hero-oncotripsy, #btn-hero-histotripsy, #btn-hero-time-reversal, #btn-hero-pulse');
+    heroBtn?.addEventListener('click', () => {
+      if (this.currentExperiment === 'phase-cancel') {
         this.isAntiPhaseActive = !this.isAntiPhaseActive;
+        this.phaseDeg = this.isAntiPhaseActive ? 180.0 : 0.0;
         this.visualizer.acousticTherapyLab.setAntiPhase(this.isAntiPhaseActive);
-        this.updateHeroButton();
+        this.visualizer.acousticTherapyLab.setPhaseDegrees(this.phaseDeg);
         this.syncAudioEngine();
-        this.updateTelemetry();
+        this.render();
+      } else if (this.currentExperiment === 'oncotripsy') {
+        this.visualizer.acousticTherapyLab.triggerOncotripsyBurst();
+      } else if (this.currentExperiment === 'histotripsy') {
+        this.visualizer.acousticTherapyLab.triggerHistotripsyBurst();
+      } else if (this.currentExperiment === 'time-reversal') {
+        this.visualizer.acousticTherapyLab.setExperiment('time-reversal');
       }
     });
-  }
-
-  private updateActiveExperimentUI(): void {
-    const expButtons = this.container.querySelectorAll<HTMLButtonElement>('.tab-exp-btn');
-    expButtons.forEach(btn => {
-      const exp = btn.getAttribute('data-experiment');
-      const isSelected = exp === this.currentExperiment;
-      if (isSelected) {
-        btn.className = `tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer bg-cyan-500 text-slate-950 font-bold shadow-sm ring-1 ring-cyan-400/50 border-cyan-400 ${
-          exp === 'immune-swarm' ? 'col-span-2 flex items-center justify-between' : ''
-        }`;
-      } else {
-        btn.className = `tab-exp-btn text-left p-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer bg-slate-800/60 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/50 ${
-          exp === 'immune-swarm' ? 'col-span-2 flex items-center justify-between' : ''
-        }`;
-      }
-    });
-
-    // Update dynamic sub-sections
-    const vortexBlock = this.container.querySelector<HTMLElement>('#vortex-controls-block');
-    const phaseBlock = this.container.querySelector<HTMLElement>('#phase-controls-block');
-    if (vortexBlock && phaseBlock) {
-      if (this.currentExperiment === 'vortex-torsion') {
-        vortexBlock.className = 'flex flex-col gap-1.5';
-        phaseBlock.className = 'hidden';
-      } else {
-        vortexBlock.className = 'hidden';
-        phaseBlock.className = 'flex flex-col gap-1.5';
-      }
-    }
-
-    this.updateHeroButton();
-  }
-
-  private updateActiveTumorUI(): void {
-    const tumorButtons = this.container.querySelectorAll<HTMLButtonElement>('.btn-tumor-profile');
-    tumorButtons.forEach(btn => {
-      const tumorId = btn.getAttribute('data-tumor-id');
-      const isSelected = tumorId === this.currentTumorId;
-      if (isSelected) {
-        btn.className =
-          'btn-tumor-profile text-left p-2 rounded-xl border transition-all flex flex-col gap-0.5 cursor-pointer bg-rose-500/20 border-rose-500/80 text-rose-200 font-bold shadow-sm ring-1 ring-rose-500/40';
-      } else {
-        btn.className =
-          'btn-tumor-profile text-left p-2 rounded-xl border transition-all flex flex-col gap-0.5 cursor-pointer bg-slate-800/60 border-slate-700/50 text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-600';
-      }
-    });
-
-    const freqSlider = this.container.querySelector<HTMLInputElement>('#ctrl-freq-slider');
-    const freqVal = this.container.querySelector<HTMLElement>('#ctrl-freq-val');
-    const resonantLabel = this.container.querySelector<HTMLElement>('#ctrl-freq-resonant-label');
-
-    if (freqSlider) freqSlider.value = String(this.frequencyHz);
-    if (freqVal) freqVal.textContent = `${this.frequencyHz.toFixed(1)} Hz`;
-    if (resonantLabel) resonantLabel.textContent = `Resonant: ${this.frequencyHz.toFixed(0)} Hz`;
-  }
-
-  private updateViewModeUI(): void {
-    const singleBtn = this.container.querySelector<HTMLButtonElement>('#view-single-pair');
-    const spheroidBtn = this.container.querySelector<HTMLButtonElement>('#view-spheroid');
-
-    if (singleBtn) {
-      singleBtn.className = `flex-1 py-1 px-2 rounded-xl font-semibold transition-all cursor-pointer ${
-        this.viewMode === 'co-culture-pair'
-          ? 'glass-btn-active font-bold shadow-sm text-cyan-300'
-          : 'text-gray-400 hover:text-white'
-      }`;
-    }
-    if (spheroidBtn) {
-      spheroidBtn.className = `flex-1 py-1 px-2 rounded-xl font-semibold transition-all cursor-pointer ${
-        this.viewMode === 'spheroid-cluster'
-          ? 'glass-btn-active font-bold shadow-sm text-cyan-300'
-          : 'text-gray-400 hover:text-white'
-      }`;
-    }
-  }
-
-  private updateVortexChargeUI(): void {
-    const chargeButtons = this.container.querySelectorAll<HTMLButtonElement>('.btn-charge');
-    chargeButtons.forEach(btn => {
-      const ch = parseInt(btn.getAttribute('data-charge') || '1', 10);
-      if (ch === this.vortexCharge) {
-        btn.className =
-          'btn-charge py-1.5 rounded-lg border text-xs font-mono transition-all text-center cursor-pointer bg-cyan-500 text-slate-950 font-bold border-cyan-400 shadow-sm';
-      } else {
-        btn.className =
-          'btn-charge py-1.5 rounded-lg border text-xs font-mono transition-all text-center cursor-pointer bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700';
-      }
-    });
-    const vortexVal = this.container.querySelector<HTMLElement>('#ctrl-vortex-val');
-    if (vortexVal) vortexVal.textContent = `Level ${this.vortexCharge}`;
   }
 
   private bindEvents(): void {
-    // 1. Clinical Tumor Profile Buttons
-    this.container.querySelectorAll('.btn-tumor-profile').forEach(btn => {
-      btn.addEventListener('click', e => {
-        const tumorId = (e.currentTarget as HTMLElement).getAttribute('data-tumor-id');
-        if (tumorId && OncotripsyPhysics.CLINICAL_PROFILES[tumorId]) {
-          this.currentTumorId = tumorId;
-          const tumor = OncotripsyPhysics.CLINICAL_PROFILES[tumorId];
-          this.frequencyHz = tumor.resonantFreqHz;
-          this.visualizer.acousticTherapyLab.setTumorProfile(tumorId);
-          this.updateActiveTumorUI();
-          this.syncAudioEngine();
-          this.updateTelemetry();
-        }
-      });
+    // 0. Export Clinical SOP Protocol
+    this.container.querySelector('#btn-export-clinical-sop')?.addEventListener('click', () => {
+      ClinicalProtocolExporter.downloadClinicalProtocol(
+        this.currentTumorId,
+        this.currentExperiment,
+        this.frequencyHz,
+        this.phaseDeg,
+        this.acousticPower,
+        this.isHeterodyneActive,
+        this.isAntiPhaseActive
+      );
     });
 
-    // 2. View Switcher
+    // 1. View Mode Buttons
     this.container.querySelector('#view-single-pair')?.addEventListener('click', () => {
       this.viewMode = 'co-culture-pair';
       this.visualizer.acousticTherapyLab.setViewMode('co-culture-pair');
-      this.updateViewModeUI();
+      this.render();
     });
 
     this.container.querySelector('#view-spheroid')?.addEventListener('click', () => {
       this.viewMode = 'spheroid-cluster';
       this.visualizer.acousticTherapyLab.setViewMode('spheroid-cluster');
-      this.updateViewModeUI();
+      this.render();
     });
 
-    // 3. Experiment Modalities
-    this.container.querySelectorAll('.tab-exp-btn').forEach(btn => {
+    // 2. Tumor Selection Buttons
+    this.container.querySelectorAll<HTMLButtonElement>('.btn-tumor-profile').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tumorId = btn.getAttribute('data-tumor-id');
+        if (tumorId) {
+          this.currentTumorId = tumorId;
+          const tumor = OncotripsyPhysics.CLINICAL_PROFILES[tumorId];
+          this.frequencyHz = tumor.resonantFreqHz;
+          this.visualizer.acousticTherapyLab.setTumorProfile(tumorId);
+          this.visualizer.acousticTherapyLab.setFrequency(this.frequencyHz);
+          this.syncAudioEngine();
+          this.render();
+        }
+      });
+    });
+
+    // 3. Modality Experiment Tabs
+    this.container.querySelectorAll<HTMLButtonElement>('.tab-exp-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         const exp = (e.currentTarget as HTMLElement).getAttribute('data-experiment') as TherapyExperiment;
         if (exp) {
           this.currentExperiment = exp;
           this.visualizer.acousticTherapyLab.setExperiment(exp);
-          this.updateActiveExperimentUI();
           this.syncAudioEngine();
-          this.updateTelemetry();
+          this.render();
         }
       });
     });
@@ -576,24 +448,16 @@ export class TherapyLabControls {
     // 4. Hero Action Button
     this.bindHeroEvent();
 
-    // 5. Vortex Charge Buttons
-    this.container.querySelectorAll('.btn-charge').forEach(btn => {
-      btn.addEventListener('click', e => {
-        const ch = parseInt((e.currentTarget as HTMLElement).getAttribute('data-charge') || '1', 10) as 1 | 2 | 3;
-        this.vortexCharge = ch;
-        this.visualizer.acousticTherapyLab.setVortexTopologicalCharge(ch);
-        this.updateVortexChargeUI();
-      });
-    });
-
-    // 6. Frequency Slider & Lock Button
-    const freqSlider = this.container.querySelector<HTMLInputElement>('#ctrl-freq-slider')!;
-    const freqVal = this.container.querySelector<HTMLElement>('#ctrl-freq-val')!;
+    // 5. Frequency Slider & Lock Button
+    const freqSlider = this.container.querySelector<HTMLInputElement>('#ctrl-freq-slider');
+    const freqVal = this.container.querySelector<HTMLElement>('#ctrl-freq-val');
 
     freqSlider?.addEventListener('input', e => {
       const val = parseFloat((e.target as HTMLInputElement).value);
       this.frequencyHz = val;
-      freqVal.textContent = `${val.toFixed(1)} Hz`;
+      if (freqVal) freqVal.textContent = `${val.toFixed(1)} Hz`;
+      const pct = Math.min(100, Math.max(0, Math.round(((val - 20) / 480) * 100)));
+      freqSlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
       this.visualizer.acousticTherapyLab.setFrequency(val);
       this.syncAudioEngine();
       this.updateTelemetry();
@@ -603,14 +467,14 @@ export class TherapyLabControls {
       const tumor =
         OncotripsyPhysics.CLINICAL_PROFILES[this.currentTumorId] || OncotripsyPhysics.CLINICAL_PROFILES['mda-mb-231'];
       this.frequencyHz = tumor.resonantFreqHz;
-      freqSlider.value = String(tumor.resonantFreqHz);
-      freqVal.textContent = `${tumor.resonantFreqHz.toFixed(1)} Hz`;
+      if (freqSlider) freqSlider.value = String(tumor.resonantFreqHz);
+      if (freqVal) freqVal.textContent = `${tumor.resonantFreqHz.toFixed(1)} Hz`;
       this.visualizer.acousticTherapyLab.setFrequency(tumor.resonantFreqHz);
       this.syncAudioEngine();
       this.updateTelemetry();
     });
 
-    // 7. Phase Slider & 180° Button
+    // 6. Phase Slider & 180° Button
     const phaseSlider = this.container.querySelector<HTMLInputElement>('#ctrl-phase-slider');
     const phaseVal = this.container.querySelector<HTMLElement>('#ctrl-phase-val');
 
@@ -618,6 +482,8 @@ export class TherapyLabControls {
       const val = parseFloat((e.target as HTMLInputElement).value);
       this.phaseDeg = val;
       if (phaseVal) phaseVal.textContent = `${val.toFixed(0)}°`;
+      const pct = Math.min(100, Math.max(0, Math.round((val / 360) * 100)));
+      phaseSlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
       this.visualizer.acousticTherapyLab.setPhaseDegrees(val);
       this.syncAudioEngine();
       this.updateTelemetry();
@@ -632,14 +498,16 @@ export class TherapyLabControls {
       this.updateTelemetry();
     });
 
-    // 8. Power Slider & Heterodyne Toggle
-    const powerSlider = this.container.querySelector<HTMLInputElement>('#ctrl-power-slider')!;
-    const powerVal = this.container.querySelector<HTMLElement>('#ctrl-power-val')!;
+    // 7. Power Slider & Heterodyne Toggle
+    const powerSlider = this.container.querySelector<HTMLInputElement>('#ctrl-power-slider');
+    const powerVal = this.container.querySelector<HTMLElement>('#ctrl-power-val');
 
     powerSlider?.addEventListener('input', e => {
       const val = parseFloat((e.target as HTMLInputElement).value);
       this.acousticPower = val;
-      powerVal.textContent = `${val.toFixed(2)}x`;
+      if (powerVal) powerVal.textContent = `${val.toFixed(2)}x`;
+      const pct = Math.min(100, Math.max(0, Math.round(((val - 0.1) / 2.9) * 100)));
+      powerSlider.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
       this.visualizer.acousticTherapyLab.setAcousticPower(val);
       this.syncAudioEngine();
       this.updateTelemetry();
@@ -649,24 +517,8 @@ export class TherapyLabControls {
     heterodyneBtn?.addEventListener('click', () => {
       this.isHeterodyneActive = !this.isHeterodyneActive;
       this.visualizer.acousticTherapyLab.setHeterodyne(this.isHeterodyneActive);
-      if (heterodyneBtn) {
-        heterodyneBtn.className = `px-2 py-0.5 rounded cursor-pointer ${
-          this.isHeterodyneActive
-            ? 'bg-amber-500 text-slate-950 font-semibold shadow-sm'
-            : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30'
-        } text-[10px] font-mono transition-all`;
-        heterodyneBtn.textContent = `Harmonic Pulse: ${this.isHeterodyneActive ? 'ON' : 'OFF'}`;
-      }
       this.syncAudioEngine();
-      this.updateTelemetry();
-    });
-
-    // 9. Biophysics Studio Hub Switcher
-    this.container.querySelector('#hub-btn-bio')?.addEventListener('click', () => {
-      if (this.onSwitchMode) this.onSwitchMode('bio');
-    });
-    this.container.querySelector('#hub-btn-nobel')?.addEventListener('click', () => {
-      if (this.onSwitchMode) this.onSwitchMode('nobel');
+      this.render();
     });
   }
 
@@ -688,10 +540,14 @@ export class TherapyLabControls {
     const telCancel = this.container.querySelector<HTMLElement>('#tel-cancel-val');
 
     if (telLysis)
-      telLysis.textContent = `${tel.cancerLysisPercent.toFixed(1)}% (${(tel.cancerStrain * 100).toFixed(1)}%)`;
+      telLysis.innerHTML = `${tel.cancerLysisPercent.toFixed(1)}% <span class="text-[9px] text-rose-400/80 font-normal">(${(tel.cancerStrain * 100).toFixed(1)}%)</span>`;
     if (telHealthy)
       telHealthy.textContent = `${tel.healthyPreservedPercent.toFixed(1)}%`;
     if (telPressure) telPressure.textContent = `${tel.netPressurePa.toFixed(2)} Pa`;
     if (telCancel) telCancel.textContent = `${tel.cancellationEfficiencyPercent.toFixed(1)}% Silenced`;
+  }
+
+  public destroy(): void {
+    // Teardown any pending timeouts or animation cycles
   }
 }

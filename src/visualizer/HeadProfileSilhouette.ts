@@ -1,13 +1,20 @@
 /**
  * HeadProfileSilhouette.ts
- * SoundForm 3D - 3D Volumetric Anatomical Head & Neck Shell
+ * SoundForm 3D - High-Fidelity Anatomical Sagittal Cephalometric Human Bust Shell & Contact Shadow
  *
  * Implements:
- * 1. True 3D Parametric Volumetric Head & Neck Mesh (visible and recognizable from all 360° angles).
- * 2. Translucent Fresnel Glassmorphism Shader:
- *    - Subtle 10% interior opacity so the internal vocal tract and breath stream remain 100% visible inside.
- *    - Luminous electric cyan rim glow highlighting the anatomical 3D contour from any perspective.
- * 3. 3 Perspective-anchored Callout Badges (Lips/Mouth, Throat/Pharynx, Vocal Cords) with glowing leader lines.
+ * 1. True 3D Parametric Anatomical Human Bust Geometry (Cranial Vertex -> Face -> Neck -> Clavicles -> Shoulders):
+ *    - Full cephalometric landmarks: Cranial vault, forehead, nasion, pronasale (nose tip), philtrum,
+ *      upper/lower lips, pogonion (chin), mandibular jawline, sternocleidomastoid neck, clavicles, and shoulders.
+ *    - Continuous ground-tapering bust that gracefully blends into the datum floor plane ($y = -4.85$).
+ * 2. Dual-Pass Translucent Holographic Glassmorphism Shader:
+ *    - Razor-sharp inverted Fresnel rim lighting (#00f0ff / #38bdf8) with cubic angle falloff.
+ *    - Animated horizontal holographic isocline scanlines.
+ *    - Height-based smooth opacity attenuation (transparent at base to seamlessly merge with the floor grid).
+ *    - 90% interior transparency preserving crystal-clear visibility of internal vocal waveguide & airflow particles.
+ * 3. Continuous Illuminated Sagittal Midline Profile Laser Guide.
+ * 4. Soft Radial Ground Contact Shadow Disk anchoring the figure in 3D space.
+ * 5. Perspective-anchored Anatomical Callout Badges with glowing leader lines.
  */
 
 import * as THREE from 'three';
@@ -28,30 +35,39 @@ void main() {
 `;
 
 const HEAD_FRESNEL_FRAGMENT_SHADER = `
-uniform vec3 uColor;
+uniform vec3  uColor;
 uniform float uTime;
-varying vec3 vWorldNormal;
-varying vec3 vViewPosition;
-varying vec3 vWorldPos;
+varying vec3  vWorldNormal;
+varying vec3  vViewPosition;
+varying vec3  vWorldPos;
 
 void main() {
     vec3 normal = normalize(vWorldNormal);
     vec3 viewDir = normalize(vViewPosition);
 
-    // Fresnel Rim Glow
+    // 1. Razor-Sharp Inverted Fresnel Rim Glow
     float NdotV = max(0.0, dot(normal, viewDir));
-    float fresnel = pow(1.0 - NdotV, 2.8);
+    float fresnel = pow(1.0 - NdotV, 3.0);
 
-    // Subtle anatomical latitude contour lines
-    float contour = sin(vWorldPos.y * 12.0) * 0.5 + 0.5;
-    float contourGlow = pow(contour, 8.0) * 0.15;
+    // 2. Animated Holographic Isocline Scanlines
+    float scanline = sin(vWorldPos.y * 12.0 - uTime * 1.2) * 0.5 + 0.5;
+    float scanGlow = pow(scanline, 8.0) * 0.16;
 
-    // Translucent glass base + glowing rim
-    vec3 baseColor = uColor * 0.25;
-    vec3 rimColor = uColor * 1.4;
-    vec3 finalColor = mix(baseColor, rimColor, fresnel) + uColor * contourGlow;
+    // 3. Subtle Cephalometric Latitude Contour Lines
+    float latContour = sin(vWorldPos.y * 6.0) * 0.5 + 0.5;
+    float latGlow = pow(latContour, 12.0) * 0.10;
 
-    float alpha = clamp(0.06 + fresnel * 0.45, 0.0, 0.75);
+    // 4. Height-Based Alpha Attenuation (Graceful fade to datum floor at y = -4.85)
+    float heightFade = smoothstep(-4.85, -3.30, vWorldPos.y);
+
+    // 5. Clean Sapphire / Obsidian Glass Palette
+    vec3 baseColor = uColor * 0.08;
+    vec3 rimColor  = uColor * 1.45;
+    vec3 finalColor = mix(baseColor, rimColor, fresnel) + uColor * (scanGlow + latGlow);
+
+    // High interior transparency (90-95%) with luminous outer edge
+    float alpha = (0.04 + fresnel * 0.42 + scanGlow * 0.15) * heightFade;
+    alpha = clamp(alpha, 0.0, 0.70);
 
     gl_FragColor = vec4(finalColor, alpha);
 }
@@ -61,6 +77,8 @@ export class HeadProfileSilhouette {
   public group: THREE.Group;
   private headMesh: THREE.Mesh;
   private wireframeMesh: THREE.LineSegments;
+  private midlineProfileLine: THREE.Line;
+  private contactShadowMesh: THREE.Mesh;
   private leaderLinesGroup: THREE.Group;
   private spriteGroup: THREE.Group;
   private material: THREE.ShaderMaterial;
@@ -71,7 +89,7 @@ export class HeadProfileSilhouette {
     this.leaderLinesGroup = new THREE.Group();
     this.spriteGroup = new THREE.Group();
 
-    // 1. Build True 3D Parametric Anatomical Head & Neck Geometry
+    // 1. Build True 3D Parametric Cephalometric Human Bust Geometry (Head -> Shoulders)
     const headGeom = this.generate3DHeadGeometry();
 
     this.material = new THREE.ShaderMaterial({
@@ -90,39 +108,55 @@ export class HeadProfileSilhouette {
     this.headMesh = new THREE.Mesh(headGeom, this.material);
     this.group.add(this.headMesh);
 
-    // Subtle anatomical wireframe contour lines
+    // Subtle anatomical wireframe grid
     const wireframeGeom = new THREE.WireframeGeometry(headGeom);
     const wireMat = new THREE.LineBasicMaterial({
       color: 0x38bdf8,
       transparent: true,
-      opacity: 0.12,
+      opacity: 0.08,
     });
     this.wireframeMesh = new THREE.LineSegments(wireframeGeom, wireMat);
     this.group.add(this.wireframeMesh);
 
-    // 2. Anatomical Anchors & Perspective Callout Sprites
+    // 2. Crisp Illuminated Sagittal Midline Profile Line
+    const midlinePoints = this.generateMidlinePoints();
+    const midlineGeom = new THREE.BufferGeometry().setFromPoints(midlinePoints);
+    const midlineMat = new THREE.LineBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.85,
+      linewidth: 2,
+    });
+    this.midlineProfileLine = new THREE.Line(midlineGeom, midlineMat);
+    this.group.add(this.midlineProfileLine);
+
+    // 3. Soft Radial Ground Contact Shadow on Datum Floor Plane
+    this.contactShadowMesh = this.createContactShadowMesh();
+    this.group.add(this.contactShadowMesh);
+
+    // 4. Perspective-anchored Anatomical Callout Badges
     this.createCallout(
-      '👄 Lips & Mouth',
-      'Acoustic Output',
+      'Lips & Mouth',
+      'Acoustic Radiator',
       new THREE.Vector3(0.0, 0.92, 2.50),
-      new THREE.Vector3(0.0, 1.45, 3.35),
+      new THREE.Vector3(0.0, 1.45, 3.45),
       0x38bdf8
     );
 
     this.createCallout(
-      '🗣 Throat / Pharynx',
+      'Throat / Pharynx',
       'Resonance Chamber',
       new THREE.Vector3(0.0, -0.30, -0.60),
-      new THREE.Vector3(0.0, -0.15, -2.35),
+      new THREE.Vector3(0.0, -0.15, -2.45),
       0x818cf8
     );
 
     this.createCallout(
-      '🫁 Vocal Cords (Larynx)',
+      'Vocal Cords (Larynx)',
       'Sound Source (88 Hz)',
       new THREE.Vector3(0.0, -2.80, -0.25),
       new THREE.Vector3(0.0, -3.25, 1.45),
-      0xf43f5e
+      0x00f0ff
     );
 
     this.group.add(this.leaderLinesGroup);
@@ -130,63 +164,87 @@ export class HeadProfileSilhouette {
   }
 
   private generate3DHeadGeometry(): THREE.BufferGeometry {
-    // 24 Height Slices from Skull Apex (Y = 3.2) down to Lower Neck (Y = -3.4)
-    // Aligned to encapsulate: Glottis (0, -2.8, -0.25) -> Throat (0, -0.3, -0.6) -> Lips (0, 0.92, 2.45)
-    interface SliceDef {
+    // 24 Cephalometric Anatomical Slices from Cranial Vertex down through Neck, Clavicles & Shoulders
+    interface AnatomicalSlice {
       y: number;
-      zAnt: number;  // Anterior boundary (front/face)
-      zPost: number; // Posterior boundary (back/occiput)
-      rX: number;    // Lateral half-width (temple/cheek/neck)
+      zAnt: number;     // Sagittal anterior midline (front)
+      zPost: number;    // Sagittal posterior midline (back/occiput/spine)
+      rX: number;       // Lateral half-width (cranial/cheek/neck/shoulder)
+      noseProm?: number;// Sharp anterior protrusion for nasal ridge/tip
     }
 
-    const slices: SliceDef[] = [
-      { y:  3.20, zAnt:  0.20, zPost: -0.40, rX: 0.40 }, // Vertex apex
-      { y:  2.85, zAnt:  1.20, zPost: -1.30, rX: 1.25 }, // Superior skull
-      { y:  2.40, zAnt:  1.80, zPost: -1.65, rX: 1.55 }, // Forehead / Parietal
-      { y:  1.95, zAnt:  2.15, zPost: -1.75, rX: 1.62 }, // Brow ridge
-      { y:  1.60, zAnt:  2.35, zPost: -1.70, rX: 1.58 }, // Nasion (Nose bridge)
-      { y:  1.25, zAnt:  2.85, zPost: -1.60, rX: 1.50 }, // Pronasale (Nose tip)
-      { y:  1.00, zAnt:  2.50, zPost: -1.50, rX: 1.42 }, // Subnasale / Upper lip
-      { y:  0.80, zAnt:  2.60, zPost: -1.45, rX: 1.38 }, // Stomion / Lip opening
-      { y:  0.55, zAnt:  2.50, zPost: -1.40, rX: 1.35 }, // Lower lip
-      { y:  0.25, zAnt:  2.35, zPost: -1.35, rX: 1.30 }, // Chin crease
-      { y: -0.05, zAnt:  2.40, zPost: -1.30, rX: 1.28 }, // Pogonion (Chin tip)
-      { y: -0.45, zAnt:  1.90, zPost: -1.30, rX: 1.22 }, // Submental jaw
-      { y: -0.90, zAnt:  1.30, zPost: -1.35, rX: 1.15 }, // Upper neck / Hyoid
-      { y: -1.40, zAnt:  1.05, zPost: -1.40, rX: 1.08 }, // Thyroid cartilage
-      { y: -1.95, zAnt:  0.95, zPost: -1.45, rX: 1.02 }, // Mid neck
-      { y: -2.50, zAnt:  0.88, zPost: -1.40, rX: 1.05 }, // Cricoid level
-      { y: -3.00, zAnt:  0.82, zPost: -1.35, rX: 1.15 }, // Lower neck
-      { y: -3.40, zAnt:  0.80, zPost: -1.30, rX: 1.28 }, // Sternal base
+    const slices: AnatomicalSlice[] = [
+      { y:  3.40, zAnt:  0.02, zPost: -0.30, rX: 0.25 }, // Cranium Vertex Apex
+      { y:  3.15, zAnt:  0.85, zPost: -1.05, rX: 1.05 }, // Superior Parietal Vault
+      { y:  2.75, zAnt:  1.55, zPost: -1.55, rX: 1.48 }, // Forehead
+      { y:  2.30, zAnt:  1.90, zPost: -1.75, rX: 1.60 }, // Frontal Bone / Glabella
+      { y:  1.90, zAnt:  2.15, zPost: -1.75, rX: 1.58 }, // Supraorbital Brow Ridge
+      { y:  1.60, zAnt:  2.30, zPost: -1.70, rX: 1.52, noseProm: 0.22 }, // Nasion (Nasal Root)
+      { y:  1.30, zAnt:  2.85, zPost: -1.62, rX: 1.45, noseProm: 0.58 }, // Pronasale (Nose Tip)
+      { y:  1.05, zAnt:  2.45, zPost: -1.52, rX: 1.40, noseProm: 0.28 }, // Subnasale / Philtrum
+      { y:  0.85, zAnt:  2.58, zPost: -1.46, rX: 1.36 }, // Upper Lip
+      { y:  0.68, zAnt:  2.46, zPost: -1.42, rX: 1.34 }, // Stomion (Mouth Slit)
+      { y:  0.50, zAnt:  2.52, zPost: -1.38, rX: 1.32 }, // Lower Lip
+      { y:  0.28, zAnt:  2.32, zPost: -1.35, rX: 1.30 }, // Labiomental Crease
+      { y: -0.02, zAnt:  2.42, zPost: -1.30, rX: 1.26 }, // Pogonion (Chin Tip)
+      { y: -0.40, zAnt:  1.85, zPost: -1.30, rX: 1.20 }, // Submental Mandibular Arch
+      { y: -0.85, zAnt:  1.25, zPost: -1.35, rX: 1.14 }, // Hyoid Level / Superior Neck
+      { y: -1.40, zAnt:  1.05, zPost: -1.40, rX: 1.08 }, // Thyroid Cartilage (Adam's Apple)
+      { y: -1.95, zAnt:  0.95, zPost: -1.45, rX: 1.05 }, // Cricoid Level / Mid Cervical
+      { y: -2.50, zAnt:  0.88, zPost: -1.42, rX: 1.10 }, // Lower Cervical / C7
+      { y: -3.00, zAnt:  0.85, zPost: -1.38, rX: 1.24 }, // Suprasternal Notch / Neck Base
+      { y: -3.45, zAnt:  0.95, zPost: -1.35, rX: 1.70 }, // Clavicular Arch & Trapezius Slope
+      { y: -3.85, zAnt:  1.15, zPost: -1.30, rX: 2.40 }, // Upper Chest / Deltoid Flare
+      { y: -4.25, zAnt:  1.30, zPost: -1.25, rX: 3.05 }, // Mid Chest / Acromion Shoulder Line
+      { y: -4.60, zAnt:  1.40, zPost: -1.20, rX: 3.50 }, // Lower Chest / Broad Shoulder Base
+      { y: -4.85, zAnt:  1.45, zPost: -1.18, rX: 3.70 }, // Datum Floor Blending Base
     ];
 
-    const radialSegments = 36;
+    const radialSegments = 48;
     const numSlices = slices.length;
     const vertices: number[] = [];
-    const normals: number[] = [];
     const indices: number[] = [];
 
-    // Generate ring vertices for each slice
     for (let i = 0; i < numSlices; i++) {
       const s = slices[i];
       const zCenter = (s.zAnt + s.zPost) * 0.5;
       const rZ = (s.zAnt - s.zPost) * 0.5;
+      const noseProm = s.noseProm || 0.0;
 
       for (let j = 0; j < radialSegments; j++) {
         const theta = (j / radialSegments) * Math.PI * 2;
         const cosT = Math.cos(theta);
         const sinT = Math.sin(theta);
 
-        // Deform anterior half slightly for realistic facial profile taper
-        const x = sinT * s.rX * (cosT > 0.0 ? 0.95 : 1.0);
-        const y = s.y;
-        const z = zCenter + cosT * rZ;
+        let x = sinT * s.rX;
+        let z = zCenter + cosT * rZ;
 
-        vertices.push(x, y, z);
+        // Anatomical facial & shoulder taper modulation
+        if (s.y > -3.0) {
+          if (cosT > 0.0 && noseProm > 0.0) {
+            // Crisp nasal ridge taper
+            const noseTaper = Math.max(0.0, 1.0 - Math.abs(sinT) * 3.5);
+            z += noseProm * noseTaper;
+            x *= (1.0 - noseTaper * 0.35);
+          } else if (cosT > 0.0) {
+            x *= (0.92 + 0.08 * (1.0 - cosT));
+          }
+        } else {
+          // Shoulder and chest natural curvature
+          if (cosT > 0.0) {
+            // Front pectoral curve
+            z += Math.sin(theta) * Math.sin(theta) * 0.15;
+          } else {
+            // Back scapular plane
+            z -= (1.0 - Math.abs(sinT)) * 0.12;
+          }
+        }
+
+        vertices.push(x, s.y, z);
       }
     }
 
-    // Connect adjacent slice rings into quad strips (2 triangles each)
+    // Connect rings into quad strip triangles
     for (let i = 0; i < numSlices - 1; i++) {
       for (let j = 0; j < radialSegments; j++) {
         const nextJ = (j + 1) % radialSegments;
@@ -207,6 +265,69 @@ export class HeadProfileSilhouette {
     geometry.computeVertexNormals();
 
     return geometry;
+  }
+
+  private generateMidlinePoints(): THREE.Vector3[] {
+    // Continuous Sagittal Midline Profile Curve (X = 0)
+    return [
+      new THREE.Vector3(0.0,  3.40, -0.15), // Vertex Apex
+      new THREE.Vector3(0.0,  3.15,  0.85),
+      new THREE.Vector3(0.0,  2.75,  1.55), // Forehead
+      new THREE.Vector3(0.0,  2.30,  1.90), // Glabella
+      new THREE.Vector3(0.0,  1.90,  2.15), // Brow
+      new THREE.Vector3(0.0,  1.60,  2.52), // Nasion
+      new THREE.Vector3(0.0,  1.30,  2.85), // Pronasale (Nose Tip)
+      new THREE.Vector3(0.0,  1.05,  2.45), // Subnasale
+      new THREE.Vector3(0.0,  0.85,  2.58), // Upper Lip
+      new THREE.Vector3(0.0,  0.68,  2.46), // Stomion
+      new THREE.Vector3(0.0,  0.50,  2.52), // Lower Lip
+      new THREE.Vector3(0.0,  0.28,  2.32), // Labiomental Crease
+      new THREE.Vector3(0.0, -0.02,  2.42), // Chin Pogonion
+      new THREE.Vector3(0.0, -0.40,  1.85), // Mandible Submental
+      new THREE.Vector3(0.0, -0.85,  1.25), // Hyoid
+      new THREE.Vector3(0.0, -1.40,  1.05), // Adam's Apple
+      new THREE.Vector3(0.0, -1.95,  0.95), // Cricoid
+      new THREE.Vector3(0.0, -2.50,  0.88), // Trachea
+      new THREE.Vector3(0.0, -3.00,  0.85), // Suprasternal Notch
+      new THREE.Vector3(0.0, -3.45,  0.95), // Clavicle
+      new THREE.Vector3(0.0, -3.85,  1.15), // Upper Sternum
+      new THREE.Vector3(0.0, -4.25,  1.30), // Mid Sternum
+      new THREE.Vector3(0.0, -4.60,  1.40), // Xiphoid
+      new THREE.Vector3(0.0, -4.85,  1.45), // Sternal Base
+    ];
+  }
+
+  private createContactShadowMesh(): THREE.Mesh {
+    // Soft Radial Ground Contact Shadow Disk on Floor Datum Plane
+    const shadowGeom = new THREE.PlaneGeometry(6.5, 4.2);
+    shadowGeom.rotateX(-Math.PI / 2);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+      grad.addColorStop(0.0, 'rgba(0, 0, 0, 0.75)');
+      grad.addColorStop(0.35, 'rgba(0, 15, 30, 0.50)');
+      grad.addColorStop(0.70, 'rgba(0, 30, 60, 0.18)');
+      grad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 256, 256);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const shadowMat = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      depthTest: true,
+    });
+
+    const mesh = new THREE.Mesh(shadowGeom, shadowMat);
+    mesh.position.set(0.0, -4.84, 0.15); // Directly at datum floor base
+    return mesh;
   }
 
   private createCallout(
@@ -280,7 +401,16 @@ export class HeadProfileSilhouette {
     this.headMesh.geometry.dispose();
     this.material.dispose();
     this.wireframeMesh.geometry.dispose();
-    (this.wireframeMesh.material as THREE.Material).dispose();
+    this.midlineProfileLine.geometry.dispose();
+    (this.midlineProfileLine.material as THREE.Material).dispose();
+    this.contactShadowMesh.geometry.dispose();
+    (this.contactShadowMesh.material as THREE.Material).dispose();
+    this.leaderLinesGroup.traverse((child) => {
+      if (child instanceof THREE.Line) {
+        child.geometry.dispose();
+        (child.material as THREE.Material).dispose();
+      }
+    });
     this.sprites.forEach((s) => {
       s.material.map?.dispose();
       s.material.dispose();

@@ -5,6 +5,7 @@
 [![WebGL2 Shaders](https://img.shields.io/badge/WebGL2-120_FPS_Raymarching-purple.svg)](./src/visualizer/)
 [![Web Audio DSP](https://img.shields.io/badge/Web_Audio-YIN_%26_LPC--16-cyan.svg)](./src/math/)
 [![TypeScript Build](https://img.shields.io/badge/TypeScript-0_Errors_Strict-blue.svg)](./src/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Technical Whitepaper](https://img.shields.io/badge/Whitepaper-Mathematical_Derivations-gold.svg)](./TECHNICAL_WHITEPAPER.md)
 
 ---
@@ -90,6 +91,12 @@ Production build:
 ```bash
 npm run build
 ```
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](./LICENSE) file for details.
 
 ---
 *SoundForm 3D — Computational Acoustics & Volumetric Wave Engine.*

@@ -181,7 +181,7 @@ export class BbbNanomedicinePhysics {
    * Brenner-Faxen / Deen hydrodynamic hindrance polynomial
    */
   public static calculateStericHindrance(rH_nm: number, rP_nm: number): number {
-    if (rP_nm <= this.BASAL_PORE_RADIUS_NM || rH_nm >= rP_nm) return 0.0;
+    if (rP_nm < this.BASAL_PORE_RADIUS_NM || rH_nm >= rP_nm) return 0.0;
 
     const lambda = rH_nm / rP_nm;
     if (lambda >= 1.0) return 0.0;

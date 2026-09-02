@@ -46,8 +46,10 @@ export class BioAcousticResonator {
   private debrisVelocities: Float32Array;
   private debrisLifetimes: Float32Array;
   private isLysisActive = false;
+  private isLysisResetting = false;
   private lysisProgress = 0.0;
   private lysisDuration = 1.6;
+  private lysisResetTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   // State
   private viewMode: BioViewMode = 'cell-inspector';
@@ -208,7 +210,12 @@ export class BioAcousticResonator {
    * Trigger violent histotripsy cavitation shockwave & membrane lysis
    */
   public triggerHistotripsyLysis(): void {
+    if (this.lysisResetTimeoutId !== null) {
+      clearTimeout(this.lysisResetTimeoutId);
+      this.lysisResetTimeoutId = null;
+    }
     this.isLysisActive = true;
+    this.isLysisResetting = false;
     this.lysisProgress = 0.0;
 
     // Spawn radial burst velocities for debris
@@ -239,6 +246,8 @@ export class BioAcousticResonator {
   }
 
   public update(time: number, dt: number, camera: THREE.Camera, audioBands: THREE.Vector4): void {
+    if (!this.group.visible) return;
+
     // 1. Single Cell Inspector Update
     if (this.viewMode === 'cell-inspector') {
       this.bioCellMesh.update(time, dt, camera, audioBands);
@@ -270,14 +279,20 @@ export class BioAcousticResonator {
         posAttr.needsUpdate = true;
         (this.debrisPoints.material as THREE.PointsMaterial).opacity = shockEnergy * 0.9;
 
-        if (this.lysisProgress >= 1.0) {
-          // Re-heal after 2 seconds
-          setTimeout(() => {
+        if (this.lysisProgress >= 1.0 && !this.isLysisResetting) {
+          this.isLysisResetting = true;
+          this.lysisResetTimeoutId = setTimeout(() => {
             this.isLysisActive = false;
+            this.isLysisResetting = false;
+            this.lysisResetTimeoutId = null;
             this.lysisProgress = 0.0;
             this.bioCellMesh.setRuptureProgress(0.0);
-            (this.shockwaveSphere.material as THREE.MeshBasicMaterial).opacity = 0.0;
-            (this.debrisPoints.material as THREE.PointsMaterial).opacity = 0.0;
+            if (this.shockwaveSphere && this.shockwaveSphere.material) {
+              (this.shockwaveSphere.material as THREE.MeshBasicMaterial).opacity = 0.0;
+            }
+            if (this.debrisPoints && this.debrisPoints.material) {
+              (this.debrisPoints.material as THREE.PointsMaterial).opacity = 0.0;
+            }
           }, 1800);
         }
       }
@@ -329,6 +344,10 @@ export class BioAcousticResonator {
   }
 
   public dispose(): void {
+    if (this.lysisResetTimeoutId !== null) {
+      clearTimeout(this.lysisResetTimeoutId);
+      this.lysisResetTimeoutId = null;
+    }
     this.bioCellMesh.dispose();
     this.sortingParticlesMesh.geometry.dispose();
     (this.sortingParticlesMesh.material as THREE.Material).dispose();

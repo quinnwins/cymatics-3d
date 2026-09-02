@@ -46,9 +46,12 @@ export class VoiceBiometricsControls {
     this.startVuLoop();
   }
 
+  public getElement(): HTMLElement {
+    return this.container;
+  }
+
   private preventEventBleeding(): void {
     this.container.addEventListener('wheel', (e) => e.stopPropagation(), { passive: false });
-    this.container.addEventListener('pointerdown', (e) => e.stopPropagation());
   }
 
   private startVuLoop(): void {
@@ -224,7 +227,7 @@ export class VoiceBiometricsControls {
           <div class="bg-gradient-to-br from-indigo-950/70 via-purple-950/40 to-slate-900/80 p-3.5 rounded-3xl border border-purple-500/20 flex flex-col gap-2.5 shadow-xl">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <span class="text-lg">✨</span>
+                <span class="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse shrink-0"></span>
                 <div>
                   <h4 class="text-xs font-bold text-white">${rx?.prescriptionTitle ?? 'Harmonic Balancing Tone'}</h4>
                   <p class="text-[10px] text-purple-300/80">Bio-harmonic carrier + binaural entrainment</p>
@@ -240,7 +243,7 @@ export class VoiceBiometricsControls {
                   : 'bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white shadow-cyan-500/25'
               }"
             >
-              <span>${this.isMedicinePlaying ? '⏹ Stop Balancing Tone' : '▶ Play Balancing Tone'}</span>
+              <span>${this.isMedicinePlaying ? 'Stop Balancing Tone' : 'Play Balancing Tone'}</span>
             </button>
           </div>
         `

@@ -1,15 +1,47 @@
 /**
  * AudioControlsBar.ts
- * SoundForm 3D - Music Space Audio Controls Bar & Master Transport Dock
+ * SoundForm 3D — Universal Master Transport & Telemetry Dock
+ *
+ * Dedicated to essential global playback, real-time timeline scrubbing, and audio telemetry.
+ * Avoids duplicating granular sound/frequency controls that reside in dedicated sidebar decks.
+ *
+ * Core Dock Architecture:
+ * 1. Global Master Transport: 1-Click Play/Stop audio engine state with energetic cyan phosphor bloom.
+ * 2. Interactive Audio Timeline Scrubber: Real-time seekable progress bar with elapsed/duration time codes and lag-free dragging.
+ * 3. Live Audio Telemetry: Real-time active status, pitch (Note/Hz), acoustic wavelength λ, and clean non-wrapping metadata badges.
+ * 4. Master Utilities: 1-Click 📸 Snapshot capture and 💾 Dossier Export.
+ * 5. Master Output: Master volume slider with filled active gradient and mute toggle.
  */
 
 import { AudioEngine } from '../audio/AudioEngine';
 import { DemoAudioGenerator } from '../audio/DemoAudioGenerator';
+import { WavePhysics, NoteInfo } from '../math/WavePhysics';
+import { WaveformType } from '../audio/FrequencySynthesizer';
+import { EngineMode } from './Header';
 
 export class AudioControlsBar {
   private element: HTMLElement;
+  private currentEngineMode: EngineMode = 'music';
   private hasInitGlobalListeners = false;
   private unsubscribe?: () => void;
+  private animFrameId: number | null = null;
+  private isScrubbing = false;
+  private resizeObserver: ResizeObserver | null = null;
+
+  // Real-time telemetry state
+  private currentFreq = 432;
+  private currentWaveform: WaveformType = 'sine';
+
+  // State cache for intelligent in-place DOM updates
+  private lastRenderState: {
+    mode: string;
+    isPlaying: boolean;
+    isMuted: boolean;
+    activeTrackId: string;
+    loadedFileName: string | null;
+    streamingTrackId?: string;
+    isMicActive: boolean;
+  } | null = null;
 
   constructor(
     private audioEngine: AudioEngine,
@@ -17,36 +49,60 @@ export class AudioControlsBar {
     private onExport?: () => void
   ) {
     this.element = typeof document !== 'undefined' ? document.createElement('div') : ({} as HTMLElement);
-    this.element.className = 'w-full flex flex-col items-center gap-3';
+    this.element.className = 'w-full flex justify-center items-center select-none';
+    this.preventEventBleeding();
+
     if (typeof window !== 'undefined') {
       this.initGlobalListeners();
     }
+
     this.unsubscribe = this.audioEngine.subscribe(() => {
-      this.update();
+      this.onAudioEngineUpdate();
     });
   }
 
+  private preventEventBleeding(): void {
+    this.element.addEventListener('wheel', e => e.stopPropagation(), { passive: false });
+  }
+
   public destroy(): void {
+    if (this.animFrameId !== null) {
+      cancelAnimationFrame(this.animFrameId);
+      this.animFrameId = null;
+    }
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = undefined;
     }
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
+    }
+    this.dispose();
   }
 
   private initGlobalListeners(): void {
     if (this.hasInitGlobalListeners) return;
     this.hasInitGlobalListeners = true;
 
-    window.addEventListener('dragover', e => e.preventDefault());
-    window.addEventListener('drop', async e => {
-      e.preventDefault();
-      if (e.dataTransfer?.files && e.dataTransfer.files[0]) {
-        const file = e.dataTransfer.files[0];
-        if (file.type.startsWith('audio/')) {
-          await this.audioEngine.loadAudioFile(file);
-        }
+    window.addEventListener('frequency-changed', ((e: CustomEvent<{ frequency: number }>) => {
+      if (e.detail?.frequency && e.detail.frequency !== this.currentFreq) {
+        this.currentFreq = e.detail.frequency;
+        this.updateFrequencyTelemetry();
       }
-    });
+    }) as EventListener);
+
+    window.addEventListener('waveform-changed', ((e: CustomEvent<{ waveform: WaveformType }>) => {
+      if (e.detail?.waveform && e.detail.waveform !== this.currentWaveform) {
+        this.currentWaveform = e.detail.waveform;
+      }
+    }) as EventListener);
+  }
+
+  public dispose(): void {
+    if (this.hasInitGlobalListeners) {
+      this.hasInitGlobalListeners = false;
+    }
   }
 
   public getElement(): HTMLElement {
@@ -54,317 +110,557 @@ export class AudioControlsBar {
     return this.element;
   }
 
-  private isScrubbing = false;
+  public setMode(mode: EngineMode): void {
+    const normalized = mode === 'cymatics' ? 'music' : mode === 'modal' ? 'frequency' : mode;
+    if (this.currentEngineMode === normalized) return;
+    this.currentEngineMode = normalized;
+    this.render();
+  }
 
-  private formatTime(sec: number): string {
-    if (!sec || isNaN(sec) || !isFinite(sec) || sec < 0) return '0:00';
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  public getEngineMode(): EngineMode {
+    return this.currentEngineMode;
+  }
+
+  public setFrequency(freq: number): void {
+    this.currentFreq = Math.max(20, Math.min(20000, Math.round(freq)));
+    if (this.audioEngine.synthesizer?.getIsPlaying()) {
+      this.audioEngine.synthesizer.setFrequency(this.currentFreq);
+    }
+    this.updateFrequencyTelemetry();
+  }
+
+  public getFrequency(): number {
+    return this.currentFreq;
+  }
+
+  public setWaveform(wf: WaveformType): void {
+    this.currentWaveform = wf;
+    this.audioEngine.synthesizer?.setWaveform(wf);
+  }
+
+  public getWaveform(): WaveformType {
+    return this.currentWaveform;
+  }
+
+  private formatTime(secs: number): string {
+    if (isNaN(secs) || !isFinite(secs) || secs < 0) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * Smart subscription listener:
+   * Rebuilds DOM only when discrete application state changes.
+   * Updates timeline & volume in-place during audio playback to avoid layout thrashing and preserve user drag.
+   */
+  private onAudioEngineUpdate(): void {
+    const isPlaying = this.audioEngine.getIsPlaying();
+    const isMuted = this.audioEngine.getIsMuted();
+    const activeTrackId = this.audioEngine.getActiveTrackId();
+    const loadedFileName = this.audioEngine.getLoadedFileName();
+    const streamingTrack = this.audioEngine.getActiveStreamingTrack();
+    const isMicActive = this.audioEngine.isMicrophoneActive();
+    const mode = this.currentEngineMode;
+
+    const needsFullRender =
+      !this.lastRenderState ||
+      this.lastRenderState.mode !== mode ||
+      this.lastRenderState.isPlaying !== isPlaying ||
+      this.lastRenderState.isMuted !== isMuted ||
+      this.lastRenderState.activeTrackId !== activeTrackId ||
+      this.lastRenderState.loadedFileName !== loadedFileName ||
+      this.lastRenderState.streamingTrackId !== streamingTrack?.id ||
+      this.lastRenderState.isMicActive !== isMicActive;
+
+    if (needsFullRender) {
+      this.render();
+    } else {
+      this.updateTimelineOnly();
+    }
+  }
+
+  /**
+   * High-performance in-place update for timeline scrubber & duration labels.
+   */
+  private updateTimelineOnly(): void {
+    if (this.isScrubbing || this.currentEngineMode !== 'music') return;
+
+    const scrubber = this.element.querySelector('#dock-timeline-scrubber') as HTMLInputElement;
+    const curTimeEl = this.element.querySelector('#dock-label-current-time');
+    const durEl = this.element.querySelector('#dock-label-duration');
+
+    const currentTime = this.audioEngine.getCurrentTime();
+    const duration = this.audioEngine.getDuration();
+    const progressPct = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
+
+    if (scrubber) {
+      scrubber.max = duration > 0 ? duration.toString() : '100';
+      scrubber.value = currentTime.toString();
+      scrubber.style.background = `linear-gradient(to right, #22d3ee ${progressPct}%, rgba(255, 255, 255, 0.12) ${progressPct}%)`;
+    }
+
+    if (curTimeEl) {
+      curTimeEl.textContent = this.formatTime(currentTime);
+    }
+
+    if (durEl) {
+      durEl.textContent = duration > 0 ? this.formatTime(duration) : (this.audioEngine.getIsPlaying() && !this.audioEngine.getLoadedFileName() ? '∞' : '--:--');
+    }
   }
 
   public render(): void {
     if (!this.element || typeof this.element.querySelector !== 'function') return;
 
     const isPlaying = this.audioEngine.getIsPlaying();
-    const tracks = DemoAudioGenerator.TRACKS;
-    const currentTrackId = this.audioEngine.getActiveTrackId();
+    const isMuted = this.audioEngine.getIsMuted();
+    const volume = this.audioEngine.getMasterVolume();
     const loadedFileName = this.audioEngine.getLoadedFileName();
+    const streamingTrack = this.audioEngine.getActiveStreamingTrack();
     const isMicActive = this.audioEngine.isMicrophoneActive();
+    const currentTrackId = this.audioEngine.getActiveTrackId();
+    const currentTrack = DemoAudioGenerator.TRACKS.find(t => t.id === currentTrackId);
     const currentTime = this.audioEngine.getCurrentTime();
     const duration = this.audioEngine.getDuration();
-    const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
-    const isFileMode = this.audioEngine.getMode() === 'file-upload';
+    const progressPct = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
 
-    this.element.innerHTML = `
-      <div class="glass-panel px-4 py-2.5 rounded-2xl flex flex-col gap-2 shadow-xl border border-white/10 max-w-3xl w-full mx-auto select-none backdrop-blur-xl">
-        
-        <!-- Main Transport Row -->
-        <div class="flex flex-wrap items-center justify-between gap-2.5 md:gap-3 w-full">
-          <!-- Left: Play/Pause & Track Selector -->
-          <div class="flex items-center gap-2.5 flex-1 min-w-[180px]">
-            <!-- Play / Pause Button -->
-            <button id="btn-play-pause" title="${isPlaying ? 'Pause audio' : 'Play audio'}" class="w-9 h-9 rounded-xl ${
-              isPlaying
-                ? 'bg-cyan-400 text-slate-950 font-bold hover:bg-cyan-300'
-                : 'bg-slate-800 text-white border border-slate-700 hover:bg-slate-700'
-            } flex items-center justify-center transition-all active:scale-95 shrink-0 cursor-pointer shadow-sm">
-              ${
-                isPlaying
-                  ? `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`
-                  : `<svg class="w-4 h-4 fill-current ml-0.5" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>`
-              }
-            </button>
+    // Cache state to avoid unnecessary innerHTML rewrites
+    this.lastRenderState = {
+      mode: this.currentEngineMode,
+      isPlaying,
+      isMuted,
+      activeTrackId: currentTrackId,
+      loadedFileName,
+      streamingTrackId: streamingTrack?.id,
+      isMicActive,
+    };
 
-            <!-- Track Dropdown / Loaded File Info -->
-            <div class="flex flex-col flex-1 min-w-0">
-              <div class="flex items-center gap-1.5">
-                ${
-                  loadedFileName
-                    ? `<div class="flex items-center gap-1.5 min-w-0">
-                        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0"></span>
-                        <div class="text-xs font-semibold text-cyan-400 truncate max-w-[170px] sm:max-w-[220px]" title="${loadedFileName}">${loadedFileName}</div>
-                        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shrink-0 font-bold">CUSTOM</span>
-                      </div>`
-                    : isMicActive
-                    ? `<div class="text-xs font-semibold text-rose-400 flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-rose-400 animate-ping"></span>
-                        <span>Microphone Active</span>
-                      </div>`
-                    : `<select id="track-select" class="bg-slate-900 text-gray-200 text-xs font-medium rounded-xl px-2.5 py-1 border border-white/10 outline-none focus:border-cyan-400 cursor-pointer hover:bg-slate-800 transition-colors w-full max-w-[190px]">
-                        ${tracks
-                          .map(
-                            t => `
-                          <option value="${t.id}" class="bg-slate-900 text-gray-100" ${t.id === currentTrackId ? 'selected' : ''}>
-                            ${t.name} (${t.bpm} BPM)
-                          </option>
-                        `
-                          )
-                          .join('')}
-                      </select>`
-                }
-              </div>
-            </div>
-          </div>
+    let statusPillHtml = '';
+    let centerContentHtml = '';
 
-          <!-- Right: Input Options, Utility Actions & Volume Controls -->
-          <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            
-            <!-- File Upload Button -->
-            <label class="btn-icon p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium" title="Upload audio file (MP3, WAV, FLAC)">
-              <svg class="w-3.5 h-3.5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span class="hidden sm:inline text-[11px]">Upload</span>
-              <input type="file" id="file-input" accept="audio/*" class="hidden" />
-            </label>
+    if (this.currentEngineMode === 'music') {
+      let trackTitle = 'Cosmic Odyssey';
+      let trackBadge = '• Cosmic';
+      let badgeColor = 'text-cyan-300';
+      let dotColor = isMicActive ? 'bg-rose-400 animate-ping' : isPlaying ? 'bg-cyan-400 animate-pulse' : 'bg-slate-600';
 
-            <!-- Microphone Toggle -->
-            <button id="btn-mic" class="btn-icon p-2 rounded-xl ${
-              isMicActive
-                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5'
-            } transition-all flex items-center gap-1 text-xs font-medium cursor-pointer" title="Toggle microphone">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-              <span class="hidden sm:inline text-[11px]">Mic</span>
-            </button>
+      if (streamingTrack) {
+        trackTitle = `${streamingTrack.title} — ${streamingTrack.artist}`;
+        if (streamingTrack.source === 'apple-music') {
+          trackBadge = '• Apple Music';
+          badgeColor = 'text-rose-300';
+          dotColor = isPlaying ? 'bg-rose-400 animate-pulse' : 'bg-slate-600';
+        } else {
+          trackBadge = '• Spotify';
+          badgeColor = 'text-emerald-300';
+          dotColor = isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600';
+        }
+      } else if (loadedFileName) {
+        trackTitle = loadedFileName;
+        const ext = loadedFileName.includes('.') ? loadedFileName.split('.').pop()?.toUpperCase() : '';
+        trackBadge = ext ? `• ${ext} File` : '• Audio File';
+      } else if (isMicActive) {
+        trackTitle = 'Live Microphone';
+        trackBadge = '• Live Input';
+      } else if (currentTrack) {
+        trackTitle = currentTrack.name;
+        trackBadge = `• ${currentTrack.genre}`;
+      }
 
-            <!-- Separator between Inputs and Utilities -->
-            <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block"></div>
-
-            <!-- Screenshot Button -->
-            <button id="btn-screenshot" class="btn-screenshot btn-icon p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium" title="Save screenshot (PNG)">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
-              <span class="hidden md:inline text-[11px]">Snapshot</span>
-            </button>
-
-            <!-- Export Data Button -->
-            <button id="btn-export-dossier" class="btn-icon p-2 rounded-xl bg-white/5 hover:bg-white/10 text-cyan-300 hover:text-cyan-200 border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium" title="Export simulation data (JSON/Markdown)">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              <span class="hidden md:inline text-[11px]">Export</span>
-            </button>
-
-            <!-- Separator before Volume -->
-            <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block"></div>
-
-            <!-- Volume Controls -->
-            <div class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1.5 rounded-xl border border-white/5">
-              <!-- Mute/Unmute -->
-              <button id="btn-mute" class="text-gray-400 hover:text-white transition-colors cursor-pointer p-0.5" title="Mute/Unmute">
-                ${
-                  this.audioEngine.getIsMuted()
-                    ? `<svg class="w-3.5 h-3.5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`
-                    : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`
-                }
-              </button>
-
-              <!-- Volume Slider -->
-              <input 
-                id="volume-slider" 
-                type="range" 
-                min="0" 
-                max="1" 
-                step="0.01" 
-                value="${this.audioEngine.getMasterVolume()}"
-                class="w-12 sm:w-16 md:w-20" 
-              />
+      statusPillHtml = `
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 shadow-inner max-w-[170px] xs:max-w-[220px] sm:max-w-[280px] md:max-w-[340px] shrink-0" title="${trackTitle}">
+          <span class="w-2 h-2 rounded-full ${dotColor} shrink-0"></span>
+          <div class="marquee-container min-w-0 font-medium overflow-hidden" data-marquee>
+            <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
+              <span class="text-xs font-bold ${badgeColor} shrink-0">
+                ${trackTitle}
+              </span>
+              <span class="text-[10px] font-mono text-slate-400 whitespace-nowrap shrink-0">
+                ${trackBadge}
+              </span>
             </div>
           </div>
         </div>
+      `;
 
-        <!-- Interactive Audio Timeline Scrubber Bar (Visible for custom uploaded audio & media) -->
-        ${
-          isFileMode
-            ? `
-            <div class="flex items-center gap-2.5 w-full pt-1 border-t border-white/10">
-              <span id="label-current-time" class="text-[10px] font-mono font-bold text-cyan-400 shrink-0 w-8 text-right">
-                ${this.formatTime(currentTime)}
-              </span>
-              <div class="relative flex-1 flex items-center group py-0.5">
-                <input
-                  type="range"
-                  id="timeline-scrubber"
-                  min="0"
-                  max="${duration > 0 ? duration : 100}"
-                  step="0.05"
-                  value="${currentTime}"
-                  class="w-full cursor-pointer h-1.5 rounded-full bg-slate-800 accent-cyan-400 focus:outline-none"
-                  style="background: linear-gradient(to right, #22d3ee ${progressPct}%, rgba(255, 255, 255, 0.12) ${progressPct}%);"
-                  title="Drag or click to seek audio track"
-                />
-              </div>
-              <span id="label-duration" class="text-[10px] font-mono font-medium text-slate-400 shrink-0 w-8 text-left">
-                ${this.formatTime(duration)}
-              </span>
+      // Master Audio Timeline Scrubber
+      centerContentHtml = `
+        <div id="dock-timeline-container" class="flex-1 min-w-[120px] max-w-xs sm:max-w-sm md:max-w-md flex items-center gap-2 px-1 sm:px-3">
+          <span id="dock-label-current-time" class="text-[10px] sm:text-xs font-mono text-cyan-300 tabular-nums shrink-0 select-none font-semibold">${this.formatTime(currentTime)}</span>
+          <div class="flex-1 relative flex items-center min-w-0 group">
+            <input
+              type="range"
+              id="dock-timeline-scrubber"
+              min="0"
+              max="${duration > 0 ? duration : 100}"
+              step="0.1"
+              value="${currentTime}"
+              ${duration <= 0 && !loadedFileName ? 'disabled' : ''}
+              aria-label="Master audio timeline scrubber"
+              title="${duration > 0 ? `Seek: ${this.formatTime(currentTime)} / ${this.formatTime(duration)}` : 'Audio Timeline'}"
+              class="w-full h-1.5 sm:h-2 rounded-full cursor-pointer appearance-none bg-white/10 slider-cyan transition-all group-hover:h-2.5"
+              style="background: linear-gradient(to right, #22d3ee ${progressPct}%, rgba(255, 255, 255, 0.12) ${progressPct}%);"
+            />
+          </div>
+          <span id="dock-label-duration" class="text-[10px] sm:text-xs font-mono text-slate-400 tabular-nums shrink-0 select-none">${duration > 0 ? this.formatTime(duration) : isPlaying && !loadedFileName ? '∞' : '--:--'}</span>
+        </div>
+      `;
+    } else if (this.currentEngineMode === 'frequency') {
+      const noteInfo: NoteInfo = WavePhysics.frequencyToNote(this.currentFreq);
+      const lambdaM = 343 / Math.max(1, this.currentFreq);
+      const lambdaStr = lambdaM >= 1 ? `${lambdaM.toFixed(2)}m` : `${(lambdaM * 100).toFixed(1)}cm`;
+
+      statusPillHtml = `
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 font-mono shadow-inner shrink-0" title="Resonance Tone: ${this.currentFreq} Hz (${noteInfo.name})">
+          <span class="w-2 h-2 rounded-full ${isPlaying ? 'bg-cyan-400 animate-pulse' : 'bg-slate-600'} shrink-0"></span>
+          <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
+            <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
+              <span id="dock-freq-val" class="text-xs sm:text-sm font-bold text-cyan-400 tabular-nums shrink-0">${this.currentFreq} Hz</span>
+              <span id="dock-freq-note" class="text-[10px] font-bold text-blue-300 bg-blue-500/20 px-1.5 py-0.5 rounded border border-blue-500/30 shrink-0">${noteInfo.name}</span>
+              <span id="dock-freq-lambda" class="text-[10px] text-slate-400 tabular-nums whitespace-nowrap shrink-0">λ: ${lambdaStr}</span>
             </div>
-          `
-            : ''
-        }
+          </div>
+        </div>
+      `;
+
+      centerContentHtml = `
+        <div class="flex-1 flex items-center justify-center min-w-0 px-2">
+          <span class="text-[11px] font-mono text-cyan-400/80 bg-cyan-950/40 border border-cyan-500/20 px-3 py-1 rounded-full whitespace-nowrap truncate">
+            Resonance Pure Tone Generator • ${this.currentFreq} Hz
+          </span>
+        </div>
+      `;
+    } else if (this.currentEngineMode === 'therapy') {
+      statusPillHtml = `
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 text-xs shadow-inner max-w-[170px] xs:max-w-[220px] sm:max-w-[280px] md:max-w-[340px] shrink-0" title="Ablation Beam: 500 kHz • 1.0 MPa • Anti-Phase">
+          <span class="w-2 h-2 rounded-full ${isPlaying ? 'bg-rose-400 animate-pulse' : 'bg-slate-600'} shrink-0"></span>
+          <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
+            <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
+              <span class="font-bold text-rose-300 shrink-0">Ablation Beam: 500 kHz</span>
+              <span class="text-[10px] font-mono text-slate-400 shrink-0">1.0 MPa • Anti-Phase</span>
+            </div>
+          </div>
+        </div>
+      `;
+      centerContentHtml = `
+        <div class="flex-1 flex items-center justify-center min-w-0 px-2">
+          <span class="text-[11px] font-mono text-rose-400/80 bg-rose-950/40 border border-rose-500/20 px-3 py-1 rounded-full whitespace-nowrap truncate">
+            Targeted Oncotripsy Acoustic Field
+          </span>
+        </div>
+      `;
+    } else if (this.currentEngineMode === 'nobel') {
+      statusPillHtml = `
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 text-xs shadow-inner max-w-[170px] xs:max-w-[220px] sm:max-w-[280px] md:max-w-[340px] shrink-0" title="Disruption Pulse: 432 Hz • Mechanogenomics">
+          <span class="w-2 h-2 rounded-full ${isPlaying ? 'bg-purple-400 animate-pulse' : 'bg-slate-600'} shrink-0"></span>
+          <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
+            <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
+              <span class="font-bold text-purple-300 shrink-0">Disruption Pulse: 432 Hz</span>
+              <span class="text-[10px] font-mono text-slate-400 shrink-0">Mechanogenomics</span>
+            </div>
+          </div>
+        </div>
+      `;
+      centerContentHtml = `
+        <div class="flex-1 flex items-center justify-center min-w-0 px-2">
+          <span class="text-[11px] font-mono text-purple-400/80 bg-purple-950/40 border border-purple-500/20 px-3 py-1 rounded-full whitespace-nowrap truncate">
+            Nobel Frontier Acoustic Stimulation
+          </span>
+        </div>
+      `;
+    } else if (this.currentEngineMode === 'bio') {
+      statusPillHtml = `
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 text-xs shadow-inner max-w-[170px] xs:max-w-[220px] sm:max-w-[280px] md:max-w-[340px] shrink-0" title="Acoustic Drive: 220 Hz • 42.8 µm/s">
+          <span class="w-2 h-2 rounded-full ${isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'} shrink-0"></span>
+          <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
+            <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
+              <span class="font-bold text-emerald-300 shrink-0">Acoustic Drive: 220 Hz</span>
+              <span class="text-[10px] font-mono text-slate-400 shrink-0">42.8 µm/s</span>
+            </div>
+          </div>
+        </div>
+      `;
+      centerContentHtml = `
+        <div class="flex-1 flex items-center justify-center min-w-0 px-2">
+          <span class="text-[11px] font-mono text-emerald-400/80 bg-emerald-950/40 border border-emerald-500/20 px-3 py-1 rounded-full whitespace-nowrap truncate">
+            Microfluidic Standing Wave Sorter
+          </span>
+        </div>
+      `;
+    } else if (this.currentEngineMode === 'voice') {
+      statusPillHtml = `
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-white/10 min-w-0 text-xs font-mono shadow-inner max-w-[170px] xs:max-w-[220px] sm:max-w-[280px] md:max-w-[340px] shrink-0" title="Vocal Pitch f₀: 220 Hz • Stability 98.4%">
+          <span class="w-2 h-2 rounded-full ${isPlaying ? 'bg-teal-400 animate-pulse' : 'bg-slate-600'} shrink-0"></span>
+          <div class="marquee-container min-w-0 overflow-hidden" data-marquee>
+            <div class="marquee-content flex items-center gap-1.5 whitespace-nowrap">
+              <span class="font-bold text-teal-300 whitespace-nowrap shrink-0">Vocal Pitch f₀: 220 Hz</span>
+              <span class="text-[10px] text-slate-400 whitespace-nowrap shrink-0">Stability 98.4%</span>
+            </div>
+          </div>
+        </div>
+      `;
+      centerContentHtml = `
+        <div class="flex-1 flex items-center justify-center min-w-0 px-2">
+          <span class="text-[11px] font-mono text-teal-400/80 bg-teal-950/40 border border-teal-500/20 px-3 py-1 rounded-full whitespace-nowrap truncate">
+            Voice Biometric Clinical Telemetry
+          </span>
+        </div>
+      `;
+    }
+
+    this.element.innerHTML = `
+      <div class="glass-panel px-3 sm:px-4 py-2 rounded-2xl flex items-center justify-between gap-2 sm:gap-3.5 shadow-2xl border border-white/10 max-w-4xl w-full mx-auto backdrop-blur-2xl transition-all duration-300">
+        
+        <!-- Left: Master Play/Pause Hero Button & Live Status Telemetry Pill -->
+        <div class="flex items-center gap-2 sm:gap-2.5 min-w-0 shrink-0">
+          <button
+            id="btn-play-pause"
+            aria-label="${isPlaying ? 'Pause Master Audio' : 'Play Master Audio'}"
+            title="${isPlaying ? 'Pause Master Audio' : 'Play Master Audio'}"
+            class="w-9 h-9 rounded-xl ${
+              isPlaying
+                ? 'bg-cyan-400 text-slate-950 font-bold hover:bg-cyan-300 shadow-lg shadow-cyan-400/40 ring-2 ring-cyan-300/60'
+                : 'bg-slate-900 text-white border border-slate-700 hover:bg-slate-800'
+            } flex items-center justify-center transition-all active:scale-95 shrink-0 cursor-pointer shadow-sm"
+          >
+            ${
+              isPlaying
+                ? `<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`
+                : `<svg class="w-4 h-4 fill-current ml-0.5" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>`
+            }
+          </button>
+
+          ${statusPillHtml}
+        </div>
+
+        <!-- Center: Interactive Audio Timeline Scrubber or Mode Telemetry -->
+        ${centerContentHtml}
+
+        <!-- Right: Global Utilities (Snapshot, Export) & Master Volume -->
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <!-- Screenshot Snapshot Button -->
+          <button
+            id="btn-screenshot"
+            class="btn-screenshot p-1.5 sm:p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium"
+            aria-label="Capture Screenshot (PNG)"
+            title="Capture Screenshot (PNG)"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <span class="hidden lg:inline text-[11px]">Snapshot</span>
+          </button>
+
+          <!-- Export Dossier Button -->
+          <button
+            id="btn-export-dossier"
+            class="p-1.5 sm:p-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 cursor-pointer transition-all flex items-center gap-1 text-xs font-medium"
+            aria-label="Export Simulation Report & Data"
+            title="Export Simulation Report & Data"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span class="hidden lg:inline text-[11px]">Export</span>
+          </button>
+
+          <div class="w-px h-5 bg-white/10 mx-0.5 hidden sm:block"></div>
+
+          <!-- Master Volume Section -->
+          ${this.renderVolumeSection(isPlaying, isMuted, volume)}
+        </div>
 
       </div>
     `;
 
     this.attachEvents();
+    this.setupMarquee();
   }
 
-  private lastMode?: string;
-  private lastLoadedFileName?: string | null;
-  private lastIsPlaying?: boolean;
-  private lastIsMicActive?: boolean;
+  private renderVolumeSection(isPlaying: boolean, isMuted: boolean, volume: number): string {
+    const volPct = isMuted ? 0 : Math.round(volume * 100);
 
-  public update(): void {
-    if (!this.element || typeof this.element.querySelector !== 'function') return;
-
-    const mode = this.audioEngine.getMode();
-    const loadedFileName = this.audioEngine.getLoadedFileName();
-    const isPlaying = this.audioEngine.getIsPlaying();
-    const isMicActive = this.audioEngine.isMicrophoneActive();
-
-    if (
-      mode !== this.lastMode ||
-      loadedFileName !== this.lastLoadedFileName ||
-      isPlaying !== this.lastIsPlaying ||
-      isMicActive !== this.lastIsMicActive
-    ) {
-      this.lastMode = mode;
-      this.lastLoadedFileName = loadedFileName;
-      this.lastIsPlaying = isPlaying;
-      this.lastIsMicActive = isMicActive;
-      this.render();
-      return;
-    }
-
-    if (mode === 'file-upload') {
-      const curTime = this.audioEngine.getCurrentTime();
-      const dur = this.audioEngine.getDuration();
-      const curLabel = this.element.querySelector('#label-current-time');
-      const durLabel = this.element.querySelector('#label-duration');
-      const scrubber = this.element.querySelector('#timeline-scrubber') as HTMLInputElement;
-
-      if (durLabel) durLabel.textContent = this.formatTime(dur);
-
-      if (!this.isScrubbing) {
-        if (curLabel) curLabel.textContent = this.formatTime(curTime);
-        if (scrubber) {
-          scrubber.max = (dur > 0 ? dur : 100).toString();
-          scrubber.value = curTime.toString();
-          const pct = dur > 0 ? (curTime / dur) * 100 : 0;
-          scrubber.style.background = `linear-gradient(to right, #22d3ee ${pct}%, rgba(255, 255, 255, 0.12) ${pct}%)`;
-        }
-      }
-    }
+    return `
+      <div class="flex items-center gap-1 sm:gap-1.5 pl-0.5 sm:pl-1">
+        <button
+          id="btn-volume-mute"
+          class="text-gray-400 hover:text-cyan-400 transition-colors p-1 cursor-pointer"
+          aria-label="${isMuted ? 'Unmute master audio' : 'Mute master audio'}"
+          title="${isMuted ? 'Unmute master audio' : 'Mute master audio'}"
+        >
+          ${
+            isMuted || volume === 0
+              ? `<svg class="w-4 h-4 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`
+              : volume < 0.5
+              ? `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`
+              : `<svg class="w-4 h-4 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`
+          }
+        </button>
+        <input
+          type="range"
+          id="volume-slider"
+          min="0"
+          max="1"
+          step="0.01"
+          value="${isMuted ? 0 : volume}"
+          aria-label="Master volume level slider"
+          style="background: linear-gradient(to right, #38bdf8 ${volPct}%, rgba(255, 255, 255, 0.1) ${volPct}%);"
+          class="w-12 sm:w-16 md:w-20 min-w-0 cursor-pointer slider-cyan"
+          title="Master Volume: ${isMuted ? 'Muted' : `${volPct}%`}"
+        />
+      </div>
+    `;
   }
 
   private attachEvents(): void {
-    // Play/Pause button
+    // Master Play/Pause Button
     this.element.querySelector('#btn-play-pause')?.addEventListener('click', async () => {
       await this.audioEngine.initialize();
-      this.audioEngine.togglePlayPause();
-    });
-
-    // Track Selector
-    this.element.querySelector('#track-select')?.addEventListener('change', async e => {
-      await this.audioEngine.initialize();
-      const select = e.target as HTMLSelectElement;
-      this.audioEngine.playDemoTrack(select.value);
-    });
-
-    // File Input
-    const fileInput = this.element.querySelector('#file-input') as HTMLInputElement;
-    fileInput?.addEventListener('change', async e => {
-      const target = e.target as HTMLInputElement;
-      if (target.files && target.files[0]) {
-        const file = target.files[0];
-        await this.audioEngine.loadAudioFile(file);
-      }
-    });
-
-    // Mic Toggle
-    this.element.querySelector('#btn-mic')?.addEventListener('click', async () => {
-      if (this.audioEngine.isMicrophoneActive()) {
-        this.audioEngine.stopMicrophone();
-        this.audioEngine.playDemoTrack();
-      } else {
-        await this.audioEngine.startMicrophone();
-      }
-    });
-
-    // Screenshot button
-    this.element.querySelectorAll('.btn-screenshot').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (this.onScreenshot) {
-          this.onScreenshot();
+      if (this.currentEngineMode === 'frequency') {
+        const synth = this.audioEngine.synthesizer;
+        if (synth && synth.getIsPlaying()) {
+          this.audioEngine.stopFrequency();
+        } else {
+          this.audioEngine.playFrequency(this.currentFreq);
         }
-      });
-    });
-
-    // Export button
-    this.element.querySelector('#btn-export-dossier')?.addEventListener('click', () => {
-      if (this.onExport) {
-        this.onExport();
+      } else {
+        this.audioEngine.togglePlayPause();
       }
+      this.render();
     });
 
-    // Mute button
-    this.element.querySelector('#btn-mute')?.addEventListener('click', () => {
-      this.audioEngine.toggleMute();
-    });
-
-    // Volume slider
-    this.element.querySelector('#volume-slider')?.addEventListener('input', e => {
-      const slider = e.target as HTMLInputElement;
-      this.audioEngine.setMasterVolume(parseFloat(slider.value));
-    });
-
-    // Interactive Audio Timeline Scrubber
-    const scrubber = this.element.querySelector('#timeline-scrubber') as HTMLInputElement;
+    // Timeline Scrubber Handlers (Zero-Lag Real-Time Seeking)
+    const scrubber = this.element.querySelector('#dock-timeline-scrubber') as HTMLInputElement;
     if (scrubber) {
-      scrubber.addEventListener('pointerdown', () => {
-        this.isScrubbing = true;
-      });
       scrubber.addEventListener('input', () => {
         this.isScrubbing = true;
         const val = parseFloat(scrubber.value);
-        const dur = this.audioEngine.getDuration();
-        const curLabel = this.element.querySelector('#label-current-time');
-        if (curLabel) curLabel.textContent = this.formatTime(val);
-        const pct = dur > 0 ? (val / dur) * 100 : 0;
+        const max = parseFloat(scrubber.max) || 100;
+        const curLabel = this.element.querySelector('#dock-label-current-time');
+        if (curLabel) {
+          curLabel.textContent = this.formatTime(val);
+        }
+        const pct = max > 0 ? Math.min(100, Math.max(0, (val / max) * 100)) : 0;
         scrubber.style.background = `linear-gradient(to right, #22d3ee ${pct}%, rgba(255, 255, 255, 0.12) ${pct}%)`;
+        this.audioEngine.seek(val);
       });
-      scrubber.addEventListener('change', () => {
+
+      const finishScrub = () => {
+        if (!this.isScrubbing) return;
         const val = parseFloat(scrubber.value);
         this.audioEngine.seek(val);
         this.isScrubbing = false;
-      });
-      scrubber.addEventListener('pointerup', () => {
-        this.isScrubbing = false;
+      };
+
+      scrubber.addEventListener('change', finishScrub);
+      scrubber.addEventListener('pointerup', finishScrub);
+      scrubber.addEventListener('touchend', finishScrub);
+    }
+
+    // Screenshot Button
+    this.element.querySelector('#btn-screenshot')?.addEventListener('click', () => {
+      if (this.onScreenshot) this.onScreenshot();
+    });
+
+    // Export Button
+    this.element.querySelector('#btn-export-dossier')?.addEventListener('click', () => {
+      if (this.onExport) this.onExport();
+    });
+
+    // Volume Slider & Mute
+    const volSlider = this.element.querySelector('#volume-slider') as HTMLInputElement;
+    volSlider?.addEventListener('input', () => {
+      const val = parseFloat(volSlider.value);
+      this.audioEngine.setMasterVolume(val);
+      if (this.audioEngine.getIsMuted() && val > 0) {
+        this.audioEngine.toggleMute();
+      }
+      const volPct = Math.round(val * 100);
+      volSlider.style.background = `linear-gradient(to right, #38bdf8 ${volPct}%, rgba(255, 255, 255, 0.1) ${volPct}%)`;
+    });
+
+    this.element.querySelector('#btn-volume-mute')?.addEventListener('click', () => {
+      this.audioEngine.toggleMute();
+      this.render();
+    });
+  }
+
+  private updateFrequencyTelemetry(): void {
+    if (this.currentEngineMode !== 'frequency') return;
+    const freqEl = this.element.querySelector('#dock-freq-val');
+    if (freqEl) freqEl.textContent = `${this.currentFreq} Hz`;
+
+    const noteInfo = WavePhysics.frequencyToNote(this.currentFreq);
+    const noteEl = this.element.querySelector('#dock-freq-note');
+    if (noteEl) noteEl.textContent = noteInfo.name;
+
+    const lambdaM = 343 / Math.max(1, this.currentFreq);
+    const lambdaStr = lambdaM >= 1 ? `${lambdaM.toFixed(2)}m` : `${(lambdaM * 100).toFixed(1)}cm`;
+    const lambdaEl = this.element.querySelector('#dock-freq-lambda');
+    if (lambdaEl) lambdaEl.textContent = `λ: ${lambdaStr}`;
+  }
+
+  /**
+   * Initializes dynamic resize observation and measurement for text overflow marquees.
+   */
+  private setupMarquee(): void {
+    if (typeof window === 'undefined') return;
+
+    const marqueeContainers = this.element.querySelectorAll<HTMLElement>('[data-marquee]');
+    if (marqueeContainers.length === 0) return;
+
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+    } else if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => {
+        this.updateMarquees();
       });
     }
+
+    marqueeContainers.forEach(container => {
+      this.resizeObserver?.observe(container);
+    });
+
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(() => {
+        this.updateMarquees();
+      });
+    } else {
+      this.updateMarquees();
+    }
+  }
+
+  /**
+   * Calculates exact pixel overflow and dynamically equips hardware-accelerated ping-pong marquee.
+   */
+  public updateMarquees(): void {
+    if (!this.element || typeof this.element.querySelectorAll !== 'function') return;
+    const marqueeContainers = this.element.querySelectorAll<HTMLElement>('[data-marquee]');
+    marqueeContainers.forEach(container => {
+      const content = container.querySelector<HTMLElement>('.marquee-content');
+      if (!content) return;
+
+      const containerWidth = container.clientWidth;
+      const contentWidth = content.scrollWidth;
+      const overflow = contentWidth - containerWidth;
+
+      if (overflow > 4) {
+        const distance = Math.ceil(overflow);
+        const duration = Math.max(5, Math.round(4 + distance / 25));
+        content.style.setProperty('--marquee-distance', `${distance}px`);
+        content.style.setProperty('--marquee-duration', `${duration}s`);
+        content.classList.add('is-scrolling');
+        container.classList.add('has-overflow');
+      } else {
+        content.style.removeProperty('--marquee-distance');
+        content.style.removeProperty('--marquee-duration');
+        content.classList.remove('is-scrolling');
+        container.classList.remove('has-overflow');
+      }
+    });
   }
 }
 

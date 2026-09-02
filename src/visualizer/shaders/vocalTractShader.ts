@@ -1,14 +1,17 @@
 /**
  * vocalTractShader.ts
- * SoundForm 3D - Deformable 3D Vocal Tract Acoustic Tube Waveguide Shaders
+ * SoundForm 3D - High-Precision Holographic Vocal Tract Acoustic Waveguide Shaders
  *
  * Implements:
- * 1. 32-Segment Kelly-Lochbaum dynamic area radius lofting with Monotone Steffen cubic spline interpolation.
- * 2. Closed-form 5th-order Hodograph Bézier tangent evaluation.
- * 3. Exact differential geometry surface normals.
- * 4. Calibrated biological mucosa translucency with subsurface scattering (SSS), wet salivary sheen, and Fresnel reflectance.
- * 5. Longitudinal acoustic standing wave pressure gradients (Cyan velocity nodes vs. Amber/Gold compression antinodes).
- * 6. Smooth sagittal cross-sectional cutaway with illuminated wall rims revealing internal airway flow.
+ * 1. 32-Segment Kelly-Lochbaum dynamic area radius waveguide with Monotone Steffen cubic spline interpolation.
+ * 2. Exact 5th-order Hodograph Bézier tangent & differential geometry surface normals.
+ * 3. Holographic Acoustic Waveguide Material: Translucent obsidian/sapphire glass substrate with acoustic isobar fields.
+ * 4. Standing Wave Physics Encoding:
+ *    - Cyan/Azure (#00f0ff): Acoustic Velocity Nodes & Antinodes (U)
+ *    - Radiant Amber/Gold (#fbbf24): Acoustic Pressure Compression Antinodes (P)
+ *    - Luminous White Wavefronts: Longitudinal Glottal Pulse Packets
+ * 5. 32 Discrete Waveguide Segment Rings with calibrated millimetric acoustic boundaries.
+ * 6. Interactive sagittal cross-sectional cutaway with illuminated edge boundaries.
  */
 
 export const VOCAL_TRACT_VERTEX_SHADER = `
@@ -32,6 +35,7 @@ varying float vAcousticPressure;   // Standing wave pressure
 varying float vParticleVelocity;   // Volume velocity
 varying float vGlottalPulse;       // Excitation pulse
 varying float vCutawayMask;
+varying float vSegmentBoundary;    // 32-segment Kelly-Lochbaum ring indicator
 
 #define PI 3.14159265358979323846
 #define TWO_PI 6.2831853071795864
@@ -146,6 +150,10 @@ void main() {
     float theta = uv.x * TWO_PI;
     vArcLength = u;
 
+    // 32-Segment discrete ring boundary marker
+    float segFrac = fract(u * 31.0);
+    vSegmentBoundary = 1.0 - smoothstep(0.04, 0.12, abs(segFrac - 0.5));
+
     vec3 centerPos = getVocalTractSpine(u);
     float speed = 1.0;
     vec3 tangent = getVocalTractTangent(u, speed);
@@ -157,7 +165,7 @@ void main() {
     float dr_du = 0.0;
     float baseRadius = sampleSteffenRadius(u, dr_du);
 
-    // Standing wave acoustic modes
+    // Longitudinal standing wave acoustic modes (F1 + F2)
     float k1 = 0.5 * PI;
     float p1 = cos(k1 * u) * sin(uTime * 14.0) * uFormantAmps.x;
     float v1 = sin(k1 * u) * cos(uTime * 14.0) * uFormantAmps.x;
@@ -176,8 +184,8 @@ void main() {
     float pulse = exp(-pow((wavePhase - 0.5) * 8.0, 2.0)) * uGlottalDrive;
     vGlottalPulse = pulse;
 
-    float radialDisp = (acousticPressure * 0.04 + pulse * 0.05) * uTissueCompliance;
-    float finalRadius = max(0.14, baseRadius + radialDisp);
+    float radialDisp = (acousticPressure * 0.035 + pulse * 0.045) * uTissueCompliance;
+    float finalRadius = max(0.15, baseRadius + radialDisp);
 
     vec3 radialDir = cos(theta) * normalRef + sin(theta) * binormalRef;
     vec3 displacedPos = centerPos + radialDir * finalRadius;
@@ -214,6 +222,7 @@ varying float vAcousticPressure;
 varying float vParticleVelocity;
 varying float vGlottalPulse;
 varying float vCutawayMask;
+varying float vSegmentBoundary;
 
 #define PI 3.14159265358979323846
 
@@ -229,47 +238,46 @@ void main() {
     vec3 L1 = normalize(vec3(2.5, 4.0, 3.0));
     vec3 L2 = normalize(vec3(-2.0, -3.0, -2.0));
 
-    // 1. Biological Mucosa Color Gradient
-    vec3 mucosaGlottis = vec3(0.65, 0.12, 0.18); // Deep vascular cords
-    vec3 mucosaPharynx = vec3(0.85, 0.28, 0.35); // Pharyngeal pink mucosa
-    vec3 mucosaPalate  = vec3(0.92, 0.42, 0.45); // Oral vault
+    // 1. Scientific Holographic Substrate (Deep Obsidian / Sapphire Glass Waveguide)
+    vec3 glassSubstrate = vec3(0.03, 0.08, 0.16); // Clean dark sapphire medical glass
+    vec3 gridRingColor  = vec3(0.15, 0.45, 0.85); // Kelly-Lochbaum segment boundary ring
 
-    vec3 baseMucosa = mix(mucosaGlottis, mucosaPharynx, smoothstep(0.0, 0.45, vArcLength));
-    baseMucosa = mix(baseMucosa, mucosaPalate, smoothstep(0.45, 1.0, vArcLength));
+    // 2. Longitudinal Waveguide Grid Lines (32 Segment Rings + Axial Rails)
+    float axialRail = pow(abs(cos(vUv.x * 32.0 * PI)), 16.0) * 0.18;
+    float segRing   = pow(abs(sin(vArcLength * 31.0 * PI)), 12.0) * 0.25;
+    vec3 structuralGrid = gridRingColor * (axialRail + segRing);
 
-    // 2. Transillumination Subsurface Scattering (SSS)
-    float sssDot = max(0.0, dot(-V, L1) * 0.5 + 0.5);
-    vec3 sssColor = vec3(0.95, 0.25, 0.15) * pow(sssDot, 3.0) * 0.35;
+    // 3. Acoustic Standing Wave Physics Encoding:
+    // Velocity Nodes/Antinodes (U): Electric Cyan (#00e5ff)
+    // Pressure Compression Antinodes (P): Radiant Amber / Warm Gold (#fbbf24)
+    // Glottal Energy Pulse: Luminous White-Cyan
+    vec3 velocityColor = vec3(0.00, 0.90, 1.00) * abs(vParticleVelocity) * 0.65;
+    vec3 pressureColor = vec3(1.00, 0.72, 0.15) * max(0.0, vAcousticPressure) * 0.75;
+    vec3 pulseColor    = vec3(0.85, 0.95, 1.00) * vGlottalPulse * 0.60;
 
-    // 3. Acoustic Standing Wave Patterns (Controlled, non-blown emissive ribbons)
-    vec3 pressureColor = vec3(1.00, 0.70, 0.20) * max(0.0, vAcousticPressure) * 0.55;
-    vec3 velocityColor = vec3(0.10, 0.85, 1.00) * max(0.0, vParticleVelocity) * 0.55;
-    vec3 pulseColor = vec3(1.00, 0.40, 0.10) * vGlottalPulse * 0.40;
-
-    // 4. Lighting Calculation
+    // 4. Clean Holographic Diffuse & Edge Lighting
     float diff1 = max(0.0, dot(N, L1));
-    float diff2 = max(0.0, dot(N, L2)) * 0.25;
-    vec3 diffuse = baseMucosa * (diff1 * 0.75 + diff2 + 0.30);
+    float diff2 = max(0.0, dot(N, L2)) * 0.3;
+    vec3 diffuse = glassSubstrate * (diff1 * 0.65 + diff2 + 0.35);
 
-    // Specular Wet Sheen
-    vec3 H1 = normalize(L1 + V);
-    float specSharp = pow(max(0.0, dot(N, H1)), 64.0) * 0.45;
-    vec3 specular = vec3(1.0, 0.95, 0.90) * specSharp;
-
-    // 5. Fresnel Edge Rim
+    // 5. Scientific Fresnel Edge Rim (Clean Medical Cyan/Sapphire Glow)
     float NdotV = clamp(dot(N, V), 0.0, 1.0);
-    float fresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), 3.0);
-    vec3 rimGlow = mix(vec3(0.95, 0.30, 0.35), vec3(0.20, 0.85, 1.00), vParticleVelocity * 0.5) * fresnel * 0.45;
+    float fresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), 2.5);
+    vec3 rimGlow = mix(vec3(0.10, 0.60, 1.00), vec3(0.00, 0.95, 1.00), fresnel) * fresnel * 0.75;
 
-    // 6. Cutaway Rim Highlight (Glowing border where the tube is sliced)
-    float cutawayEdge = (uCutawayProgress > 0.3 && abs(vCutawayMask - 0.5) < 0.3) ? 0.35 : 0.0;
-    vec3 cutawayRim = vec3(0.20, 0.90, 1.00) * cutawayEdge;
+    // 6. Glottal Excitation Source Ring (Laryngeal Base Glow)
+    float glottisRing = (1.0 - smoothstep(0.0, 0.12, vArcLength)) * (0.4 + uGlottalDrive * 0.4);
+    vec3 laryngealSource = vec3(0.0, 0.85, 1.0) * glottisRing;
 
-    // Combine layers (Strictly capped to prevent overblown bloom)
-    vec3 finalRgb = diffuse + sssColor + pressureColor + velocityColor + pulseColor + specular + rimGlow + cutawayRim;
-    finalRgb = min(finalRgb, vec3(1.25));
+    // 7. Cutaway Rim Highlight (Glowing border where the tube is sliced)
+    float cutawayEdge = (uCutawayProgress > 0.3 && abs(vCutawayMask - 0.5) < 0.3) ? 0.45 : 0.0;
+    vec3 cutawayRim = vec3(0.00, 0.95, 1.00) * cutawayEdge;
 
-    float alpha = clamp(0.92 + fresnel * 0.08, 0.0, 0.98);
+    // Compose final clean scientific color
+    vec3 finalRgb = diffuse + structuralGrid + velocityColor + pressureColor + pulseColor + rimGlow + laryngealSource + cutawayRim;
+    finalRgb = min(finalRgb, vec3(1.35));
+
+    float alpha = clamp(0.70 + fresnel * 0.28 + (vAcousticPressure > 0.1 ? 0.15 : 0.0), 0.0, 0.95);
 
     gl_FragColor = vec4(finalRgb, alpha);
 }

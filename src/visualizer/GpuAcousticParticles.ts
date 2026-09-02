@@ -458,6 +458,10 @@ export class GpuAcousticParticles {
     this.renderMaterial.uniforms.uChamberType.value = typeInt;
   }
 
+  public setChamberType(type: ChamberGeometryType): void {
+    this.setChamberGeometry(type);
+  }
+
   public getChamberGeometry(): ChamberGeometryType {
     return this.chamberType;
   }
@@ -470,6 +474,10 @@ export class GpuAcousticParticles {
   public setModalNumbers(n: number, m: number, l: number): void {
     this.modalNumbers.set(n, m, l);
     this.renderMaterial.uniforms.uModalNumbers.value.copy(this.modalNumbers);
+  }
+
+  public setModes(n: number, m: number, l: number): void {
+    this.setModalNumbers(n, m, l);
   }
 
   public setGorkovStrength(strength: number): void {

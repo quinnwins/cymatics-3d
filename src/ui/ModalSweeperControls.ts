@@ -1,21 +1,14 @@
 /**
  * ModalSweeperControls.ts
- * SoundForm 3D — Interactive Acoustic Cymatics & Modal Resonator Suite
+ * SoundForm 3D — 3D Resonator Shapes, Physical Apparatus & Geometry Inspector
  *
- * Features:
- * - 2D Chladni Sand Plate and 3D Acoustofluidic Droplet / Acoustic Levitation Trap selection.
- * - Interactive (n, m, ℓ) 3-axis harmonic modal order sliders & quick-steppers.
- * - Instant 1-click acoustic eigenstate preset matrix:
- *     • (1,1,1) Fundamental Crossing Planes
- *     • (2,2,1) 3D Cubic Lattice Cells
- *     • (3,2,2) Honeycomb Membrane Matrix
- *     • (4,3,2) Complex Architectural Cage
- *     • (5,4,3) Ultra High-Order Resonant Crystal
- *     • (2,3,1) Cylindrical Bessel / Circular Plate Modes
- * - Chamber Geometry Selector (Cube / Cylinder / Sphere or Square / Circle Plate).
- * - Trapping Mode Switcher (Normal Nodes / Inverse Antinodes) for acoustic levitation.
- * - Live Audio Resonance Coupling toggle (links real-time FFT spectrum to harmonic weights).
- * - Theoretical Eigenfrequency Calculator (f_{n,m,ℓ}) with 1-click Synth Audition.
+ * Dedicated 3D shape and acoustic boundary deck:
+ * 1. Resonator Apparatus: 2D Sand Plate, 3D Droplet, 3D Particle Levitation Trap.
+ * 2. Chamber Geometry: Cube / Square Plate, Cylinder / Bessel Rings, Sphere / Harmonics.
+ * 3. Harmonic Modal Orders: Interactive (n, m, ℓ) 3-axis harmonic modal order sliders & steppers with geometry-adaptive labels.
+ * 4. 1-Click Instant Eigenstate Presets: Crossing Planes, 3D Grid Lattice, Honeycomb Trap, Harmonic Cage, Resonant Crystal, Bessel Rings, Spherical Shells.
+ * 5. Boundaries & Trapping: Glass Box Enclosure vs Free Field, Node Trapping (Normal) vs Antinodes (Inverse).
+ * 6. Live Audio Resonance Coupling: Links real-time FFT spectrum to physical harmonic weights.
  */
 
 import { AudioEngine } from '../audio/AudioEngine';
@@ -60,6 +53,9 @@ export class ModalSweeperControls {
   private element: HTMLElement;
   private state: ModalSweeperState;
   private onSwitchMode?: (mode: EngineMode) => void;
+  private isVisible = true;
+  private isOpen = true;
+  private currentMode: EngineMode = 'frequency';
 
   public static readonly PRESETS: ModalPreset[] = [
     {
@@ -141,8 +137,6 @@ export class ModalSweeperControls {
     },
   ];
 
-  private isVisible = true;
-
   constructor(
     private audioEngine: AudioEngine,
     private visualizer?: VisualizerEngine,
@@ -150,70 +144,83 @@ export class ModalSweeperControls {
     onSwitchMode?: (mode: EngineMode) => void
   ) {
     this.onSwitchMode = onSwitchMode;
-    this.element = document.createElement('div');
-    this.element.className = 'w-full flex flex-col gap-2.5 transition-all duration-300';
-    this.preventEventBleeding();
+    const is2D = this.visualizer?.getStyle() === 'cymatics-2d';
+    const visLayers = this.visualizer?.getCymaticsLayers ? this.visualizer.getCymaticsLayers() : { plate: false, droplet: true, trap: true };
 
-    // Initial state: (1,1,1) Ground state in 3D Acoustic Cavity
+    let initialApparatus: CymaticsApparatus = '3d-both';
+    if (is2D || (visLayers.plate && !visLayers.droplet && !visLayers.trap)) {
+      initialApparatus = '2d-plate';
+    } else if (visLayers.droplet && !visLayers.trap) {
+      initialApparatus = '3d-droplet';
+    } else if (visLayers.trap && !visLayers.droplet) {
+      initialApparatus = '3d-particles';
+    }
+
     this.state = {
       n: 1,
       m: 1,
       l: 1,
       geometry: 'cube',
       trappingMode: 'nodes',
-      showEnclosure: false,
+      showEnclosure:
+        this.visualizer?.chamberEnclosure && typeof (this.visualizer.chamberEnclosure as any).getVisible === 'function'
+          ? (this.visualizer.chamberEnclosure as any).getVisible()
+          : false,
       audioCoupled: true,
       couplingSensitivity: 1.0,
       chamberLengthX: 1.0,
       chamberLengthY: 1.0,
       chamberLengthZ: 1.0,
-      calculatedEigenfrequency: 0,
-      noteInfo: { name: 'D4', octave: 4, frequency: 297, cents: 0 },
-      apparatus: '3d-both',
+      calculatedEigenfrequency: 297.0, // (1,1,1) ground state default
+      noteInfo: WavePhysics.frequencyToNote(297.0),
+      apparatus: initialApparatus,
     };
 
+    this.element = document.createElement('div');
+    this.element.className = 'w-full flex flex-col gap-2.5 select-none transition-all duration-300';
+    this.preventEventBleeding();
     this.recalculatePhysics();
-
-    this.audioEngine.subscribe(() => {
-      if (this.isVisible) {
-        this.updateDisplay();
-      }
-    });
-
-    window.addEventListener('cymatics-visibility-changed', () => {
-      if (this.isVisible) {
-        this.render();
-      }
-    });
-
-    window.addEventListener('cymatics-layers-changed', () => {
-      if (this.isVisible) {
-        this.render();
-      }
-    });
-
-    window.addEventListener('cymatics-apparatus-changed', ((e: CustomEvent<{ apparatus: CymaticsApparatus }>) => {
-      if (e.detail?.apparatus && e.detail.apparatus !== this.state.apparatus) {
-        this.state.apparatus = e.detail.apparatus;
-        this.notifyStateChange();
-        this.render();
-      }
-    }) as EventListener);
+    this.render();
   }
 
   private preventEventBleeding(): void {
     this.element.addEventListener('wheel', e => e.stopPropagation(), { passive: false });
-    this.element.addEventListener('pointerdown', e => e.stopPropagation());
+  }
+
+  public setVisualizer(visualizer: VisualizerEngine): void {
+    this.visualizer = visualizer;
   }
 
   public getElement(): HTMLElement {
-    this.render();
     return this.element;
   }
 
   public setVisible(visible: boolean): void {
     this.isVisible = visible;
     this.element.style.display = visible ? 'flex' : 'none';
+  }
+
+  public setOpen(open: boolean): void {
+    this.isOpen = open;
+    this.render();
+  }
+
+  public getIsOpen(): boolean {
+    return this.isOpen;
+  }
+
+  public setMode(mode: EngineMode): void {
+    const normalized = mode === 'cymatics' ? 'music' : mode === 'modal' ? 'frequency' : mode;
+    if (this.currentMode === normalized) return;
+    this.currentMode = normalized;
+    if (normalized === 'music') {
+      this.state.audioCoupled = true;
+    }
+    this.render();
+  }
+
+  public getMode(): EngineMode {
+    return this.currentMode;
   }
 
   public getState(): Readonly<ModalSweeperState> {
@@ -248,7 +255,7 @@ export class ModalSweeperControls {
 
     window.dispatchEvent(
       new CustomEvent('modal-state-changed', {
-        detail: { ...this.state },
+        detail: { ...this.state, source: 'modal-sweeper' },
       })
     );
   }
@@ -306,9 +313,30 @@ export class ModalSweeperControls {
     this.render();
   }
 
+  private getAxisLabelN(geometry: ChamberGeometry, is2D: boolean): string {
+    if (is2D) return geometry === 'cylinder' ? 'Bessel Rings (n)' : 'Width (n)';
+    if (geometry === 'cylinder') return 'Bessel Rings (n)';
+    if (geometry === 'sphere') return 'Radial Shells (n)';
+    return 'Width X (n)';
+  }
+
+  private getAxisLabelM(geometry: ChamberGeometry, is2D: boolean): string {
+    if (is2D) return geometry === 'cylinder' ? 'Radial Petals (m)' : 'Height (m)';
+    if (geometry === 'cylinder') return 'Radial Petals (m)';
+    if (geometry === 'sphere') return 'Meridians (m)';
+    return 'Height Y (m)';
+  }
+
+  private getAxisLabelL(geometry: ChamberGeometry): string {
+    if (geometry === 'cylinder') return 'Axial Disks (ℓ)';
+    if (geometry === 'sphere') return 'Cones / Polar (ℓ)';
+    return 'Depth Z (ℓ)';
+  }
+
   public render(): void {
     if (!this.isVisible) {
       this.element.style.display = 'none';
+      return;
     } else {
       this.element.style.display = 'flex';
     }
@@ -318,386 +346,390 @@ export class ModalSweeperControls {
     const totalNodalCells = is2D ? n * m : n * m * l;
     const isPlayingSynth = this.audioEngine.synthesizer?.getIsPlaying() ?? false;
 
-    this.element.innerHTML = `
-      <!-- Acoustic Studio Hub Switcher -->
-      <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border border-white/10 text-xs mb-1">
-        <button id="hub-btn-modal" class="flex-1 py-1 px-1.5 rounded-xl font-bold text-center transition-all cursor-pointer glass-btn-active text-cyan-300 shadow-sm ring-1 ring-cyan-500/30">
-          Cymatics
-        </button>
-        <button id="hub-btn-freq" class="flex-1 py-1 px-1.5 rounded-xl font-semibold text-center transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-white/5">
-          Tone Lab
-        </button>
-      </div>
+    const isMusicMode = this.currentMode === 'music' || this.currentMode === 'cymatics';
+    const labelN = this.getAxisLabelN(geometry, is2D);
+    const labelM = this.getAxisLabelM(geometry, is2D);
+    const labelL = this.getAxisLabelL(geometry);
 
-      <div class="glass-panel w-full p-3.5 sm:p-4 rounded-3xl flex flex-col gap-3 shadow-xl border border-white/10 relative text-white select-none">
+    const pctN = Math.round(((n - 1) / 7) * 100);
+    const pctM = Math.round(((m - 1) / 7) * 100);
+    const pctL = Math.round(((l - 1) / 7) * 100);
+
+    this.element.innerHTML = `
+      <div class="glass-panel w-full p-3.5 sm:p-4 rounded-3xl flex flex-col gap-2.5 shadow-xl border border-white/10 relative text-white select-none backdrop-blur-xl transition-all duration-300">
         
-        <!-- Top Title & Header -->
-        <div class="flex items-center justify-between gap-2 border-b border-white/10 pb-2.5">
-          <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-cyan-400 text-sm font-mono font-bold shrink-0 shadow-sm">
-              λ
+        <!-- Accordion Header -->
+        <button id="btn-toggle-modal-accordion" class="w-full flex items-center justify-between cursor-pointer group text-left">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50"></span>
+            <span class="text-xs font-bold text-slate-200 tracking-wide">Resonator Shapes & Geometry</span>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <span id="modal-header-summary" class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-white/10 text-cyan-300 font-semibold">
+              ${isMusicMode ? `${geometry.toUpperCase()} • ${trappingMode === 'nodes' ? 'NODES' : 'ANTI'}` : `(${n},${m},${is2D ? '0' : l}) • ${calculatedEigenfrequency.toFixed(0)}Hz`}
+            </span>
+            <span class="text-xs text-slate-400 group-hover:text-white font-mono">${this.isOpen ? '▲' : '▼'}</span>
+          </div>
+        </button>
+
+        <!-- Collapsible Body -->
+        <div id="modal-accordion-body" class="${this.isOpen ? 'flex' : 'hidden'} flex-col gap-2.5 pt-2 border-t border-white/10 text-xs">
+          
+          <!-- Cymatics Resonator Apparatus Multi-Select (2D vs 3D Layers) -->
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-semibold text-slate-300">Cymatics Apparatus:</span>
+              <span class="text-[9px] text-cyan-400 font-mono">Multi-Layer</span>
             </div>
-            <div>
-              <div class="flex items-center gap-1.5">
-                <h2 class="text-xs sm:text-sm font-bold text-white">
-                  ${is2D ? '2D Chladni Cymatics' : '3D Standing Waves'}
-                </h2>
-                <span class="px-1.5 py-0.5 rounded-md text-[9px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 shrink-0">
-                  ${is2D ? '(n, m)' : '(n, m, ℓ)'}
+            <div class="grid grid-cols-3 gap-1 bg-slate-950/70 p-1 rounded-xl border border-white/5">
+              <button
+                data-layer="plate"
+                class="btn-layer py-1.5 px-1 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  (this.visualizer?.getCymaticsLayers().plate ?? apparatus === '2d-plate')
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 ring-1 ring-cyan-400/30 shadow-sm font-bold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }"
+              >
+                <span>${(this.visualizer?.getCymaticsLayers().plate ?? apparatus === '2d-plate') ? '✓ ' : ''}2D Plate</span>
+              </button>
+              <button
+                data-layer="droplet"
+                class="btn-layer py-1.5 px-1 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  (this.visualizer?.getCymaticsLayers().droplet ?? (apparatus === '3d-droplet' || apparatus === '3d-both'))
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 ring-1 ring-cyan-400/30 shadow-sm font-bold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }"
+              >
+                <span>${(this.visualizer?.getCymaticsLayers().droplet ?? (apparatus === '3d-droplet' || apparatus === '3d-both')) ? '✓ ' : ''}3D Droplet</span>
+              </button>
+              <button
+                data-layer="trap"
+                class="btn-layer py-1.5 px-1 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  (this.visualizer?.getCymaticsLayers().trap ?? (apparatus === '3d-particles' || apparatus === '3d-both'))
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 ring-1 ring-cyan-400/30 shadow-sm font-bold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }"
+              >
+                <span>${(this.visualizer?.getCymaticsLayers().trap ?? (apparatus === '3d-particles' || apparatus === '3d-both')) ? '✓ ' : ''}3D Trap</span>
+              </button>
+            </div>
+          </div>
+
+          ${
+            !isMusicMode
+              ? `
+          <!-- Resonant Eigenfrequency Telemetry & Audition Pitch Pill (Frequencies Lab Mode Only) -->
+          <div class="glass-panel p-2 rounded-xl flex items-center justify-between gap-2 bg-slate-950/80 border-white/10 shadow-inner">
+            <div class="flex flex-col">
+              <span class="text-[8px] uppercase tracking-wider text-slate-400 font-semibold">Resonant Frequency</span>
+              <div class="flex items-baseline gap-1.5 font-mono">
+                <span id="modal-freq-val" class="text-xs sm:text-sm font-bold text-cyan-400 tabular-nums">${calculatedEigenfrequency.toFixed(1)} Hz</span>
+                <span id="modal-note-name" class="text-[11px] font-semibold text-blue-400">${noteInfo.name}</span>
+                <span id="modal-note-cents" class="text-[9px] text-slate-400 tabular-nums">${noteInfo.cents >= 0 ? '+' : ''}${noteInfo.cents}c</span>
+              </div>
+            </div>
+
+            <!-- 1-Click Synth Audition Button -->
+            <button
+              id="btn-audition-eigenfrequency"
+              title="Listen to resonant tone"
+              class="glass-btn px-2.5 py-1 rounded-xl text-[10px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                isPlayingSynth
+                  ? 'bg-cyan-400 text-slate-950 font-bold shadow-sm'
+                  : 'text-slate-200 hover:text-white'
+              }"
+            >
+              <span>${isPlayingSynth ? 'Stop Tone' : 'Audition Tone'}</span>
+            </button>
+          </div>
+          `
+              : ''
+          }
+
+          ${
+            !isMusicMode
+              ? `
+          <!-- (n, m, l) Modal Sliders & Steppers with Geometry-Adaptive Labels (Frequencies Lab Mode Only) -->
+          <div class="flex flex-col gap-1.5 w-full min-w-0">
+            
+            <!-- n: Primary Axis / Bessel Rings / Radial Shells -->
+            <div class="glass-panel p-2 rounded-xl flex flex-col gap-1.5 bg-slate-950/60 border-white/5 w-full min-w-0">
+              <div class="flex items-center justify-between w-full min-w-0">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50 shrink-0"></span>
+                  <span class="text-[11px] font-bold text-slate-200 truncate">${labelN}</span>
+                </div>
+                <span id="badge-mode-n" class="font-mono text-[10px] font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/30 shrink-0">
+                  ${n}
                 </span>
               </div>
-              <p class="text-[10px] text-gray-400 font-medium">
-                ${is2D ? 'Resonant 2D sand plate mandalas' : '3D droplets and volumetric levitation traps'}
-              </p>
-            </div>
-          </div>
-        </div>
 
-        <!-- Cymatics Resonator Apparatus Multi-Select (2D vs 3D Layers) -->
-        <div class="flex flex-col gap-1">
-          <div class="flex items-center justify-between">
-            <span class="text-[10px] font-semibold text-gray-300">Cymatics Apparatus:</span>
-            <span class="text-[9px] text-cyan-400 font-mono">Multi-Layer</span>
-          </div>
-          <div class="grid grid-cols-3 gap-1 bg-slate-900/60 p-1 rounded-2xl border border-white/5">
-            <button
-              data-layer="plate"
-              class="btn-layer btn-apparatus py-1.5 px-1 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                (this.visualizer?.getCymaticsLayers().plate ?? apparatus === '2d-plate')
-                  ? 'glass-btn-active font-bold text-cyan-300 shadow-sm ring-1 ring-cyan-500/30'
-                  : 'text-gray-400 hover:text-gray-200'
-              }"
-            >
-              <span>${(this.visualizer?.getCymaticsLayers().plate ?? apparatus === '2d-plate') ? '✓ ' : ''}2D Sand Plate</span>
-            </button>
-            <button
-              data-layer="droplet"
-              class="btn-layer btn-apparatus py-1.5 px-1 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                (this.visualizer?.getCymaticsLayers().droplet ?? (apparatus === '3d-droplet' || apparatus === '3d-both'))
-                  ? 'glass-btn-active font-bold text-cyan-300 shadow-sm ring-1 ring-cyan-500/30'
-                  : 'text-gray-400 hover:text-gray-200'
-              }"
-            >
-              <span>${(this.visualizer?.getCymaticsLayers().droplet ?? (apparatus === '3d-droplet' || apparatus === '3d-both')) ? '✓ ' : ''}3D Droplet</span>
-            </button>
-            <button
-              data-layer="trap"
-              class="btn-layer btn-apparatus py-1.5 px-1 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                (this.visualizer?.getCymaticsLayers().trap ?? (apparatus === '3d-particles' || apparatus === '3d-both'))
-                  ? 'glass-btn-active font-bold text-cyan-300 shadow-sm ring-1 ring-cyan-500/30'
-                  : 'text-gray-400 hover:text-gray-200'
-              }"
-            >
-              <span>${(this.visualizer?.getCymaticsLayers().trap ?? (apparatus === '3d-particles' || apparatus === '3d-both')) ? '✓ ' : ''}3D Trap</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Resonant Eigenfrequency Telemetry & Audition Pitch Pill -->
-        <div class="glass-panel p-2.5 rounded-2xl flex items-center justify-between gap-2 bg-slate-900/80 border-slate-700/60 shadow-inner">
-          <div class="flex flex-col">
-            <span class="text-[8px] uppercase tracking-wider text-gray-400 font-semibold">Resonant Frequency</span>
-            <div class="flex items-baseline gap-1.5 font-mono">
-              <span id="modal-freq-val" class="text-xs sm:text-sm font-bold text-cyan-400">${calculatedEigenfrequency.toFixed(1)} Hz</span>
-              <span id="modal-note-name" class="text-[11px] font-semibold text-blue-400">${noteInfo.name}</span>
-              <span id="modal-note-cents" class="text-[9px] text-gray-400">${noteInfo.cents >= 0 ? '+' : ''}${noteInfo.cents}c</span>
-            </div>
-          </div>
-
-          <!-- 1-Click Synth Audition Button -->
-          <button
-            id="btn-audition-eigenfrequency"
-            title="Listen to resonant tone"
-            class="glass-btn px-2.5 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-              isPlayingSynth ? 'glass-btn-active' : 'text-gray-200 hover:text-white'
-            }"
-          >
-            <span>${isPlayingSynth ? 'Stop Tone' : 'Play Tone'}</span>
-          </button>
-        </div>
-
-        <!-- Middle Section: (n, m, l) Modal Sliders & Steppers -->
-        <div class="flex flex-col gap-2">
-          
-          <!-- n: X-Axis / Transverse Radial Mode -->
-          <div class="glass-panel p-2.5 rounded-2xl flex flex-col gap-1.5 bg-white/5 border-white/5">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-                <span class="text-xs font-bold text-gray-200">Mode n (X Axis)</span>
+              <div class="flex items-center gap-2 w-full min-w-0">
+                <button data-axis="n" data-dir="-1" aria-label="Decrease n" class="btn-step flex items-center justify-center cursor-pointer select-none">
+                  −
+                </button>
+                <input
+                  type="range"
+                  id="slider-mode-n"
+                  min="1"
+                  max="8"
+                  step="1"
+                  value="${n}"
+                  aria-label="Modal order n slider"
+                  aria-valuemin="1"
+                  aria-valuemax="8"
+                  aria-valuenow="${n}"
+                  style="background: linear-gradient(to right, #22d3ee ${pctN}%, rgba(255, 255, 255, 0.1) ${pctN}%);"
+                  class="flex-1 min-w-0 w-full cursor-pointer slider-cyan"
+                />
+                <button data-axis="n" data-dir="1" aria-label="Increase n" class="btn-step flex items-center justify-center cursor-pointer select-none">
+                  +
+                </button>
               </div>
-              <span id="badge-mode-n" class="font-mono text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-lg border border-cyan-500/30">
-                ${n}
-              </span>
             </div>
 
-            <div class="flex items-center gap-2">
-              <button data-axis="n" data-dir="-1" class="btn-step glass-btn w-7 h-7 rounded-lg text-xs font-bold text-gray-300 hover:text-white flex items-center justify-center cursor-pointer">
-                −
-              </button>
-              <input
-                type="range"
-                id="slider-mode-n"
-                min="1"
-                max="8"
-                step="1"
-                value="${n}"
-                class="flex-1 cursor-pointer"
-              />
-              <button data-axis="n" data-dir="1" class="btn-step glass-btn w-7 h-7 rounded-lg text-xs font-bold text-gray-300 hover:text-white flex items-center justify-center cursor-pointer">
-                +
-              </button>
-            </div>
-            <div class="flex justify-between text-[9px] text-gray-400 font-mono">
-              <span>1 (Fundamental)</span>
-              <span>4 (Harmonic)</span>
-              <span>8 (High)</span>
-            </div>
-          </div>
-
-          <!-- m: Y-Axis / Transverse Azimuthal Mode -->
-          <div class="glass-panel p-2.5 rounded-2xl flex flex-col gap-1.5 bg-white/5 border-white/5">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-blue-400"></span>
-                <span class="text-xs font-bold text-gray-200">Mode m (Y Axis)</span>
+            <!-- m: Secondary Axis / Petals / Meridians -->
+            <div class="glass-panel p-2 rounded-xl flex flex-col gap-1.5 bg-slate-950/60 border-white/5 w-full min-w-0">
+              <div class="flex items-center justify-between w-full min-w-0">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400/50 shrink-0"></span>
+                  <span class="text-[11px] font-bold text-slate-200 truncate">${labelM}</span>
+                </div>
+                <span id="badge-mode-m" class="font-mono text-[10px] font-bold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/30 shrink-0">
+                  ${m}
+                </span>
               </div>
-              <span id="badge-mode-m" class="font-mono text-xs font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-lg border border-blue-500/30">
-                ${m}
-              </span>
-            </div>
 
-            <div class="flex items-center gap-2">
-              <button data-axis="m" data-dir="-1" class="btn-step glass-btn w-7 h-7 rounded-lg text-xs font-bold text-gray-300 hover:text-white flex items-center justify-center cursor-pointer">
-                −
-              </button>
-              <input
-                type="range"
-                id="slider-mode-m"
-                min="1"
-                max="8"
-                step="1"
-                value="${m}"
-                class="flex-1 cursor-pointer"
-              />
-              <button data-axis="m" data-dir="1" class="btn-step glass-btn w-7 h-7 rounded-lg text-xs font-bold text-gray-300 hover:text-white flex items-center justify-center cursor-pointer">
-                +
-              </button>
-            </div>
-            <div class="flex justify-between text-[9px] text-gray-400 font-mono">
-              <span>1 (Fundamental)</span>
-              <span>4 (Harmonic)</span>
-              <span>8 (High)</span>
-            </div>
-          </div>
-
-          <!-- l: Z-Axis (Axial / Height Mode) -->
-          ${
-            !is2D
-              ? `
-          <div class="glass-panel p-2.5 rounded-2xl flex flex-col gap-1.5 bg-white/5 border-white/5">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-purple-400"></span>
-                <span class="text-xs font-bold text-gray-200">Mode ℓ (Z Axis)</span>
+              <div class="flex items-center gap-2 w-full min-w-0">
+                <button data-axis="m" data-dir="-1" aria-label="Decrease m" class="btn-step flex items-center justify-center cursor-pointer select-none">
+                  −
+                </button>
+                <input
+                  type="range"
+                  id="slider-mode-m"
+                  min="1"
+                  max="8"
+                  step="1"
+                  value="${m}"
+                  aria-label="Modal order m slider"
+                  aria-valuemin="1"
+                  aria-valuemax="8"
+                  aria-valuenow="${m}"
+                  style="background: linear-gradient(to right, #60a5fa ${pctM}%, rgba(255, 255, 255, 0.1) ${pctM}%);"
+                  class="flex-1 min-w-0 w-full cursor-pointer slider-blue"
+                />
+                <button data-axis="m" data-dir="1" aria-label="Increase m" class="btn-step flex items-center justify-center cursor-pointer select-none">
+                  +
+                </button>
               </div>
-              <span id="badge-mode-l" class="font-mono text-xs font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-lg border border-purple-500/30">
-                ${l}
-              </span>
             </div>
 
-            <div class="flex items-center gap-2">
-              <button data-axis="l" data-dir="-1" class="btn-step glass-btn w-7 h-7 rounded-lg text-xs font-bold text-gray-300 hover:text-white flex items-center justify-center cursor-pointer">
-                −
-              </button>
-              <input
-                type="range"
-                id="slider-mode-l"
-                min="1"
-                max="8"
-                step="1"
-                value="${l}"
-                class="flex-1 cursor-pointer"
-              />
-              <button data-axis="l" data-dir="1" class="btn-step glass-btn w-7 h-7 rounded-lg text-xs font-bold text-gray-300 hover:text-white flex items-center justify-center cursor-pointer">
-                +
-              </button>
+            <!-- l: Tertiary Axis / Axial Disks / Cones -->
+            ${
+              !is2D
+                ? `
+            <div class="glass-panel p-2 rounded-xl flex flex-col gap-1.5 bg-slate-950/60 border-white/5 w-full min-w-0">
+              <div class="flex items-center justify-between w-full min-w-0">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="w-2 h-2 rounded-full bg-purple-400 shadow-sm shadow-purple-400/50 shrink-0"></span>
+                  <span class="text-[11px] font-bold text-slate-200 truncate">${labelL}</span>
+                </div>
+                <span id="badge-mode-l" class="font-mono text-[10px] font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/30 shrink-0">
+                  ${l}
+                </span>
+              </div>
+
+              <div class="flex items-center gap-2 w-full min-w-0">
+                <button data-axis="l" data-dir="-1" aria-label="Decrease l" class="btn-step flex items-center justify-center cursor-pointer select-none">
+                  −
+                </button>
+                <input
+                  type="range"
+                  id="slider-mode-l"
+                  min="1"
+                  max="8"
+                  step="1"
+                  value="${l}"
+                  aria-label="Modal order l slider"
+                  aria-valuemin="1"
+                  aria-valuemax="8"
+                  aria-valuenow="${l}"
+                  style="background: linear-gradient(to right, #c084fc ${pctL}%, rgba(255, 255, 255, 0.1) ${pctL}%);"
+                  class="flex-1 min-w-0 w-full cursor-pointer slider-purple"
+                />
+                <button data-axis="l" data-dir="1" aria-label="Increase l" class="btn-step flex items-center justify-center cursor-pointer select-none">
+                  +
+                </button>
+              </div>
             </div>
-            <div class="flex justify-between text-[9px] text-gray-400 font-mono">
-              <span>1 (Simple)</span>
-              <span>4 (Medium)</span>
-              <span>8 (Dense)</span>
-            </div>
+            `
+                : ''
+            }
           </div>
           `
               : ''
           }
 
-        </div>
-
-        <!-- Chamber Physics & Boundary Controls -->
-        <div class="flex flex-col gap-2.5 pt-1">
-          
-          <!-- 1. Chamber Geometry Selector -->
-          <div class="flex flex-col gap-1">
-            <span class="text-[10px] font-semibold text-gray-300">${is2D ? 'Plate Geometry:' : 'Chamber Shape:'}</span>
-            <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border-white/5">
-              ${
-                is2D
-                  ? [
-                      { id: 'cube', label: 'Square Plate' },
-                      { id: 'cylinder', label: 'Circular Bessel Plate' },
-                    ]
-                      .map(
-                        g => `
-                    <button
-                      data-geometry="${g.id}"
-                      class="btn-geometry flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                        geometry === g.id || (geometry === 'sphere' && g.id === 'cylinder')
-                          ? 'glass-btn-active font-bold shadow-sm'
-                          : 'text-gray-400 hover:text-gray-200'
-                      }"
-                    >
-                      <span>${g.label}</span>
-                    </button>
-                  `
-                      )
-                      .join('')
-                  : [
-                      { id: 'cube', label: 'Cube' },
-                      { id: 'cylinder', label: 'Cylinder' },
-                      { id: 'sphere', label: 'Sphere' },
-                    ]
-                      .map(
-                        g => `
-                    <button
-                      data-geometry="${g.id}"
-                      class="btn-geometry flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                        geometry === g.id ? 'glass-btn-active font-bold shadow-sm' : 'text-gray-400 hover:text-gray-200'
-                      }"
-                    >
-                      <span>${g.label}</span>
-                    </button>
-                  `
-                      )
-                      .join('')
-              }
+          <!-- Chamber Geometry & Boundaries -->
+          <div class="flex flex-col gap-2 pt-1">
+            <!-- Geometry Selector -->
+            <div class="flex flex-col gap-1">
+              <span class="text-[10px] font-semibold text-slate-300">${is2D ? 'Plate Geometry:' : 'Chamber Shape:'}</span>
+              <div class="segmented-track p-1">
+                ${
+                  is2D
+                    ? [
+                        { id: 'cube', label: 'Square Plate' },
+                        { id: 'cylinder', label: 'Circular Bessel Plate' },
+                      ]
+                        .map(
+                          g => `
+                      <button
+                        data-geometry="${g.id}"
+                        class="btn-geometry segmented-pill flex-1 flex items-center justify-center gap-1 ${
+                          geometry === g.id || (geometry === 'sphere' && g.id === 'cylinder')
+                            ? 'is-active glass-btn-active'
+                            : ''
+                        }"
+                      >
+                        <span>${g.label}</span>
+                      </button>
+                    `
+                        )
+                        .join('')
+                    : [
+                        { id: 'cube', label: 'Cube' },
+                        { id: 'cylinder', label: 'Cylinder' },
+                        { id: 'sphere', label: 'Sphere' },
+                      ]
+                        .map(
+                          g => `
+                      <button
+                        data-geometry="${g.id}"
+                        class="btn-geometry segmented-pill flex-1 flex items-center justify-center gap-1 ${
+                          geometry === g.id
+                            ? 'is-active glass-btn-active'
+                            : ''
+                        }"
+                      >
+                        <span>${g.label}</span>
+                      </button>
+                    `
+                        )
+                        .join('')
+                }
+              </div>
             </div>
-          </div>
 
-          <!-- 2. Chamber Boundary Enclosure Selector (for 3D modes) -->
-          ${
-            !is2D
-              ? `
-          <div class="flex flex-col gap-1">
-            <span class="text-[10px] font-semibold text-gray-300">Chamber Boundary:</span>
-            <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border-white/5">
-              <button
-                id="btn-enclosure-glass"
-                class="flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  showEnclosure ? 'glass-btn-active font-bold text-cyan-300 shadow-sm' : 'text-gray-400 hover:text-gray-200'
-                }"
-              >
-                <span>Glass Box</span>
-              </button>
-              <button
-                id="btn-enclosure-free"
-                class="flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  !showEnclosure ? 'glass-btn-active font-bold text-cyan-300 shadow-sm' : 'text-gray-400 hover:text-gray-200'
-                }"
-              >
-                <span>Free Field (No Box)</span>
-              </button>
-            </div>
-          </div>
-          `
-              : ''
-          }
+            <!-- Boundary Enclosure & Particle Trapping -->
+            ${
+              !is2D
+                ? `
+            <div class="grid grid-cols-2 gap-1.5">
+              <!-- Enclosure Box -->
+              <div class="flex flex-col gap-1">
+                <span class="text-[9px] font-semibold text-slate-400">Boundary:</span>
+                <div class="segmented-track p-0.5">
+                  <button
+                    id="btn-enclosure-glass"
+                    class="segmented-pill flex-1 py-1 text-[9px] font-semibold ${
+                      showEnclosure ? 'is-active glass-btn-active' : ''
+                    }"
+                  >
+                    Box
+                  </button>
+                  <button
+                    id="btn-enclosure-free"
+                    class="segmented-pill flex-1 py-1 text-[9px] font-semibold ${
+                      !showEnclosure ? 'is-active glass-btn-active' : ''
+                    }"
+                  >
+                    Free
+                  </button>
+                </div>
+              </div>
 
-          <!-- 3. Trapping Mode Switcher (Radiation Force Levitation) -->
-          ${
-            !is2D
-              ? `
-          <div class="flex flex-col gap-1">
-            <span class="text-[10px] font-semibold text-gray-300">Particle Trapping:</span>
-            <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border-white/5">
-              <button
-                id="btn-trap-nodes"
-                class="flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  trappingMode === 'nodes' ? 'glass-btn-active font-bold' : 'text-gray-400 hover:text-gray-200'
-                }"
-              >
-                <span>Nodes (Quiet Zones)</span>
-              </button>
-              <button
-                id="btn-trap-antinodes"
-                class="flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  trappingMode === 'antinodes' ? 'glass-btn-active font-bold' : 'text-gray-400 hover:text-gray-200'
-                }"
-              >
-                <span>Antinodes (Active)</span>
-              </button>
+              <!-- Trapping Mode -->
+              <div class="flex flex-col gap-1">
+                <span class="text-[9px] font-semibold text-slate-400">Trapping:</span>
+                <div class="segmented-track p-0.5">
+                  <button
+                    id="btn-trap-nodes"
+                    title="Heavy Sand on Nodal Lines (Zero Motion)"
+                    class="segmented-pill flex-1 py-1 text-[9px] font-semibold ${
+                      trappingMode === 'nodes' ? 'is-active glass-btn-active' : ''
+                    }"
+                  >
+                    Nodes
+                  </button>
+                  <button
+                    id="btn-trap-antinodes"
+                    title="Levitation Beads at Antinodes (Max Sound Pressure)"
+                    class="segmented-pill flex-1 py-1 text-[9px] font-semibold ${
+                      trappingMode === 'antinodes' ? 'is-active glass-btn-active' : ''
+                    }"
+                  >
+                    Anti
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-          `
-              : ''
-          }
+            `
+                : ''
+            }
 
-          <!-- 4. Audio Resonance Coupling Switch -->
-          <div class="flex flex-col gap-1">
-            <div class="flex items-center justify-between">
-              <span class="text-[10px] font-semibold text-gray-300">Sync to Audio Harmonics:</span>
-              <span class="text-[9px] font-mono text-gray-400 font-semibold">${audioCoupled ? 'Active' : 'Off'}</span>
-            </div>
+            ${
+              !isMusicMode
+                ? `
+            <!-- Sync to Audio (Tone Lab Mode) -->
             <button
               id="btn-toggle-coupling"
-              class="w-full py-1.5 px-3 rounded-2xl text-xs font-semibold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+              class="w-full py-1.5 px-2.5 rounded-xl text-[10px] font-semibold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
                 audioCoupled
-                  ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300 shadow-sm'
-                  : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
+                  ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300 shadow-sm font-bold'
+                  : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
               }"
             >
-              <span>${audioCoupled ? 'Audio Sync Active' : 'Audio Sync Off'}</span>
+              <span>${audioCoupled ? '✓ Audio Resonance Coupling ON' : 'Audio Resonance Coupling OFF'}</span>
             </button>
+            `
+                : ''
+            }
+          </div>
+
+          <!-- Wave Presets Section -->
+          <div class="flex flex-col gap-1.5 pt-2 border-t border-white/10">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold text-slate-300">1-Click Standing Wave Presets:</span>
+              <span id="modal-total-cells" class="text-[9px] text-slate-400 font-mono">
+                Grid: <strong class="text-cyan-400">${totalNodalCells}</strong> Cells
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 gap-1">
+              ${ModalSweeperControls.PRESETS.map(p => {
+                const isSelected = p.n === n && p.m === m && (!is2D ? p.l === l : true) && p.geometry === geometry;
+                return `
+                  <button
+                    data-preset="${p.id}"
+                    class="btn-preset-card glass-panel p-2 rounded-xl flex items-center justify-between text-left transition-all hover:border-slate-600 active:scale-[0.99] cursor-pointer ${
+                      isSelected
+                        ? 'border-cyan-500/60 shadow-sm bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-400/30 font-bold'
+                        : 'hover:border-white/20 bg-slate-950/60 border-white/5'
+                    }"
+                  >
+                    <div class="flex items-center gap-1.5 min-w-0">
+                      <span class="font-mono text-[10px] font-bold text-cyan-400 shrink-0">(${p.n},${p.m}${is2D ? '' : ',' + p.l})</span>
+                      <span class="text-[10px] font-semibold text-slate-200 truncate">${p.name}</span>
+                    </div>
+                    <span class="text-[8px] px-1.5 py-0.5 rounded bg-slate-900 font-semibold text-slate-300 border border-slate-700 shrink-0">${p.badge}</span>
+                  </button>
+                `;
+              }).join('')}
+            </div>
           </div>
 
         </div>
-
-        <!-- Wave Presets Section -->
-        <div class="flex flex-col gap-1.5 pt-2 border-t border-white/10">
-          <div class="flex items-center justify-between">
-            <span class="text-[10px] font-bold text-gray-300 flex items-center gap-1.5">
-              <span>Wave Shape Presets:</span>
-            </span>
-            <span id="modal-total-cells" class="text-[9px] text-gray-400 font-mono">
-              Grid: <strong class="text-cyan-400">${totalNodalCells}</strong> Cells
-            </span>
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            ${ModalSweeperControls.PRESETS.map(p => {
-              const isSelected = p.n === n && p.m === m && (!is2D ? p.l === l : true) && p.geometry === geometry;
-              return `
-                <button
-                  data-preset="${p.id}"
-                  class="btn-preset-card glass-panel p-2 rounded-2xl flex flex-col gap-0.5 text-left transition-all hover:border-slate-600 active:scale-[0.99] cursor-pointer ${
-                    isSelected
-                      ? 'glass-panel-accent border-cyan-500/60 shadow-sm'
-                      : 'hover:border-white/20 bg-white/5 border-white/5'
-                  }"
-                >
-                  <div class="flex items-center justify-between w-full">
-                    <span class="font-mono text-xs font-bold text-cyan-400">(${p.n},${p.m}${is2D ? '' : ',' + p.l})</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded-md bg-slate-800 font-semibold text-gray-300 border border-slate-700">${p.badge}</span>
-                  </div>
-                  <span class="text-[11px] font-semibold text-gray-100 leading-tight">${p.name}</span>
-                  <span class="text-[9px] text-gray-400 line-clamp-1 leading-tight">${p.description}</span>
-                </button>
-              `;
-            }).join('')}
-          </div>
-        </div>
-
       </div>
     `;
 
@@ -707,6 +739,15 @@ export class ModalSweeperControls {
   private updateDisplay(fromSlider = false): void {
     const { n, m, l, calculatedEigenfrequency, noteInfo, apparatus } = this.state;
     const is2D = apparatus === '2d-plate';
+    const isMusicMode = this.currentMode === 'music' || this.currentMode === 'cymatics';
+
+    // Summary badge in header
+    const summaryEl = this.element.querySelector('#modal-header-summary');
+    if (summaryEl) {
+      summaryEl.textContent = isMusicMode
+        ? `${this.state.geometry.toUpperCase()} • ${this.state.trappingMode === 'nodes' ? 'NODES' : 'ANTI'}`
+        : `(${n},${m},${is2D ? '0' : l}) • ${calculatedEigenfrequency.toFixed(0)}Hz`;
+    }
 
     // Resonant Frequency & Note Readout
     const freqEl = this.element.querySelector('#modal-freq-val');
@@ -733,24 +774,34 @@ export class ModalSweeperControls {
     // Sliders
     if (!fromSlider) {
       const sliderN = this.element.querySelector('#slider-mode-n') as HTMLInputElement;
-      if (sliderN) sliderN.value = n.toString();
+      if (sliderN) {
+        sliderN.value = n.toString();
+        const pct = Math.round(((n - 1) / 7) * 100);
+        sliderN.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
+      }
       const sliderM = this.element.querySelector('#slider-mode-m') as HTMLInputElement;
-      if (sliderM) sliderM.value = m.toString();
+      if (sliderM) {
+        sliderM.value = m.toString();
+        const pct = Math.round(((m - 1) / 7) * 100);
+        sliderM.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
+      }
       const sliderL = this.element.querySelector('#slider-mode-l') as HTMLInputElement;
-      if (sliderL) sliderL.value = l.toString();
+      if (sliderL) {
+        sliderL.value = l.toString();
+        const pct = Math.round(((l - 1) / 7) * 100);
+        sliderL.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
+      }
     }
   }
 
   private attachEvents(): void {
-    // Hub Navigation Buttons
-    this.element.querySelector('#hub-btn-modal')?.addEventListener('click', () => {
-      this.onSwitchMode?.('modal');
-    });
-    this.element.querySelector('#hub-btn-freq')?.addEventListener('click', () => {
-      this.onSwitchMode?.('frequency');
+    // Accordion Toggle
+    this.element.querySelector('#btn-toggle-modal-accordion')?.addEventListener('click', () => {
+      this.isOpen = !this.isOpen;
+      this.render();
     });
 
-    // Apparatus Multi-Select & Switcher (2D Plate vs 3D Droplet vs 3D Trap)
+    // Apparatus Multi-Select (2D Plate vs 3D Droplet vs 3D Trap)
     this.element.querySelectorAll('.btn-layer').forEach(btn => {
       btn.addEventListener('click', e => {
         const target = e.currentTarget as HTMLElement;
@@ -772,26 +823,21 @@ export class ModalSweeperControls {
       });
     });
 
-    this.element.querySelectorAll('.btn-apparatus:not(.btn-layer)').forEach(btn => {
-      btn.addEventListener('click', e => {
-        const target = e.currentTarget as HTMLElement;
-        const app = target.getAttribute('data-apparatus') as CymaticsApparatus;
-        if (app) {
-          this.setApparatus(app);
-          window.dispatchEvent(new CustomEvent('cymatics-apparatus-changed', { detail: { apparatus: app } }));
-        }
-      });
-    });
-
     // Audition 1-Click Synth Tone Button
-    this.element.querySelector('#btn-audition-eigenfrequency')?.addEventListener('click', () => {
+    this.element.querySelector('#btn-audition-eigenfrequency')?.addEventListener('click', async () => {
+      await this.audioEngine.initialize();
       const synth = this.audioEngine.synthesizer;
       if (!synth) return;
 
       if (synth.getIsPlaying()) {
         this.audioEngine.stopFrequency();
       } else {
-        this.audioEngine.playFrequency(this.state.calculatedEigenfrequency);
+        await this.audioEngine.playFrequency(this.state.calculatedEigenfrequency);
+        window.dispatchEvent(
+          new CustomEvent('frequency-changed', {
+            detail: { frequency: this.state.calculatedEigenfrequency, source: 'modal-sweeper' },
+          })
+        );
       }
       this.render();
     });
@@ -800,6 +846,8 @@ export class ModalSweeperControls {
     const sliderN = this.element.querySelector('#slider-mode-n') as HTMLInputElement;
     sliderN?.addEventListener('input', () => {
       this.state.n = parseInt(sliderN.value, 10);
+      const pct = Math.round(((this.state.n - 1) / 7) * 100);
+      sliderN.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
       this.notifyStateChange();
       this.updateDisplay(true);
     });
@@ -807,6 +855,8 @@ export class ModalSweeperControls {
     const sliderM = this.element.querySelector('#slider-mode-m') as HTMLInputElement;
     sliderM?.addEventListener('input', () => {
       this.state.m = parseInt(sliderM.value, 10);
+      const pct = Math.round(((this.state.m - 1) / 7) * 100);
+      sliderM.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
       this.notifyStateChange();
       this.updateDisplay(true);
     });
@@ -814,6 +864,8 @@ export class ModalSweeperControls {
     const sliderL = this.element.querySelector('#slider-mode-l') as HTMLInputElement;
     sliderL?.addEventListener('input', () => {
       this.state.l = parseInt(sliderL.value, 10);
+      const pct = Math.round(((this.state.l - 1) / 7) * 100);
+      sliderL.style.background = `linear-gradient(to right, #38bdf8 ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`;
       this.notifyStateChange();
       this.updateDisplay(true);
     });

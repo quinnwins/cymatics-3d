@@ -2,6 +2,8 @@
   "name": "3d-acoustic-wave-engine",
   "version": "1.0.0",
   "type": "module",
+  "license": "MIT",
+  "author": "quinnwins",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -21,6 +23,7 @@
     "autoprefixer": "^10.4.20",
     "happy-dom": "^20.12.0",
     "postcss": "^8.5.3",
+    "puppeteer-core": "^25.9.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.8.2",
     "vite": "^6.2.0",

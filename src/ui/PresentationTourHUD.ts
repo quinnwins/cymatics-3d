@@ -4,8 +4,9 @@
  *
  * Features:
  * - Floating glass cinematic subtitle & telemetry callout banner.
+ * - Responsive viewport positioning (top-28 sm:top-24 md:top-20) to prevent header overlap.
  * - Step progress indicator across all 7 presentation chapters.
- * - Visual subtitle walkthrough with zero intrusive synthetic voice.
+ * - Screen reader friendly ARIA live region (aria-live="polite").
  * - Next / Pause / Exit controls for interactive review.
  */
 
@@ -40,7 +41,7 @@ export class PresentationTourHUD {
   ) {
     this.container = document.createElement('div');
     this.container.id = 'presentation-tour-hud';
-    this.container.className = 'fixed top-20 left-1/2 transform -translate-x-1/2 z-40 max-w-3xl w-[92%] glass-panel p-4 rounded-3xl border border-amber-400/30 backdrop-blur-2xl shadow-2xl shadow-amber-500/10 text-white transition-all duration-500 hidden';
+    this.container.className = 'fixed top-28 sm:top-24 md:top-20 left-1/2 transform -translate-x-1/2 z-40 max-w-3xl w-[92%] glass-panel p-4 rounded-3xl border border-amber-400/30 backdrop-blur-2xl shadow-2xl shadow-amber-500/10 text-white transition-all duration-500 hidden';
     parent.appendChild(this.container);
 
     this.onNext = callbacks.onNext;
@@ -79,7 +80,7 @@ export class PresentationTourHUD {
         const isPast = i < this.currentStepIndex;
         return `<span class="h-1.5 rounded-full transition-all duration-300 ${
           isActive
-            ? 'w-6 bg-cyan-400'
+            ? 'w-6 bg-cyan-400 shadow-sm shadow-cyan-400/50'
             : isPast
             ? 'w-2 bg-cyan-400/50'
             : 'w-2 bg-white/20'
@@ -88,11 +89,11 @@ export class PresentationTourHUD {
       .join('');
 
     this.container.innerHTML = `
-      <div class="flex flex-col gap-2.5">
+      <div class="flex flex-col gap-2.5" role="region" aria-label="Guided Tour Presentation HUD">
         <!-- Top Bar: Chapter Badge, Progress Dots & Controls -->
         <div class="flex items-center justify-between border-b border-white/10 pb-2">
           <div class="flex items-center gap-2">
-            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-800 text-slate-200 border border-slate-700 uppercase tracking-wider">
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-800 text-amber-300 border border-amber-400/30 uppercase tracking-wider">
               ${step.badge}
             </span>
             <span class="text-xs font-bold text-white">
@@ -105,34 +106,38 @@ export class PresentationTourHUD {
               ${progressDots}
             </div>
 
-            <button id="btn-tour-exit" class="text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-lg transition-all font-semibold cursor-pointer border border-slate-700">
-              Exit Tour
+            <button id="btn-tour-exit" aria-label="Exit guided keynote tour" class="text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-xl transition-all font-semibold cursor-pointer border border-white/10">
+              Exit
             </button>
           </div>
         </div>
 
-        <!-- Middle: Visual Subtitle -->
-        <div class="text-sm font-medium text-slate-200 leading-relaxed bg-slate-900/80 p-3 rounded-2xl border border-white/5 flex items-start gap-3">
+        <!-- Middle: Visual Subtitle with ARIA Live Region -->
+        <div aria-live="polite" class="text-sm font-medium text-slate-200 leading-relaxed bg-slate-950/80 p-3 rounded-2xl border border-white/5 flex items-start gap-3 shadow-inner">
           <div class="flex flex-col gap-1">
             <p class="text-xs md:text-sm text-slate-100">${step.subtitle}</p>
           </div>
         </div>
 
-        <!-- Bottom Controls -->
+        <!-- Bottom Controls & Keyboard Shortcuts Legend -->
         <div class="flex items-center justify-between pt-1">
           <div class="flex items-center gap-2">
-            <button id="btn-tour-prev" class="px-3 py-1 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 transition-all text-slate-200 border border-slate-700 cursor-pointer ${
+            <button id="btn-tour-prev" aria-label="Previous presentation chapter" class="px-3 py-1 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 transition-all text-slate-200 border border-white/10 cursor-pointer ${
               this.currentStepIndex === 0 ? 'opacity-40 pointer-events-none' : ''
             }">
               Previous
             </button>
-            <button id="btn-tour-pause" class="px-3 py-1 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 transition-all text-slate-200 border border-slate-700 cursor-pointer">
+            <button id="btn-tour-pause" aria-label="${this.isPaused ? 'Resume tour playback' : 'Pause tour playback'}" class="px-3 py-1 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 transition-all text-slate-200 border border-white/10 cursor-pointer">
               ${this.isPaused ? 'Resume' : 'Pause'}
             </button>
-            <button id="btn-tour-next" class="px-3 py-1 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-all shadow-sm cursor-pointer">
+            <button id="btn-tour-next" aria-label="${this.currentStepIndex === total - 1 ? 'Finish guided tour' : 'Next presentation chapter'}" class="px-3 py-1 rounded-xl text-xs font-bold bg-cyan-400 hover:bg-cyan-300 text-slate-950 transition-all shadow-md shadow-cyan-400/30 cursor-pointer">
               ${this.currentStepIndex === total - 1 ? 'Finish Tour' : 'Next Chapter'}
             </button>
           </div>
+
+          <span class="text-[10px] font-mono text-slate-400 hidden sm:inline">
+            Space: Pause • Arrows: Nav • Esc: Exit
+          </span>
         </div>
       </div>
     `;
@@ -152,4 +157,3 @@ export class PresentationTourHUD {
     this.container.querySelector('#btn-tour-exit')?.addEventListener('click', () => this.onExit());
   }
 }
-

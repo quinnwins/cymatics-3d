@@ -131,12 +131,24 @@ export class CymaticsMesh {
     this.material.uniforms.uModes.value.copy(this.modes);
   }
 
+  public setModalNumbers(n: number, m: number, l: number): void {
+    this.setModes(n, m, l);
+  }
+
   public setAutoModal(auto: boolean): void {
     this.isAutoModal = auto;
   }
 
+  public getAutoModal(): boolean {
+    return this.isAutoModal;
+  }
+
   public getModes(): THREE.Vector3 {
     return this.modes.clone();
+  }
+
+  public setChamberGeometry(type: ChamberGeometryType): void {
+    this.setChamberType(type);
   }
 
   /**

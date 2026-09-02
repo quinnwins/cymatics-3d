@@ -51,7 +51,8 @@ export class VoiceBiometricAnalyzer {
   private isLiveMicActive = false;
   private activeProfile: ClinicalVoiceProfile;
   private cachedReport: VocalBiomarkerReport;
-  private lastUpdateTimestamp = 0;
+  private lastFrameTimestamp = 0;
+  private lastDspTimestamp = 0;
 
   constructor(audioContext: AudioContext) {
     this.ctx = audioContext;
@@ -95,6 +96,8 @@ export class VoiceBiometricAnalyzer {
       this.isLiveMicActive = true;
       this.ringHead = 0;
       this.ringCount = 0;
+      this.lastFrameTimestamp = performance.now();
+      this.lastDspTimestamp = performance.now();
       return true;
     } catch (err) {
       console.warn('Microphone permission denied or unavailable', err);
@@ -166,7 +169,8 @@ export class VoiceBiometricAnalyzer {
       const rawRms = Math.sqrt(energy / this.bufferSize);
 
       // 2. IEC 60268-10 Ballistics (300 ms integration for VU, 1 ms for Peak)
-      const dt = Math.max(0.001, (now - this.lastUpdateTimestamp) / 1000);
+      const dt = this.lastFrameTimestamp > 0 ? Math.max(0.001, Math.min(0.1, (now - this.lastFrameTimestamp) / 1000)) : 0.016;
+      this.lastFrameTimestamp = now;
       const alphaVu = 1.0 - Math.exp(-dt / 0.300);
       this.vuRms += alphaVu * (rawRms - this.vuRms);
 
@@ -204,10 +208,9 @@ export class VoiceBiometricAnalyzer {
 
       // 5. DSP Analysis when active voicing detected
       if (this.isVoicingActive) {
-        const pitchData = VoiceBiometricsPhysics.extractPitchYIN(this.filteredBuffer, this.ctx.sampleRate);
-
-        if (now - this.lastUpdateTimestamp > 25) {
-          this.lastUpdateTimestamp = now;
+        if (now - this.lastDspTimestamp > 25) {
+          this.lastDspTimestamp = now;
+          const pitchData = VoiceBiometricsPhysics.extractPitchYIN(this.filteredBuffer, this.ctx.sampleRate);
           if (pitchData.f0 > 60 && pitchData.confidence > 0.45) {
             // Push into circular ring buffer
             this.ringPeriods[this.ringHead] = pitchData.periodSamples;
@@ -215,74 +218,72 @@ export class VoiceBiometricAnalyzer {
             this.ringHead = (this.ringHead + 1) & this.RING_MASK;
             if (this.ringCount < 32) this.ringCount++;
           }
+
+          // Copy active ring buffer slice for perturbation evaluation
+          this.tempPeriodSlice.length = 0;
+          this.tempAmpSlice.length = 0;
+          for (let i = 0; i < this.ringCount; i++) {
+            const idx = (this.ringHead - this.ringCount + i + 32) & this.RING_MASK;
+            this.tempPeriodSlice.push(this.ringPeriods[idx]);
+            this.tempAmpSlice.push(this.ringAmplitudes[idx]);
+          }
+
+          const pert = VoiceBiometricsPhysics.calculatePerturbationMetrics(this.tempPeriodSlice, this.tempAmpSlice);
+          const hnr = VoiceBiometricsPhysics.calculateHNR(this.filteredBuffer, pitchData.periodSamples);
+          const cpp = VoiceBiometricsPhysics.calculateCPP(this.filteredBuffer, this.ctx.sampleRate);
+          const lpc = VoiceBiometricsPhysics.calculateLpcAreaFunction(this.filteredBuffer, 16);
+
+          const diagnosis = VoiceBiometricsPhysics.diagnosePathologies({
+            f0Hz: pitchData.f0,
+            jitterPercent: pert.jitterLoc,
+            shimmerPercent: pert.shimmerLoc,
+            hnrDb: hnr,
+            cppDb: cpp,
+            fcr: 1.0,
+            tremorDepthPercent: 0,
+          });
+
+          const rx = VoiceBiometricsPhysics.generatePrescription({
+            f0Hz: pitchData.f0,
+            healthStatus: diagnosis.healthStatus,
+            formants: lpc.formants,
+          });
+
+          const dsi = VoiceBiometricsPhysics.calculateDSI({ jitterPercent: pert.jitterLoc });
+          const avqi = VoiceBiometricsPhysics.calculateAVQI({
+            cppDb: cpp,
+            hnrDb: hnr,
+            shimmerPercent: pert.shimmerLoc,
+            shimmerDb: pert.shimmerDb,
+          });
+
+          this.cachedReport = {
+            f0Hz: Number(pitchData.f0.toFixed(1)),
+            pitchConfidence: Number(pitchData.confidence.toFixed(2)),
+            jitterPercent: Number(pert.jitterLoc.toFixed(2)),
+            jitterRapPercent: Number(pert.jitterRap.toFixed(2)),
+            jitterPpq5Percent: Number(pert.jitterPpq5.toFixed(2)),
+            jitterDdpPercent: Number(pert.jitterDdp.toFixed(2)),
+            shimmerPercent: Number(pert.shimmerLoc.toFixed(2)),
+            shimmerDb: Number(pert.shimmerDb.toFixed(2)),
+            shimmerApq3Percent: Number(pert.shimmerApq3.toFixed(2)),
+            shimmerApq5Percent: Number(pert.shimmerApq5.toFixed(2)),
+            shimmerApq11Percent: Number(pert.shimmerApq11.toFixed(2)),
+            shimmerDdaPercent: Number(pert.shimmerDda.toFixed(2)),
+            hnrDb: Number(hnr.toFixed(1)),
+            cppDb: Number(cpp.toFixed(1)),
+            formantsHz: lpc.formants,
+            fcr: 1.0,
+            dsiScore: dsi,
+            avqiScore: avqi,
+            vocalTractRadiiCm: lpc.radiiCm,
+            tremorFreqHz: 0.0,
+            tremorDepthPercent: 0.0,
+            diagnosticHallmarks: diagnosis.hallmarks,
+            healthStatus: diagnosis.healthStatus,
+            soundMedicinePrescription: rx,
+          };
         }
-
-        // Copy active ring buffer slice for perturbation evaluation
-        this.tempPeriodSlice.length = 0;
-        this.tempAmpSlice.length = 0;
-        for (let i = 0; i < this.ringCount; i++) {
-          const idx = (this.ringHead - this.ringCount + i + 32) & this.RING_MASK;
-          this.tempPeriodSlice.push(this.ringPeriods[idx]);
-          this.tempAmpSlice.push(this.ringAmplitudes[idx]);
-        }
-
-        const pert = VoiceBiometricsPhysics.calculatePerturbationMetrics(this.tempPeriodSlice, this.tempAmpSlice);
-        const hnr = VoiceBiometricsPhysics.calculateHNR(this.filteredBuffer, pitchData.periodSamples);
-        const cpp = VoiceBiometricsPhysics.calculateCPP(this.filteredBuffer, this.ctx.sampleRate);
-        const lpc = VoiceBiometricsPhysics.calculateLpcAreaFunction(this.filteredBuffer, 16);
-
-        const diagnosis = VoiceBiometricsPhysics.diagnosePathologies({
-          f0Hz: pitchData.f0,
-          jitterPercent: pert.jitterLoc,
-          shimmerPercent: pert.shimmerLoc,
-          hnrDb: hnr,
-          cppDb: cpp,
-          fcr: 1.0,
-          tremorDepthPercent: 0,
-        });
-
-        const rx = VoiceBiometricsPhysics.generatePrescription({
-          f0Hz: pitchData.f0,
-          healthStatus: diagnosis.healthStatus,
-          formants: lpc.formants,
-        });
-
-        const dsi = VoiceBiometricsPhysics.calculateDSI({ jitterPercent: pert.jitterLoc });
-        const avqi = VoiceBiometricsPhysics.calculateAVQI({
-          cppDb: cpp,
-          hnrDb: hnr,
-          shimmerPercent: pert.shimmerLoc,
-          shimmerDb: pert.shimmerDb,
-        });
-
-        this.cachedReport = {
-          f0Hz: Number(pitchData.f0.toFixed(1)),
-          pitchConfidence: Number(pitchData.confidence.toFixed(2)),
-          jitterPercent: Number(pert.jitterLoc.toFixed(2)),
-          jitterRapPercent: Number(pert.jitterRap.toFixed(2)),
-          jitterPpq5Percent: Number(pert.jitterPpq5.toFixed(2)),
-          jitterDdpPercent: Number(pert.jitterDdp.toFixed(2)),
-          shimmerPercent: Number(pert.shimmerLoc.toFixed(2)),
-          shimmerDb: Number(pert.shimmerDb.toFixed(2)),
-          shimmerApq3Percent: Number(pert.shimmerApq3.toFixed(2)),
-          shimmerApq5Percent: Number(pert.shimmerApq5.toFixed(2)),
-          shimmerApq11Percent: Number(pert.shimmerApq11.toFixed(2)),
-          shimmerDdaPercent: Number(pert.shimmerDda.toFixed(2)),
-          hnrDb: Number(hnr.toFixed(1)),
-          cppDb: Number(cpp.toFixed(1)),
-          formantsHz: lpc.formants,
-          fcr: 1.0,
-          dsiScore: dsi,
-          avqiScore: avqi,
-          vocalTractRadiiCm: lpc.radiiCm,
-          tremorFreqHz: 0.0,
-          tremorDepthPercent: 0.0,
-          diagnosticHallmarks: diagnosis.hallmarks,
-          healthStatus: diagnosis.healthStatus,
-          soundMedicinePrescription: rx,
-        };
-      } else {
-        this.lastUpdateTimestamp = now;
       }
 
       return this.cachedReport;

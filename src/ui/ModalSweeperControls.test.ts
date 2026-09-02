@@ -72,4 +72,71 @@ describe('ModalSweeperControls UI & Resonant Frequency', () => {
     const noteNameEl = el.querySelector('#modal-note-name');
     expect(noteNameEl?.textContent).toBe('C5');
   });
+
+  it('should increment and decrement modes when stepper buttons are clicked', () => {
+    const el = controls.getElement();
+    
+    // Find increment button for n (axis=n, dir=1)
+    const btnIncN = el.querySelector('button[data-axis="n"][data-dir="1"]') as HTMLButtonElement;
+    expect(btnIncN).toBeDefined();
+    btnIncN.click();
+
+    expect(controls.getState().n).toBe(2);
+    const badgeN = el.querySelector('#badge-mode-n');
+    expect(badgeN?.textContent?.trim()).toBe('2');
+
+    // Find decrement button for n (axis=n, dir=-1)
+    const btnDecN = el.querySelector('button[data-axis="n"][data-dir="-1"]') as HTMLButtonElement;
+    expect(btnDecN).toBeDefined();
+    btnDecN.click();
+
+    expect(controls.getState().n).toBe(1);
+    expect(el.querySelector('#badge-mode-n')?.textContent?.trim()).toBe('1');
+  });
+
+  it('should render distinct axis theme classes on modal sliders', () => {
+    const el = controls.getElement();
+    const sliderN = el.querySelector('#slider-mode-n');
+    const sliderM = el.querySelector('#slider-mode-m');
+    const sliderL = el.querySelector('#slider-mode-l');
+
+    expect(sliderN?.classList.contains('slider-cyan')).toBe(true);
+    expect(sliderM?.classList.contains('slider-blue')).toBe(true);
+    expect(sliderL?.classList.contains('slider-purple')).toBe(true);
+  });
+
+  it('should cleanly hide audition tone button, coupling toggle, and modal sliders in music mode while preserving shape controls', () => {
+    controls.setMode('music');
+    const el = controls.getElement();
+
+    expect(controls.getMode()).toBe('music');
+    // Audition tone button, pitch telemetry pill, coupling toggle, and manual (n, m, l) sliders should NOT be rendered in Music mode
+    expect(el.querySelector('#btn-audition-eigenfrequency')).toBeNull();
+    expect(el.querySelector('#modal-freq-val')).toBeNull();
+    expect(el.querySelector('#btn-toggle-coupling')).toBeNull();
+    expect(el.querySelector('#slider-mode-n')).toBeNull();
+
+    // Summary badge in header displays clean geometry and trapping mode
+    const summary = el.querySelector('#modal-header-summary');
+    expect(summary?.textContent?.trim()).toBe('CUBE • NODES');
+
+    // Chamber shape buttons, boundary, trapping, and 1-click presets remain fully accessible
+    expect(el.querySelectorAll('.btn-geometry').length).toBe(3);
+    expect(el.querySelector('#btn-enclosure-glass')).not.toBeNull();
+    expect(el.querySelector('#btn-trap-nodes')).not.toBeNull();
+    expect(el.querySelectorAll('.btn-preset-card').length).toBe(7);
+  });
+
+  it('should restore modal sliders, audition tone button, and frequency telemetry when switched back to frequency mode', () => {
+    controls.setMode('music');
+    expect(controls.getElement().querySelector('#btn-audition-eigenfrequency')).toBeNull();
+    expect(controls.getElement().querySelector('#slider-mode-n')).toBeNull();
+
+    controls.setMode('frequency');
+    const el = controls.getElement();
+    expect(el.querySelector('#btn-audition-eigenfrequency')).not.toBeNull();
+    expect(el.querySelector('#modal-freq-val')).not.toBeNull();
+    expect(el.querySelector('#btn-toggle-coupling')).not.toBeNull();
+    expect(el.querySelector('#slider-mode-n')).not.toBeNull();
+  });
 });

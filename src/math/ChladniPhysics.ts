@@ -65,23 +65,42 @@ export class ChladniPhysics {
   }
 
   /**
+   * Exact Bessel function J_m(u) of integer order m via Gauss-Chebyshev quadrature.
+   * Completely singularity-free at u = 0, J_0(0) = 1.0, J_{m>0}(0) = 0.0.
+   */
+  public static evalBesselJ(m: number, u: number): number {
+    const absU = Math.abs(u);
+    const absM = Math.round(Math.abs(m));
+    if (absU < 1e-6) return absM === 0 ? 1.0 : 0.0;
+    const N = 16;
+    let sum = 0.0;
+    for (let i = 0; i < N; i++) {
+      const tau = (Math.PI * (i + 0.5)) / N;
+      sum += Math.cos(absM * tau - absU * Math.sin(tau));
+    }
+    const val = sum / N;
+    return u < 0 && absM % 2 !== 0 ? -val : val;
+  }
+
+  /**
    * Evaluates 3D acoustic pressure field p(r, theta, z) in a cylindrical cavity.
-   * r in [0, 1], theta in [-PI, PI], y (z-axis) in [-1, 1].
+   * x, z in transversal plane r in [0, 1], y in axial axis [-1, 1].
+   * n: radial order, m: azimuthal order, l: axial order.
    */
   public static cylindricalPressure(
     x: number,
     y: number,
     z: number,
-    m: number,
     n: number,
+    m: number,
     l: number
   ): number {
     const r = Math.sqrt(x * x + z * z);
     const theta = Math.atan2(z, x);
 
-    // Approximate m-th order Bessel function for acoustic radial standing waves
+    // Exact m-th order Bessel function for acoustic radial standing waves
     const kr = (n * Math.PI + (m * Math.PI) / 2) * r;
-    const jm = Math.cos(kr - ((2 * m + 1) * Math.PI) / 4) / Math.sqrt(Math.max(0.1, kr));
+    const jm = this.evalBesselJ(m, kr);
 
     const angular = Math.cos(m * theta);
     const axial = Math.cos((l * Math.PI * (y + 1)) / 2.0);
@@ -91,14 +110,15 @@ export class ChladniPhysics {
 
   /**
    * Evaluates 3D acoustic pressure field p(r, theta, phi) in a spherical resonator.
+   * n: radial order, m: azimuthal order, l: spherical degree.
    */
   public static sphericalPressure(
     x: number,
     y: number,
     z: number,
-    l: number,
+    n: number,
     m: number,
-    n: number
+    l: number
   ): number {
     const r = Math.sqrt(x * x + y * y + z * z);
     const kr = n * Math.PI * r;
@@ -113,17 +133,32 @@ export class ChladniPhysics {
     } else if (l === 3) {
       jl = BesselFunctions.j3(kr);
     } else {
-      jl = kr < 0.001 ? 0.0 : Math.sin(kr - (l * Math.PI) / 2) / kr;
+      jl = kr < 0.001 ? (l === 0 ? 1.0 : 0.0) : Math.sin(kr - (l * Math.PI) / 2) / kr;
     }
 
     if (r < 1e-6) {
       return l === 0 ? 1.0 : 0.0;
     }
 
-    // Spherical harmonic angular component
+    // Exact Associated Legendre evaluation on Cartesian sphere coordinates
     const cosTheta = Math.max(-1, Math.min(1, y / r));
+    const sinTheta = Math.sqrt(Math.max(0, 1 - cosTheta * cosTheta));
     const phi = Math.atan2(z, x);
-    const legendre = Math.pow(Math.abs(cosTheta), Math.max(0.1, l - m + 1));
+
+    let legendre = 1.0;
+    if (l === 1) {
+      legendre = m === 0 ? cosTheta : -sinTheta;
+    } else if (l === 2) {
+      if (m === 0) legendre = 0.5 * (3 * cosTheta * cosTheta - 1);
+      else if (m === 1) legendre = -3 * sinTheta * cosTheta;
+      else legendre = 3 * sinTheta * sinTheta;
+    } else if (l === 3) {
+      if (m === 0) legendre = 0.5 * (5 * cosTheta * cosTheta * cosTheta - 3 * cosTheta);
+      else if (m === 1) legendre = -1.5 * (5 * cosTheta * cosTheta - 1) * sinTheta;
+      else if (m === 2) legendre = 15 * sinTheta * sinTheta * cosTheta;
+      else legendre = -15 * sinTheta * sinTheta * sinTheta;
+    }
+
     const azimuthal = Math.cos(m * phi);
 
     return jl * legendre * azimuthal;

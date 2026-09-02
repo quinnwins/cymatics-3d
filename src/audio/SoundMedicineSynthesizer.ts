@@ -86,10 +86,8 @@ export class SoundMedicineSynthesizer {
   ): void {
     const now = this.ctx.currentTime;
 
-    // Smoothly stop existing playback
-    if (this.isPlaying) {
-      this.stop(0.08);
-    }
+    // Immediately stop and disconnect existing active voices without race conditions
+    this.disconnectAndClearActiveVoices();
 
     this.activePrescription = prescription;
     this.isPlaying = true;
@@ -129,11 +127,8 @@ export class SoundMedicineSynthesizer {
     });
 
     // ------------------------------------------------------------------------
-    // Tier 3: Pure Dichotic Stereo Binaural Entrainment (-1.0 Left / +1.0 Right)
+    // Tier 3: Pure Dichotic Stereo Binaural Entrainment
     // ------------------------------------------------------------------------
-    const baseTone = prescription.baseToneHz;
-    const beatFreq = prescription.binauralBeatHz;
-
     this.binauralLeftOsc = this.ctx.createOscillator();
     this.binauralRightOsc = this.ctx.createOscillator();
     this.binauralLeftGain = this.ctx.createGain();
@@ -141,17 +136,20 @@ export class SoundMedicineSynthesizer {
 
     this.binauralLeftOsc.type = 'sine';
     this.binauralRightOsc.type = 'sine';
-    this.binauralLeftOsc.frequency.setValueAtTime(baseTone, now);
-    this.binauralRightOsc.frequency.setValueAtTime(baseTone + beatFreq, now);
+    this.binauralLeftOsc.frequency.setValueAtTime(prescription.baseToneHz, now);
+    this.binauralRightOsc.frequency.setValueAtTime(
+      prescription.baseToneHz + prescription.binauralBeatHz,
+      now
+    );
 
-    this.binauralLeftGain.gain.setValueAtTime(0.28, now);
-    this.binauralRightGain.gain.setValueAtTime(0.28, now);
+    this.binauralLeftGain.gain.setValueAtTime(0.35, now);
+    this.binauralRightGain.gain.setValueAtTime(0.35, now);
 
-    if (this.ctx.createStereoPanner) {
+    if (typeof this.ctx.createStereoPanner === 'function') {
       this.binauralLeftPanner = this.ctx.createStereoPanner();
       this.binauralRightPanner = this.ctx.createStereoPanner();
-      this.binauralLeftPanner.pan.setValueAtTime(-1.0, now); // Pure Left
-      this.binauralRightPanner.pan.setValueAtTime(1.0, now);  // Pure Right
+      this.binauralLeftPanner.pan.setValueAtTime(-1.0, now);
+      this.binauralRightPanner.pan.setValueAtTime(1.0, now);
 
       this.binauralLeftOsc.connect(this.binauralLeftGain);
       this.binauralLeftGain.connect(this.binauralLeftPanner);
@@ -171,20 +169,19 @@ export class SoundMedicineSynthesizer {
     this.binauralRightOsc.start(now);
 
     // ------------------------------------------------------------------------
-    // Tier 4: Golden Ratio Phi Overtones (Phi = 1.61803398875)
+    // Tier 4: Golden Ratio (Phi = 1.618) & Solfeggio Harmonic Overtones
     // ------------------------------------------------------------------------
     this.goldenOscs = [];
     this.goldenGains = [];
-    const phi = 1.61803398875;
-    const goldenFrequencies = [baseTone * phi, baseTone * (phi * phi) * 0.5];
-
-    goldenFrequencies.forEach((freq, i) => {
+    const goldenOrders = [1.618, 2.618, 4.236];
+    goldenOrders.forEach((multiplier, idx) => {
+      const freq = prescription.baseToneHz * multiplier;
       if (freq < 7500) {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, now);
-        gain.gain.setValueAtTime(0.12 / (i + 1), now);
+        gain.gain.setValueAtTime(0.10 / (idx + 1), now);
 
         osc.connect(gain);
         gain.connect(this.outputBus);
@@ -196,7 +193,7 @@ export class SoundMedicineSynthesizer {
     });
 
     // ------------------------------------------------------------------------
-    // Tier 5: Raised-Cosine Isochronic Amplitude Pulse (LFO)
+    // Tier 5: Smooth Isochronic Amplitude Pulsing (Theta / Alpha Entrainment)
     // ------------------------------------------------------------------------
     if (prescription.isochronicPulseRateHz > 0) {
       this.isochronicLfo = this.ctx.createOscillator();
@@ -205,8 +202,8 @@ export class SoundMedicineSynthesizer {
       this.isochronicLfo.type = 'sine';
       this.isochronicLfo.frequency.setValueAtTime(prescription.isochronicPulseRateHz, now);
 
-      // Subtle 15% amplitude modulation depth
-      this.isochronicGain.gain.setValueAtTime(0.15, now);
+      this.isochronicGain.gain.setValueAtTime(0.18, now);
+
       this.isochronicLfo.connect(this.isochronicGain);
       this.isochronicGain.connect(this.outputBus.gain);
       this.isochronicLfo.start(now);
@@ -220,56 +217,76 @@ export class SoundMedicineSynthesizer {
     this.masterGain.gain.exponentialRampToValueAtTime(Math.max(0.01, volume), now + 0.12);
   }
 
+  private disconnectAndClearActiveVoices(): void {
+    if (this.cleanupTimer !== null) {
+      window.clearTimeout(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+
+    const stopAndDisconnect = (node: AudioNode | null) => {
+      if (!node) return;
+      try {
+        if (typeof (node as any).stop === 'function') (node as any).stop();
+        node.disconnect();
+      } catch {}
+    };
+
+    stopAndDisconnect(this.carrierOsc);
+    stopAndDisconnect(this.carrierGain);
+    this.carrierOsc = null;
+    this.carrierGain = null;
+
+    stopAndDisconnect(this.binauralLeftOsc);
+    stopAndDisconnect(this.binauralRightOsc);
+    stopAndDisconnect(this.binauralLeftPanner);
+    stopAndDisconnect(this.binauralRightPanner);
+    stopAndDisconnect(this.binauralLeftGain);
+    stopAndDisconnect(this.binauralRightGain);
+    this.binauralLeftOsc = null;
+    this.binauralRightOsc = null;
+    this.binauralLeftPanner = null;
+    this.binauralRightPanner = null;
+    this.binauralLeftGain = null;
+    this.binauralRightGain = null;
+
+    this.formantOscs.forEach(stopAndDisconnect);
+    this.formantGains.forEach(stopAndDisconnect);
+    this.formantOscs = [];
+    this.formantGains = [];
+
+    this.goldenOscs.forEach(stopAndDisconnect);
+    this.goldenGains.forEach(stopAndDisconnect);
+    this.goldenOscs = [];
+    this.goldenGains = [];
+
+    stopAndDisconnect(this.isochronicLfo);
+    stopAndDisconnect(this.isochronicGain);
+    this.isochronicLfo = null;
+    this.isochronicGain = null;
+  }
+
   public stop(fadeDuration = 0.15): void {
     if (!this.isPlaying && !this.carrierOsc) return;
 
     const now = this.ctx.currentTime;
-    const stopTime = now + fadeDuration;
+    const dur = Math.max(0.005, fadeDuration);
+    const stopTime = now + dur;
 
     this.masterGain.gain.cancelScheduledValues(now);
     this.masterGain.gain.setValueAtTime(Math.max(0.0001, this.masterGain.gain.value), now);
     this.masterGain.gain.exponentialRampToValueAtTime(0.0001, stopTime);
 
-    const carrier = this.carrierOsc;
-    const binauralL = this.binauralLeftOsc;
-    const binauralR = this.binauralRightOsc;
-    const formants = [...this.formantOscs];
-    const golden = [...this.goldenOscs];
-    const lfo = this.isochronicLfo;
-
     if (this.cleanupTimer !== null) {
       window.clearTimeout(this.cleanupTimer);
+      this.cleanupTimer = null;
     }
 
     this.cleanupTimer = window.setTimeout(() => {
-      try {
-        carrier?.stop();
-        carrier?.disconnect();
-        binauralL?.stop();
-        binauralL?.disconnect();
-        binauralR?.stop();
-        binauralR?.disconnect();
-        formants.forEach((o) => {
-          o.stop();
-          o.disconnect();
-        });
-        golden.forEach((o) => {
-          o.stop();
-          o.disconnect();
-        });
-        lfo?.stop();
-        lfo?.disconnect();
-      } catch (e) {
-        // Safe disconnection fallback
-      }
-    }, Math.round((fadeDuration + 0.05) * 1000));
+      this.disconnectAndClearActiveVoices();
+      this.isPlaying = false;
+      this.cleanupTimer = null;
+    }, Math.round((dur + 0.05) * 1000));
 
-    this.carrierOsc = null;
-    this.binauralLeftOsc = null;
-    this.binauralRightOsc = null;
-    this.isochronicLfo = null;
-    this.formantOscs = [];
-    this.goldenOscs = [];
     this.isPlaying = false;
   }
 

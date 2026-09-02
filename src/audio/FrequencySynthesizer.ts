@@ -1,7 +1,8 @@
 /**
  * Pure Frequency & Harmonic Series Audio Synthesizer
  * Generates fundamental frequency f0, overtones 1f0..8f0,
- * and Dual-Carrier Active Acoustic Phase Cancellation & Heterodyne Beat Modulation.
+ * Stereo Binaural Beat Carrier modulation (Left/Right ear offset),
+ * and Active Acoustic Phase Cancellation & Heterodyne Beat Modulation.
  */
 
 export type WaveformType = 'sine' | 'triangle' | 'sawtooth' | 'square' | 'organ';
@@ -23,26 +24,34 @@ export class FrequencySynthesizer {
   private harmonicOscs: OscillatorNode[] = [];
   private harmonicGains: GainNode[] = [];
 
+  // Stereo Binaural Beats Sub-Graph
+  private binauralMerger: ChannelMergerNode | null = null;
+  private binauralLeftPanner: StereoPannerNode | null = null;
+  private binauralRightPanner: StereoPannerNode | null = null;
+  private binauralRightOsc: OscillatorNode | null = null;
+  private binauralRightGain: GainNode | null = null;
+  private binauralBeatOffset = 7.83; // Schumann default
+  private isBinauralActive = false;
+
   // Therapy Dual-Oscillator & Heterodyne System
   private therapyMasterGain: GainNode;
   private therapyPrimaryGain: GainNode;
   private therapyInversionGain: GainNode;
   private heterodyneLfo: OscillatorNode | null = null;
   private heterodyneGain: GainNode | null = null;
-  private isTherapyActive = false;
 
   private isPlaying = false;
   public frequency = 432; // Default Solfeggio frequency
   public waveform: WaveformType = 'sine';
   public harmonics: HarmonicWeights = {
     h1: 1.0,
-    h2: 0.5,
-    h3: 0.25,
-    h4: 0.12,
-    h5: 0.06,
-    h6: 0.03,
-    h7: 0.015,
-    h8: 0.008,
+    h2: 0.467,
+    h3: 0.299,
+    h4: 0.218,
+    h5: 0.170,
+    h6: 0.139,
+    h7: 0.117,
+    h8: 0.101,
   };
 
   constructor(audioContext: AudioContext, destinationNode: AudioNode) {
@@ -60,6 +69,7 @@ export class FrequencySynthesizer {
     this.therapyInversionGain.gain.setValueAtTime(-1.0, this.ctx.currentTime);
 
     this.setupHarmonicGraph();
+    this.setupBinauralGraph();
   }
 
   private setupHarmonicGraph(): void {
@@ -72,7 +82,10 @@ export class FrequencySynthesizer {
       osc.frequency.setValueAtTime(this.frequency * i, this.ctx.currentTime);
 
       const weight = (this.harmonics as unknown as Record<string, number>)[`h${i}`] || 0;
-      gain.gain.setValueAtTime(weight * 0.25, this.ctx.currentTime);
+      const totalWeight = Object.values(this.harmonics).reduce((a, b) => a + b, 0);
+      const normalizedWeight = (weight / Math.max(1.0, totalWeight)) * 0.5;
+
+      gain.gain.setValueAtTime(normalizedWeight, this.ctx.currentTime);
 
       osc.connect(gain);
       gain.connect(this.masterGain);
@@ -88,6 +101,36 @@ export class FrequencySynthesizer {
     }
   }
 
+  private setupBinauralGraph(): void {
+    try {
+      if (typeof this.ctx.createStereoPanner === 'function') {
+        this.binauralLeftPanner = this.ctx.createStereoPanner();
+        this.binauralLeftPanner.pan.setValueAtTime(-0.9, this.ctx.currentTime);
+
+        this.binauralRightPanner = this.ctx.createStereoPanner();
+        this.binauralRightPanner.pan.setValueAtTime(0.9, this.ctx.currentTime);
+
+        this.binauralRightOsc = this.ctx.createOscillator();
+        this.binauralRightGain = this.ctx.createGain();
+        this.binauralRightGain.gain.setValueAtTime(0, this.ctx.currentTime);
+
+        this.binauralRightOsc.type = 'sine';
+        this.binauralRightOsc.frequency.setValueAtTime(this.frequency + this.binauralBeatOffset, this.ctx.currentTime);
+        this.binauralRightOsc.connect(this.binauralRightGain);
+        this.binauralRightGain.connect(this.binauralRightPanner);
+        this.binauralRightPanner.connect(this.masterGain);
+
+        this.binauralRightOsc.start();
+      }
+    } catch {
+      // Fallback if StereoPannerNode is not supported in environment
+    }
+  }
+
+  public getFrequency(): number {
+    return this.frequency;
+  }
+
   public setFrequency(freq: number, rampTime = 0.04): void {
     this.frequency = Math.max(1, Math.min(22000, freq));
     const now = this.ctx.currentTime;
@@ -98,16 +141,43 @@ export class FrequencySynthesizer {
       this.harmonicOscs[i].frequency.cancelScheduledValues(now);
       this.harmonicOscs[i].frequency.setTargetAtTime(targetFreq, now, rampTime);
     }
+
+    if (this.binauralRightOsc) {
+      const rightTarget = Math.min(22000, this.frequency + this.binauralBeatOffset);
+      this.binauralRightOsc.frequency.cancelScheduledValues(now);
+      this.binauralRightOsc.frequency.setTargetAtTime(rightTarget, now, rampTime);
+    }
+  }
+
+  public setBinauralBeat(offsetHz: number, active: boolean): void {
+    this.binauralBeatOffset = Math.max(0.1, Math.min(60, offsetHz));
+    this.isBinauralActive = active;
+    const now = this.ctx.currentTime;
+
+    if (this.binauralRightOsc) {
+      const rightTarget = Math.min(22000, this.frequency + this.binauralBeatOffset);
+      this.binauralRightOsc.frequency.cancelScheduledValues(now);
+      this.binauralRightOsc.frequency.setTargetAtTime(rightTarget, now, 0.04);
+    }
+
+    if (this.binauralRightGain) {
+      this.binauralRightGain.gain.cancelScheduledValues(now);
+      this.binauralRightGain.gain.setTargetAtTime(active ? 0.35 : 0, now, 0.05);
+    }
   }
 
   public setHarmonicWeight(index: number, weight: number): void {
     const key = `h${index}` as keyof HarmonicWeights;
     this.harmonics[key] = Math.max(0, Math.min(1, weight));
 
-    if (this.harmonicGains[index - 1]) {
+    const totalWeight = Object.values(this.harmonics).reduce((a, b) => a + b, 0);
+
+    for (let i = 0; i < this.harmonicGains.length; i++) {
+      const w = (this.harmonics as unknown as Record<string, number>)[`h${i + 1}`] || 0;
+      const normalizedWeight = (w / Math.max(1.0, totalWeight)) * 0.5;
       const now = this.ctx.currentTime;
-      this.harmonicGains[index - 1].gain.cancelScheduledValues(now);
-      this.harmonicGains[index - 1].gain.setTargetAtTime(this.harmonics[key] * 0.25, now, 0.05);
+      this.harmonicGains[i].gain.cancelScheduledValues(now);
+      this.harmonicGains[i].gain.setTargetAtTime(normalizedWeight, now, 0.05);
     }
   }
 
@@ -116,6 +186,9 @@ export class FrequencySynthesizer {
     const oscType: OscillatorType = type === 'organ' ? 'sine' : type;
     for (let i = 0; i < this.harmonicOscs.length; i++) {
       this.harmonicOscs[i].type = oscType;
+    }
+    if (this.binauralRightOsc) {
+      this.binauralRightOsc.type = oscType;
     }
   }
 

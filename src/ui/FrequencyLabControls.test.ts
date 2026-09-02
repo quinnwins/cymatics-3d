@@ -1,170 +1,74 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AudioEngine } from '../audio/AudioEngine';
 import { FrequencyLabControls } from './FrequencyLabControls';
-import type { VisualizerEngine } from '../visualizer/VisualizerEngine';
 
-function createMockVisualizer(): VisualizerEngine {
-  const vis = {
-    cymaticsVisibilityMode: 'both' as 'both' | 'particles' | 'droplet',
-    setCymaticsVisibilityMode: vi.fn((mode: 'both' | 'particles' | 'droplet') => {
-      vis.cymaticsVisibilityMode = mode;
-    }),
-    cymaticsMesh: {
-      setFrequency: vi.fn(),
-      setChamberType: vi.fn(),
-      setAutoModal: vi.fn(),
-    },
-    gpuAcousticParticles: {
-      setChamberGeometry: vi.fn(),
-      setChladniMode: vi.fn(),
-    },
-    volumetricChladni: {
-      setChamberType: vi.fn(),
-    },
-    chamberEnclosure: {
-      setChamberType: vi.fn(),
-      setVisible: vi.fn(),
-    },
-  } as unknown as VisualizerEngine;
-  return vis;
-}
-
-describe('FrequencyLabControls UI & Option Parity', () => {
+describe('FrequencyLabControls UI - Precision Harmonic Synthesizer Deck', () => {
   let audioEngine: AudioEngine;
-  let visualizer: VisualizerEngine;
   let controls: FrequencyLabControls;
 
   beforeEach(() => {
     audioEngine = new AudioEngine();
-    visualizer = createMockVisualizer();
-    controls = new FrequencyLabControls(audioEngine, visualizer);
+    controls = new FrequencyLabControls(audioEngine);
   });
 
-  it('initializes with default 432 Hz, cube geometry, glass enclosure, and node trapping', () => {
+  it('initializes with default 432 Hz (A4 Note) and pure tone generator controls', () => {
     const el = controls.getElement();
     expect(controls.getFrequency()).toBe(432);
-    expect(controls.getGeometry()).toBe('cube');
-    expect(controls.getShowEnclosure()).toBe(true);
-    expect(controls.getTrappingMode()).toBe('nodes');
-    expect(controls.getAudioCoupled()).toBe(true);
-    expect(controls.getCymaticsVisibilityMode()).toBe('both');
 
     const numInput = el.querySelector('#freq-number-input') as HTMLInputElement;
     expect(numInput.value).toBe('432');
 
-    const cubeBtn = el.querySelector('[data-geometry="cube"]');
-    expect(cubeBtn?.classList.contains('glass-btn-active')).toBe(true);
+    const noteName = el.querySelector('#label-note-name');
+    expect(noteName?.textContent).toBe('A4');
 
-    const glassBtn = el.querySelector('#btn-enclosure-glass');
-    expect(glassBtn?.classList.contains('glass-btn-active')).toBe(true);
-
-    const allLayersBtn = el.querySelector('[data-cymatics-vis="both"]');
-    expect(allLayersBtn?.classList.contains('glass-btn-active')).toBe(true);
+    const waveformSelect = el.querySelector('#waveform-select') as HTMLSelectElement;
+    expect(waveformSelect.value).toBe('sine');
   });
 
-  it('renders all chamber physics & boundary controls matching 3D Cymatics', () => {
+  it('updates frequency when stepping via multiplier (x2, div2) and delta buttons (+1Hz, -1Hz, +10Hz, -10Hz)', () => {
     const el = controls.getElement();
+    controls.setFrequency(432);
 
-    // Geometry options
-    expect(el.querySelector('[data-geometry="cube"]')).not.toBeNull();
-    expect(el.querySelector('[data-geometry="cylinder"]')).not.toBeNull();
-    expect(el.querySelector('[data-geometry="sphere"]')).not.toBeNull();
+    const mult2 = el.querySelector('[data-multiplier="2"]') as HTMLButtonElement;
+    mult2.click();
+    expect(controls.getFrequency()).toBe(864);
 
-    // Chamber boundary
-    expect(el.querySelector('#btn-enclosure-glass')).not.toBeNull();
-    expect(el.querySelector('#btn-enclosure-free')).not.toBeNull();
+    const div2 = el.querySelector('[data-multiplier="0.5"]') as HTMLButtonElement;
+    div2.click();
+    expect(controls.getFrequency()).toBe(432);
 
-    // Specimen display
-    expect(el.querySelectorAll('.btn-freq-vis').length).toBe(3);
-    expect(el.querySelector('[data-cymatics-vis="both"]')).not.toBeNull();
-    expect(el.querySelector('[data-cymatics-vis="particles"]')).not.toBeNull();
-    expect(el.querySelector('[data-cymatics-vis="droplet"]')).not.toBeNull();
+    const inc1 = el.querySelector('[data-delta-hz="1"]') as HTMLButtonElement;
+    inc1.click();
+    expect(controls.getFrequency()).toBe(433);
 
-    // Particle trapping
-    expect(el.querySelector('#btn-trap-nodes')).not.toBeNull();
-    expect(el.querySelector('#btn-trap-antinodes')).not.toBeNull();
-
-    // Audio sync toggle
-    expect(el.querySelector('#btn-toggle-coupling')).not.toBeNull();
+    const dec1 = el.querySelector('[data-delta-hz="-1"]') as HTMLButtonElement;
+    dec1.click();
+    expect(controls.getFrequency()).toBe(432);
   });
 
-  it('updates visualizer and state when chamber geometry is changed', () => {
+  it('sets Solfeggio frequency on preset chip click', () => {
     const el = controls.getElement();
-    const cylinderBtn = el.querySelector('[data-geometry="cylinder"]') as HTMLElement;
-    cylinderBtn.click();
+    const chip528 = el.querySelector('[data-hz="528"]') as HTMLButtonElement;
+    expect(chip528).not.toBeNull();
 
-    expect(controls.getGeometry()).toBe('cylinder');
-    expect(visualizer.cymaticsMesh.setChamberType).toHaveBeenCalledWith('cylinder');
-    expect(visualizer.gpuAcousticParticles.setChamberGeometry).toHaveBeenCalledWith('cylinder');
-    expect(visualizer.volumetricChladni.setChamberType).toHaveBeenCalledWith(1);
-    expect(visualizer.chamberEnclosure.setChamberType).toHaveBeenCalledWith('cylinder');
+    chip528.click();
+    expect(controls.getFrequency()).toBe(528);
+
+    const noteName = el.querySelector('#label-note-name');
+    expect(noteName?.textContent).toBe('C5');
   });
 
-  it('updates visualizer and state when boundary enclosure is changed', () => {
+  it('toggles sound generation on Play/Pause button click', async () => {
     const el = controls.getElement();
-    const freeBtn = el.querySelector('#btn-enclosure-free') as HTMLElement;
-    freeBtn.click();
+    const playBtn = el.querySelector('#btn-freq-sound-toggle') as HTMLButtonElement;
 
-    expect(controls.getShowEnclosure()).toBe(false);
-    expect(visualizer.chamberEnclosure.setVisible).toHaveBeenCalledWith(false);
-  });
+    const initSpy = vi.spyOn(audioEngine, 'initialize').mockResolvedValue(undefined);
+    const playFreqSpy = vi.spyOn(audioEngine, 'playFrequency').mockResolvedValue(undefined);
 
-  it('updates visualizer and button UI active state when specimen visibility layer is clicked', () => {
-    const el = controls.getElement();
-    const bothBtn = el.querySelector('[data-cymatics-vis="both"]') as HTMLElement;
-    const dustBtn = el.querySelector('[data-cymatics-vis="particles"]') as HTMLElement;
-    const dropletBtn = el.querySelector('[data-cymatics-vis="droplet"]') as HTMLElement;
+    playBtn.click();
+    await Promise.resolve();
 
-    expect(bothBtn.classList.contains('glass-btn-active')).toBe(true);
-    expect(dustBtn.classList.contains('glass-btn-active')).toBe(false);
-
-    dustBtn.click();
-
-    expect(controls.getCymaticsVisibilityMode()).toBe('particles');
-    expect(visualizer.setCymaticsVisibilityMode).toHaveBeenCalledWith('particles');
-
-    const updatedBothBtn = el.querySelector('[data-cymatics-vis="both"]') as HTMLElement;
-    const updatedDustBtn = el.querySelector('[data-cymatics-vis="particles"]') as HTMLElement;
-    expect(updatedDustBtn.classList.contains('glass-btn-active')).toBe(true);
-    expect(updatedBothBtn.classList.contains('glass-btn-active')).toBe(false);
-
-    // Click droplet
-    updatedDustBtn.closest('.glass-panel')?.querySelector('[data-cymatics-vis="droplet"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(controls.getCymaticsVisibilityMode()).toBe('droplet');
-    const updatedDropletBtn = el.querySelector('[data-cymatics-vis="droplet"]') as HTMLElement;
-    expect(updatedDropletBtn.classList.contains('glass-btn-active')).toBe(true);
-  });
-
-  it('updates trapping mode and visualizer when trapping buttons are clicked', () => {
-    const el = controls.getElement();
-    const antinodesBtn = el.querySelector('#btn-trap-antinodes') as HTMLElement;
-    antinodesBtn.click();
-
-    expect(controls.getTrappingMode()).toBe('antinodes');
-    expect(visualizer.gpuAcousticParticles.setChladniMode).toHaveBeenCalledWith('inverse');
-  });
-
-  it('responds to global modal-state-changed event', () => {
-    const el = controls.getElement();
-    window.dispatchEvent(
-      new CustomEvent('modal-state-changed', {
-        detail: {
-          geometry: 'sphere',
-          trappingMode: 'antinodes',
-          showEnclosure: false,
-          audioCoupled: false,
-          cymaticsVisibilityMode: 'droplet',
-        },
-      })
-    );
-
-    expect(controls.getGeometry()).toBe('sphere');
-    expect(controls.getTrappingMode()).toBe('antinodes');
-    expect(controls.getShowEnclosure()).toBe(false);
-    expect(controls.getAudioCoupled()).toBe(false);
-    expect(controls.getCymaticsVisibilityMode()).toBe('droplet');
-
-    const dropletBtn = el.querySelector('[data-cymatics-vis="droplet"]');
-    expect(dropletBtn?.classList.contains('glass-btn-active')).toBe(true);
+    expect(initSpy).toHaveBeenCalled();
+    expect(playFreqSpy).toHaveBeenCalledWith(432);
   });
 });
