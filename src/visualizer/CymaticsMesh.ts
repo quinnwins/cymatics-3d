@@ -31,6 +31,8 @@ export class CymaticsMesh {
   private chamberTypeInt = 0; // 0=Cube, 1=Cylinder, 2=Sphere
   private fundamentalHz = 297.0;
   private acousticPressure = 1.0;
+  private temporalContextVisible = true;
+  private visualStyleListener?: EventListener;
 
   constructor(initialPalette: PalettePreset) {
     this.group = new THREE.Group();
@@ -124,6 +126,18 @@ export class CymaticsMesh {
     // 4. The song's rolling spectral history becomes a point-cloud sculpture.
     this.temporalSculpture = new TemporalSculpture(initialPalette);
     this.group.add(this.temporalSculpture.group);
+
+    // Sonic Memory is an acoustic lens, not merely a droplet decoration. Keep
+    // it available in plate and particle-only views while hiding it in other labs.
+    if (typeof window !== 'undefined') {
+      this.visualStyleListener = ((event: CustomEvent<{ style?: string }>) => {
+        const style = event.detail?.style;
+        this.temporalContextVisible = style === 'cymatics' || style === 'cymatics-2d';
+        this.temporalSculpture.setVisible(this.temporalContextVisible);
+        this.group.visible = this.mesh.visible || this.temporalContextVisible;
+      }) as EventListener;
+      window.addEventListener('visual-style-changed', this.visualStyleListener);
+    }
 
     this.group.position.y = 0.45;
   }
@@ -276,16 +290,20 @@ export class CymaticsMesh {
   }
 
   public setVisible(visible: boolean): void {
-    this.group.visible = visible;
+    this.mesh.visible = visible;
+    this.innerCore.visible = visible;
+    this.temporalSculpture.setVisible(this.temporalContextVisible);
+    this.group.visible = visible || this.temporalContextVisible;
   }
 
   public isVisible(): boolean {
-    return this.group.visible;
+    return this.mesh.visible;
   }
 
   public setDropletVisible(visible: boolean): void {
     this.mesh.visible = visible;
     this.innerCore.visible = visible;
+    this.group.visible = visible || this.temporalContextVisible;
   }
 
   public isDropletVisible(): boolean {
@@ -293,6 +311,9 @@ export class CymaticsMesh {
   }
 
   public dispose(): void {
+    if (this.visualStyleListener && typeof window !== 'undefined') {
+      window.removeEventListener('visual-style-changed', this.visualStyleListener);
+    }
     this.mesh.geometry.dispose();
     this.material.dispose();
     this.innerCore.geometry.dispose();
