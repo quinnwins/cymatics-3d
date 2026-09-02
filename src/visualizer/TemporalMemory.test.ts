@@ -35,12 +35,27 @@ describe('TemporalMemoryController', () => {
     expect(controller.shouldCapture()).toBe(true);
   });
 
-  it('compresses visible history for faster propagation media', () => {
+  it('stretches the history collected so far across the starting sculpture', () => {
+    const controller = new TemporalMemoryController();
+    controller.setMemorySeconds(8);
+
+    controller.recordFrame(1, 1, 1000);
+    controller.recordFrame(2, 1, 1020);
+    controller.recordFrame(3, 1, 1040);
+
+    const state = controller.getUniformState();
+    expect(state.availableFrames).toBe(3);
+    expect(state.memoryFrames).toBe(3);
+  });
+
+  it('compresses a populated history for faster propagation media', () => {
     const controller = new TemporalMemoryController();
     controller.setMemorySeconds(8);
     controller.setPropagation(1);
-    controller.recordFrame(1, 1, 1000);
-    controller.recordFrame(2, 1, 1020);
+
+    for (let index = 0; index < 400; index += 1) {
+      controller.recordFrame(index % 510, 1, 1000 + index * 21);
+    }
 
     controller.setMedium('air');
     const airFrames = controller.getUniformState().memoryFrames;
