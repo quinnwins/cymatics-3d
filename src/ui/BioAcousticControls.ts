@@ -191,7 +191,7 @@ export class BioAcousticControls {
       <!-- Collapsible Biophysics Specs HUD -->
       <div class="flex flex-col gap-1.5">
         <button id="bio-toggle-specs-btn" class="text-xs text-slate-400 hover:text-white flex items-center gap-1.5 font-medium transition-colors cursor-pointer w-fit">
-          <span class="text-[10px] font-mono">${this.isSpecsOpen ? '▼' : '▶'}</span>
+          <span class="text-[10px] font-mono">${this.isSpecsOpen ? '▲' : '▼'}</span>
           <span>Cell Mechanics & Acoustic Specs</span>
         </button>
 

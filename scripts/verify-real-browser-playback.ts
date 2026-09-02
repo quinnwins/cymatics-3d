@@ -90,9 +90,9 @@ async function verifyRealBrowserPlayback() {
     console.log(`   - Web Audio RMS: ${appleState.bands?.rms.toFixed(3)}`);
 
     if (appleState.paused || appleState.currentTime <= 0.1) {
-      throw new Error('❌ FAILED: Apple Music audio did not play!');
+      throw new Error('[ERROR] FAILED: Apple Music audio did not play!');
     }
-    console.log('✅ VERIFIED: Apple Music is playing actively in Google Chrome!\n');
+    console.log('[SUCCESS] VERIFIED: Apple Music is playing actively in Google Chrome!\n');
 
     // 5. Test Spotify Playback (Zero App Download Required)
     console.log('--- PART B: SPOTIFY ZERO-APP-DOWNLOAD PLAYBACK ---');
@@ -133,9 +133,9 @@ async function verifyRealBrowserPlayback() {
     console.log(`   - Web Audio RMS: ${spotifyState.bands?.rms.toFixed(3)}`);
 
     if (spotifyState.paused || spotifyState.currentTime <= 0.1) {
-      throw new Error('❌ FAILED: Spotify audio did not play!');
+      throw new Error('[ERROR] FAILED: Spotify audio did not play!');
     }
-    console.log('✅ VERIFIED: Spotify audio plays in Google Chrome with ZERO app download!\n');
+    console.log('[SUCCESS] VERIFIED: Spotify audio plays in Google Chrome with ZERO app download!\n');
 
     // 10. Test Spotify Universal Search
     console.log('10. Testing Spotify Search (Query: "Hans Zimmer")...');
@@ -170,9 +170,9 @@ async function verifyRealBrowserPlayback() {
       console.log(`   - isPlaying: ${searchSpotifyState.isPlaying}`);
 
       if (searchSpotifyState.paused || searchSpotifyState.currentTime <= 0.1) {
-        throw new Error('❌ FAILED: Spotify search result audio did not play!');
+        throw new Error('[ERROR] FAILED: Spotify search result audio did not play!');
       }
-      console.log('✅ VERIFIED: Spotify search playback succeeded with zero app download!\n');
+      console.log('[SUCCESS] VERIFIED: Spotify search playback succeeded with zero app download!\n');
     }
 
     // 11. Capture Screenshot
@@ -188,6 +188,6 @@ async function verifyRealBrowserPlayback() {
 }
 
 verifyRealBrowserPlayback().catch(err => {
-  console.error('\n❌ Fatal Browser Verification Error:', err);
+  console.error('\n[ERROR] Fatal Browser Verification Error:', err);
   process.exit(1);
 });
