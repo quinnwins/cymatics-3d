@@ -466,7 +466,7 @@ export class AnamnesisModel {
     const binWidth = sampleRate / fftSize;
     const chroma = new Array<number>(12).fill(0);
 
-    let zeroFilled = spectrum.length === 0;
+    let zeroFilled = true;
     let peakDb = -Infinity;
     let weightedLogFrequency = 0;
     let spectralWeight = 0;
