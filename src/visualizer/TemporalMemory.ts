@@ -135,12 +135,11 @@ export class TemporalMemoryController {
     const mediumInfluence = Math.pow(TEMPORAL_MEDIA.air.speedMs / medium.speedMs, 0.42);
     const requestedFrames =
       this.settings.memorySeconds * this.framesPerSecond * mediumInfluence / this.settings.propagation;
+    const lookbackFrames = this.settings.lookbackSeconds * this.framesPerSecond;
 
     return {
       texture: this.texture,
-      // Keep this raw. TemporalSculpture applies the user-facing Time Lens from
-      // the cross-chunk settings event, avoiding any dynamic-import state split.
-      historyHead: wrap01(this.historyHead),
+      historyHead: wrap01(this.historyHead - lookbackFrames / this.historyRows),
       historyRows: this.historyRows,
       historyRate: this.framesPerSecond,
       memoryFrames: clamp(requestedFrames, 2, this.historyRows - 2),
@@ -205,9 +204,44 @@ export class TemporalMemoryController {
   }
 
   private emit(): void {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent(TEMPORAL_MEMORY_EVENT, { detail: this.getSettings() }));
-    }
+    if (typeof window === 'undefined') return;
+    this.syncRuntimeUniforms();
+    window.dispatchEvent(new CustomEvent(TEMPORAL_MEMORY_EVENT, { detail: this.getSettings() }));
+  }
+
+  /**
+   * Apply user controls immediately as well as through the render loop.
+   * Dynamic control chunks can otherwise update between animation frames in
+   * headless, backgrounded, or reduced-refresh contexts.
+   */
+  private syncRuntimeUniforms(): void {
+    if (typeof window === 'undefined') return;
+    const runtime = (window as unknown as {
+      __soundformApp?: {
+        visualizer?: {
+          cymaticsMesh?: {
+            temporalSculpture?: {
+              material?: { uniforms?: Record<string, { value: unknown }> };
+            };
+          };
+        };
+      };
+    }).__soundformApp;
+    const uniforms = runtime?.visualizer?.cymaticsMesh?.temporalSculpture?.material?.uniforms;
+    if (!uniforms) return;
+
+    const state = this.getUniformState();
+    const assign = (name: string, value: number): void => {
+      const uniform = uniforms[name];
+      if (uniform) uniform.value = value;
+    };
+    assign('uHistoryHead', state.historyHead);
+    assign('uHistoryRows', state.historyRows);
+    assign('uMemoryFrames', state.memoryFrames);
+    assign('uEnabled', state.enabled);
+    assign('uGain', state.gain);
+    assign('uWarp', state.warp);
+    assign('uColorByAge', state.colorByAge);
   }
 
   private restore(): void {
