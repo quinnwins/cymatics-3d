@@ -190,6 +190,10 @@ export class TemporalSculpture {
   private readonly material: THREE.ShaderMaterial;
   private readonly presentShell: THREE.Mesh;
   private readonly presentShellMaterial: THREE.MeshBasicMaterial;
+  private readonly frozenBands = new THREE.Vector4();
+  private readonly frozenHighs = new THREE.Vector2();
+  private frozenFundamentalHz = 0;
+  private frozenSignal = 0;
   private sculptureTime = 0;
 
   constructor(initialPalette: PalettePreset, pointCount = POINT_COUNT) {
@@ -257,10 +261,20 @@ export class TemporalSculpture {
     const settings = temporalMemory.getSettings();
     const uniforms = this.material.uniforms;
 
-    // Freeze the spatial artwork while still allowing the camera to orbit it.
+    // Continuously retain the latest complete visual state. Freeze then holds
+    // history, phase, broad-band motion, pitch, and presence as one sculpture.
     if (!settings.frozen) {
       this.sculptureTime = time;
+      this.frozenBands.copy(bands);
+      this.frozenHighs.copy(highs);
+      this.frozenFundamentalHz = fundamentalHz;
+      this.frozenSignal = state.signal;
     }
+
+    const renderBands = settings.frozen ? this.frozenBands : bands;
+    const renderHighs = settings.frozen ? this.frozenHighs : highs;
+    const renderFundamentalHz = settings.frozen ? this.frozenFundamentalHz : fundamentalHz;
+    const renderSignal = settings.frozen ? this.frozenSignal : state.signal;
 
     if (state.texture && uniforms.uHistory.value !== state.texture) {
       uniforms.uHistory.value = state.texture;
@@ -273,11 +287,11 @@ export class TemporalSculpture {
     uniforms.uGain.value = state.gain;
     uniforms.uWarp.value = state.warp;
     uniforms.uColorByAge.value = state.colorByAge;
-    uniforms.uSignal.value = state.signal;
+    uniforms.uSignal.value = renderSignal;
     uniforms.uTime.value = this.sculptureTime;
-    uniforms.uBandEnergies.value.copy(bands);
-    uniforms.uHighEnergies.value.copy(highs);
-    uniforms.uFundamentalHz.value = fundamentalHz;
+    uniforms.uBandEnergies.value.copy(renderBands);
+    uniforms.uHighEnergies.value.copy(renderHighs);
+    uniforms.uFundamentalHz.value = renderFundamentalHz;
 
     const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 900;
     uniforms.uPointScale.value = Math.max(0.72, Math.min(1.35, viewportHeight / 900));
@@ -285,11 +299,11 @@ export class TemporalSculpture {
     this.points.visible = state.enabled > 0 && Boolean(state.texture);
     this.presentShell.visible = this.points.visible;
 
-    const pulse = 1 + bands.x * 0.08 + bands.y * 0.04 + state.signal * 0.025;
+    const pulse = 1 + renderBands.x * 0.08 + renderBands.y * 0.04 + renderSignal * 0.025;
     this.presentShell.scale.setScalar(pulse);
     this.presentShell.rotation.y = this.sculptureTime * 0.09;
     this.presentShell.rotation.z = -this.sculptureTime * 0.055;
-    this.presentShellMaterial.opacity = 0.045 + state.signal * 0.12;
+    this.presentShellMaterial.opacity = 0.045 + renderSignal * 0.12;
 
     if (camera) {
       const distance = camera.position.length();
