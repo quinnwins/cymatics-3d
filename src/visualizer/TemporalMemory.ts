@@ -12,6 +12,7 @@ export interface TemporalMemorySettings {
   enabled: boolean;
   frozen: boolean;
   memorySeconds: number;
+  lookbackSeconds: number;
   propagation: number;
   gain: number;
   warp: number;
@@ -45,6 +46,7 @@ const DEFAULTS: TemporalMemorySettings = {
   enabled: true,
   frozen: false,
   memorySeconds: 6,
+  lookbackSeconds: 0,
   propagation: 1,
   gain: 1.05,
   warp: 1,
@@ -53,7 +55,7 @@ const DEFAULTS: TemporalMemorySettings = {
 };
 
 export const TEMPORAL_MEMORY_EVENT = 'soundform-temporal-memory-changed';
-const STORAGE_KEY = 'soundform.temporal-memory.v1';
+const STORAGE_KEY = 'soundform.temporal-memory.v2';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -61,6 +63,10 @@ function clamp(value: number, min: number, max: number): number {
 
 function finite(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
+}
+
+function wrap01(value: number): number {
+  return ((value % 1) + 1) % 1;
 }
 
 /** Shared model for SoundForm's center-now / edge-past audio sculpture. */
@@ -118,10 +124,11 @@ export class TemporalMemoryController {
     const mediumInfluence = Math.pow(TEMPORAL_MEDIA.air.speedMs / medium.speedMs, 0.42);
     const requestedFrames =
       this.settings.memorySeconds * this.framesPerSecond * mediumInfluence / this.settings.propagation;
+    const lookbackFrames = this.settings.lookbackSeconds * this.framesPerSecond;
 
     return {
       texture: this.texture,
-      historyHead: this.historyHead,
+      historyHead: wrap01(this.historyHead - lookbackFrames / this.historyRows),
       historyRows: this.historyRows,
       memoryFrames: clamp(requestedFrames, 2, this.historyRows - 2),
       enabled: this.settings.enabled ? 1 : 0,
@@ -141,6 +148,10 @@ export class TemporalMemoryController {
 
   public setMemorySeconds(value: number): void {
     this.patch({ memorySeconds: clamp(finite(Number(value), DEFAULTS.memorySeconds), 1, 10) });
+  }
+
+  public setLookbackSeconds(value: number): void {
+    this.patch({ lookbackSeconds: clamp(finite(Number(value), DEFAULTS.lookbackSeconds), 0, 10) });
   }
 
   public setPropagation(value: number): void {
@@ -189,11 +200,16 @@ export class TemporalMemoryController {
   private restore(): void {
     if (typeof localStorage === 'undefined') return;
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as Partial<TemporalMemorySettings>;
+      const saved = JSON.parse(
+        localStorage.getItem(STORAGE_KEY)
+          || localStorage.getItem('soundform.temporal-memory.v1')
+          || '{}'
+      ) as Partial<TemporalMemorySettings>;
       this.settings = {
         enabled: typeof saved.enabled === 'boolean' ? saved.enabled : DEFAULTS.enabled,
         frozen: false,
         memorySeconds: clamp(finite(Number(saved.memorySeconds), DEFAULTS.memorySeconds), 1, 10),
+        lookbackSeconds: clamp(finite(Number(saved.lookbackSeconds), DEFAULTS.lookbackSeconds), 0, 10),
         propagation: clamp(finite(Number(saved.propagation), DEFAULTS.propagation), 0.35, 2.5),
         gain: clamp(finite(Number(saved.gain), DEFAULTS.gain), 0.35, 2.2),
         warp: clamp(finite(Number(saved.warp), DEFAULTS.warp), 0, 2.5),
