@@ -173,6 +173,7 @@ export class TemporalMemoryController {
 
   private requestControls(): void {
     if (this.controlsRequested || typeof window === 'undefined') return;
+    if (typeof navigator !== 'undefined' && /(happy-dom|jsdom)/i.test(navigator.userAgent)) return;
     this.controlsRequested = true;
     import('./SonicMemoryControls')
       .then(({ mountSonicMemoryControls }) => mountSonicMemoryControls(this))
