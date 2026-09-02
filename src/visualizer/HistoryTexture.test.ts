@@ -50,4 +50,20 @@ describe('HistoryTexture', () => {
 
     history.dispose();
   });
+
+  it('treats AudioEngine’s uninitialized zero-filled FFT buffer as silence', () => {
+    const history = new HistoryTexture();
+    const uninitializedSpectrum = new Float32Array(2048);
+
+    history.pushSpectralFrame(uninitializedSpectrum, 0, 0);
+
+    const bytes = (history as unknown as { data: Uint8Array }).data;
+    for (let i = 0; i < history.width; i += 1) {
+      expect(bytes[i * 4]).toBe(0);
+      expect(bytes[i * 4 + 2]).toBe(0);
+    }
+    expect(temporalMemory.getUniformState().signal).toBe(0);
+
+    history.dispose();
+  });
 });
