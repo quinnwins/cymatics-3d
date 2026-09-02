@@ -3,13 +3,20 @@ import type { CameraMode, VisualizerEngine, VisualStyle } from '../visualizer/Vi
 import { PhysicsDrawer } from './PhysicsDrawer';
 
 function createMockVisualizer(): VisualizerEngine {
+  let camMode: CameraMode = 'orbit';
+  let paletteId = 'cosmic-nebula';
+
   const vis = {
     getStyle: () => 'hybrid' as VisualStyle,
     setStyle: (_s: VisualStyle) => {},
-    getCameraMode: () => 'orbit' as CameraMode,
-    setCameraMode: (_m: CameraMode) => {},
-    setPalette: (_p: string) => {},
-    getCurrentPaletteId: () => 'cosmic-nebula',
+    getCameraMode: () => camMode,
+    setCameraMode: (m: CameraMode) => {
+      camMode = m;
+    },
+    setPalette: (p: string) => {
+      paletteId = p;
+    },
+    getCurrentPaletteId: () => paletteId,
     waveSpeed: 5.0,
     waveDamping: 0.12,
     bloomStrength: 0.8,
@@ -169,5 +176,139 @@ describe('Scene Optics & Physics Drawer Inspector', () => {
     toggleBtn.click();
     expect(drawer.getIsOpen()).toBe(true);
     expect(drawer.getElement().querySelector('#physics-body')?.classList.contains('flex')).toBe(true);
+  });
+
+  it('preserves slider DOM elements across multiple continuous input drag events without re-rendering innerHTML', () => {
+    const visualizer = createMockVisualizer();
+    const drawer = new PhysicsDrawer(visualizer);
+    drawer.setMode('music');
+
+    const el = drawer.getElement();
+    const speedSlider = el.querySelector('#slider-wave-speed') as HTMLInputElement;
+    const dampingSlider = el.querySelector('#slider-wave-damping') as HTMLInputElement;
+    const bloomSlider = el.querySelector('#slider-bloom') as HTMLInputElement;
+
+    expect(speedSlider).not.toBeNull();
+
+    // Simulate multi-step continuous drag on Wave Speed
+    const valuesToDrag = ['3.0', '4.5', '6.2', '8.0', '10.5'];
+    for (const val of valuesToDrag) {
+      speedSlider.value = val;
+      speedSlider.dispatchEvent(new Event('input'));
+
+      // DOM element reference MUST remain identical (not destroyed by innerHTML re-render)
+      const currentSpeedSlider = el.querySelector('#slider-wave-speed');
+      expect(currentSpeedSlider).toBe(speedSlider);
+      expect(visualizer.waveSpeed).toBe(parseFloat(val));
+      expect(el.querySelector('#val-wave-speed')?.textContent).toBe(parseFloat(val).toFixed(1));
+    }
+
+    // Simulate continuous drag on Bloom
+    const bloomValues = ['0.3', '0.5', '0.75', '0.9'];
+    for (const val of bloomValues) {
+      bloomSlider.value = val;
+      bloomSlider.dispatchEvent(new Event('input'));
+
+      const currentBloomSlider = el.querySelector('#slider-bloom');
+      expect(currentBloomSlider).toBe(bloomSlider);
+      expect(visualizer.bloomStrength).toBe(parseFloat(val));
+      expect(el.querySelector('#val-bloom')?.textContent).toBe(parseFloat(val).toFixed(2));
+    }
+
+    // Simulate continuous drag on Wave Damping
+    const dampingValues = ['0.05', '0.15', '0.25'];
+    for (const val of dampingValues) {
+      dampingSlider.value = val;
+      dampingSlider.dispatchEvent(new Event('input'));
+
+      const currentDampingSlider = el.querySelector('#slider-wave-damping');
+      expect(currentDampingSlider).toBe(dampingSlider);
+      expect(visualizer.waveDamping).toBe(parseFloat(val));
+      expect(el.querySelector('#val-wave-damping')?.textContent).toBe(parseFloat(val).toFixed(2));
+    }
+  });
+
+  it('syncs visualizer parameter changes in-place without destroying DOM elements', () => {
+    const visualizer = createMockVisualizer();
+    const drawer = new PhysicsDrawer(visualizer);
+    drawer.setMode('music');
+
+    const el = drawer.getElement();
+    const speedSlider = el.querySelector('#slider-wave-speed') as HTMLInputElement;
+
+    visualizer.waveSpeed = 9.4;
+    visualizer.waveDamping = 0.28;
+    visualizer.bloomStrength = 0.65;
+
+    drawer.syncState();
+
+    expect(el.querySelector('#slider-wave-speed')).toBe(speedSlider);
+    expect(speedSlider.value).toBe('9.4');
+    expect(el.querySelector('#val-wave-speed')?.textContent).toBe('9.4');
+    expect(el.querySelector('#val-wave-damping')?.textContent).toBe('0.28');
+    expect(el.querySelector('#val-bloom')?.textContent).toBe('0.65');
+  });
+
+  it('renders Camera and Color Palette dropdowns across all 6 studio pages', () => {
+    const visualizer = createMockVisualizer();
+    const drawer = new PhysicsDrawer(visualizer);
+    const allModes = ['music', 'frequency', 'therapy', 'nobel', 'bio', 'voice'] as const;
+
+    for (const mode of allModes) {
+      drawer.setMode(mode);
+      const el = drawer.getElement();
+
+      const cameraSelect = el.querySelector('#select-camera-mode') as HTMLSelectElement;
+      expect(cameraSelect).not.toBeNull();
+      expect(cameraSelect.options.length).toBe(4);
+
+      const paletteSelect = el.querySelector('#select-color-palette') as HTMLSelectElement;
+      expect(paletteSelect).not.toBeNull();
+      expect(paletteSelect.options.length).toBe(6);
+    }
+  });
+
+  it('switches camera mode on dropdown change and dispatches global event', () => {
+    const visualizer = createMockVisualizer();
+    const drawer = new PhysicsDrawer(visualizer);
+    const el = drawer.getElement();
+
+    let emittedMode: string | null = null;
+    const listener = (e: Event) => {
+      const customEvent = e as CustomEvent<{ mode: CameraMode }>;
+      emittedMode = customEvent.detail?.mode || null;
+    };
+    window.addEventListener('camera-mode-changed', listener);
+
+    const cameraSelect = el.querySelector('#select-camera-mode') as HTMLSelectElement;
+    cameraSelect.value = 'top-down';
+    cameraSelect.dispatchEvent(new Event('change'));
+
+    expect(visualizer.getCameraMode()).toBe('top-down');
+    expect(emittedMode).toBe('top-down');
+
+    window.removeEventListener('camera-mode-changed', listener);
+  });
+
+  it('switches color palette on dropdown change and dispatches global event', () => {
+    const visualizer = createMockVisualizer();
+    const drawer = new PhysicsDrawer(visualizer);
+    const el = drawer.getElement();
+
+    let emittedPalette: string | null = null;
+    const listener = (e: Event) => {
+      const customEvent = e as CustomEvent<{ paletteId: string }>;
+      emittedPalette = customEvent.detail?.paletteId || null;
+    };
+    window.addEventListener('palette-changed', listener);
+
+    const paletteSelect = el.querySelector('#select-color-palette') as HTMLSelectElement;
+    paletteSelect.value = 'siri-luminescence';
+    paletteSelect.dispatchEvent(new Event('change'));
+
+    expect(visualizer.getCurrentPaletteId()).toBe('siri-luminescence');
+    expect(emittedPalette).toBe('siri-luminescence');
+
+    window.removeEventListener('palette-changed', listener);
   });
 });

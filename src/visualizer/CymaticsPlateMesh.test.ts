@@ -118,4 +118,44 @@ describe('CymaticsPlateMesh - 2D Resonant Chladni Cymatics Plate with Dust Parti
     plate.setChamberType('square');
     expect(uniforms.uChamberType.value).toBe(0.0);
   });
+
+  it('initializes with autoModal enabled by default and synchronizes dynamic modes to getModes()', () => {
+    const plate = new CymaticsPlateMesh(palette);
+    expect(plate.getAutoModal()).toBe(true);
+
+    const bands = new THREE.Vector4(0.7, 0.5, 0.3, 0.1);
+    const highs = new THREE.Vector2(0.2, 0.1);
+    const camera = new THREE.PerspectiveCamera();
+
+    plate.update(0.5, bands, highs, 440, 0.016, camera);
+    const modes = plate.getModes();
+    const uniforms = (plate.plateMesh.material as THREE.ShaderMaterial).uniforms;
+    expect(modes.x).toBe(uniforms.uModes.value.x);
+    expect(modes.y).toBe(uniforms.uModes.value.y);
+    expect(modes.x).toBeGreaterThanOrEqual(1.0);
+  });
+
+  it('smoothly integrates dynamic modes across frames via exponential decay without teleportation', () => {
+    const plate = new CymaticsPlateMesh(palette);
+    plate.setModes(2, 2, 1);
+    expect(plate.getAutoModal()).toBe(false);
+
+    plate.setAutoModal(true);
+    expect(plate.getAutoModal()).toBe(true);
+
+    const bands = new THREE.Vector4(0.8, 0.6, 0.4, 0.2);
+    const highs = new THREE.Vector2(0.3, 0.1);
+    const camera = new THREE.PerspectiveCamera();
+
+    // Step 1 frame
+    plate.update(0.1, bands, highs, 880, 0.016, camera);
+    const step1X = plate.getModes().x;
+
+    // Step 2nd frame
+    plate.update(0.2, bands, highs, 880, 0.016, camera);
+    const step2X = plate.getModes().x;
+
+    // Mode morphs smoothly toward target
+    expect(step2X).toBeGreaterThan(step1X);
+  });
 });

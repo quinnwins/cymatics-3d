@@ -215,8 +215,17 @@ export class ModalSweeperControls {
     this.currentMode = normalized;
     if (normalized === 'music') {
       this.state.audioCoupled = true;
+      if (this.visualizer) {
+        this.visualizer.cymaticsPlateMesh?.setAutoModal(true);
+        this.visualizer.cymaticsMesh?.setAutoModal(true);
+      }
+      this.notifyStateChange();
     }
     this.render();
+  }
+
+  public syncInitialState(): void {
+    this.notifyStateChange();
   }
 
   public getMode(): EngineMode {

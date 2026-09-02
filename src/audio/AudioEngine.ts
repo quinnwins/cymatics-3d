@@ -51,6 +51,7 @@ export class AudioEngine {
   private isInitialized = false;
   private isMuted = false;
   private masterVolume = 0.8;
+  private playbackSpeed = 1.0;
   private activeBlobUrl: string | null = null;
   private loadedFileName: string | null = null;
   private listeners: Set<() => void> = new Set();
@@ -60,6 +61,9 @@ export class AudioEngine {
     if (typeof Audio !== 'undefined') {
       this.audioElement = new Audio();
       this.audioElement.loop = true;
+      this.audioElement.playbackRate = this.playbackSpeed;
+      this.audioElement.defaultPlaybackRate = this.playbackSpeed;
+      (this.audioElement as any).preservesPitch = true;
 
       // Reactively notify listeners on playback timeline and state changes
       this.audioElement.addEventListener('timeupdate', () => this.notifyChange());
@@ -127,6 +131,7 @@ export class AudioEngine {
         this.synthesizer = new FrequencySynthesizer(this.ctx, this.masterGain);
         this.analyzer = new SpectralAnalyzer(this.analyserNode, this.ctx.sampleRate);
         this.demoGenerator = new DemoAudioGenerator(this.ctx, this.masterGain);
+        this.demoGenerator.setPlaybackSpeed(this.playbackSpeed);
         this.voiceBiometrics = new VoiceBiometricAnalyzer(this.ctx);
         this.soundMedicine = new SoundMedicineSynthesizer(this.ctx, this.masterGain);
       }
@@ -301,6 +306,9 @@ export class AudioEngine {
     }
     (this.audioElement as any).crossOrigin = null;
     this.audioElement.src = this.activeBlobUrl;
+    this.audioElement.playbackRate = this.playbackSpeed;
+    this.audioElement.defaultPlaybackRate = this.playbackSpeed;
+    (this.audioElement as any).preservesPitch = true;
 
     if (this.ctx && !this.audioSourceNode) {
       try {
@@ -377,6 +385,9 @@ export class AudioEngine {
 
     if (urlToPlay) {
       this.audioElement.src = urlToPlay;
+      this.audioElement.playbackRate = this.playbackSpeed;
+      this.audioElement.defaultPlaybackRate = this.playbackSpeed;
+      (this.audioElement as any).preservesPitch = true;
       if (typeof this.audioElement.load === 'function') {
         this.audioElement.load();
       }
@@ -603,6 +614,28 @@ export class AudioEngine {
 
   public getIsMuted(): boolean {
     return this.isMuted;
+  }
+
+  public setPlaybackSpeed(speed: number): void {
+    const clamped = Math.max(0.25, Math.min(4.0, speed));
+    if (this.playbackSpeed === clamped) return;
+    this.playbackSpeed = clamped;
+
+    if (this.audioElement) {
+      this.audioElement.playbackRate = this.playbackSpeed;
+      this.audioElement.defaultPlaybackRate = this.playbackSpeed;
+      (this.audioElement as any).preservesPitch = true;
+    }
+
+    if (this.demoGenerator) {
+      this.demoGenerator.setPlaybackSpeed(this.playbackSpeed);
+    }
+
+    this.notifyChange();
+  }
+
+  public getPlaybackSpeed(): number {
+    return this.playbackSpeed;
   }
 
   public getIsPlaying(): boolean {

@@ -286,4 +286,32 @@ describe('AudioEngine Transport & Scrubber', () => {
     expect(audioEngine.getMode()).toBe('demo-track');
     expect(audioEngine.getActiveStreamingTrack()).toBeNull();
   });
+
+  it('should get, set, and clamp sound playback speed', () => {
+    expect(audioEngine.getPlaybackSpeed()).toBe(1.0);
+
+    audioEngine.setPlaybackSpeed(1.5);
+    expect(audioEngine.getPlaybackSpeed()).toBe(1.5);
+    expect(audioEngine.getAudioElement().playbackRate).toBe(1.5);
+    expect(audioEngine.getAudioElement().defaultPlaybackRate).toBe(1.5);
+
+    // Clamping limits
+    audioEngine.setPlaybackSpeed(0.1);
+    expect(audioEngine.getPlaybackSpeed()).toBe(0.25);
+
+    audioEngine.setPlaybackSpeed(5.0);
+    expect(audioEngine.getPlaybackSpeed()).toBe(4.0);
+  });
+
+  it('should persist configured sound speed when loading new audio files or streaming tracks', async () => {
+    audioEngine.setPlaybackSpeed(1.25);
+    expect(audioEngine.getPlaybackSpeed()).toBe(1.25);
+
+    global.URL.createObjectURL = vi.fn().mockReturnValue('blob:http://localhost/speed-test');
+    const mockFile = new File(['audio pcm'], 'speed-test.mp3', { type: 'audio/mp3' });
+    await audioEngine.loadAudioFile(mockFile);
+
+    expect(audioEngine.getAudioElement().playbackRate).toBe(1.25);
+    expect(audioEngine.getAudioElement().defaultPlaybackRate).toBe(1.25);
+  });
 });

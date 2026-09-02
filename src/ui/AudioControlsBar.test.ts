@@ -224,5 +224,56 @@ describe('AudioControlsBar UI - Universal Master Transport & Telemetry Dock', ()
       expect(el.textContent).toContain('Cornfield Chase (Interstellar) — Hans Zimmer');
       expect(el.textContent).toContain('• Apple Music');
     });
+
+    it('should render sound speed button and toggle popover menu with speed presets', () => {
+      controlsBar.setMode('music');
+      const el = controlsBar.getElement();
+
+      const speedBtn = el.querySelector('#btn-speed') as HTMLButtonElement;
+      expect(speedBtn).not.toBeNull();
+      expect(speedBtn.textContent).toContain('1×');
+      expect(speedBtn.getAttribute('data-tooltip')).toBe('Sound Speed: 1×');
+
+      // Popover should initially be closed
+      expect(el.querySelector('#dock-speed-menu')).toBeNull();
+
+      // Click to open popover
+      speedBtn.click();
+      const menu = el.querySelector('#dock-speed-menu');
+      expect(menu).not.toBeNull();
+      expect(el.querySelectorAll('.speed-option-btn').length).toBe(6);
+
+      // Select 1.5x speed option
+      const setSpeedSpy = vi.spyOn(audioEngine, 'setPlaybackSpeed');
+      const speed15Btn = el.querySelector('[data-speed="1.5"]') as HTMLButtonElement;
+      expect(speed15Btn).not.toBeNull();
+      speed15Btn.click();
+
+      expect(setSpeedSpy).toHaveBeenCalledWith(1.5);
+      expect(el.querySelector('#dock-speed-menu')).toBeNull();
+    });
+
+    it('should reactively update speed button label and highlight when speed changes', () => {
+      controlsBar.setMode('music');
+      audioEngine.setPlaybackSpeed(1.25);
+      const el = controlsBar.getElement();
+
+      const speedBtn = el.querySelector('#btn-speed') as HTMLButtonElement;
+      expect(speedBtn.textContent).toContain('1.25×');
+      expect(speedBtn.className).toContain('text-cyan-300');
+    });
+
+    it('should dismiss open speed popover on Escape keydown', () => {
+      controlsBar.setMode('music');
+      const el = controlsBar.getElement();
+      const speedBtn = el.querySelector('#btn-speed') as HTMLButtonElement;
+      speedBtn.click();
+
+      expect(el.querySelector('#dock-speed-menu')).not.toBeNull();
+
+      // Dispatch Escape keydown event
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(el.querySelector('#dock-speed-menu')).toBeNull();
+    });
   });
 });

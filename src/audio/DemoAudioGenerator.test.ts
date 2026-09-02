@@ -194,5 +194,25 @@ describe('DemoAudioGenerator', () => {
       generator.stop();
       expect(generator.getIsPlaying()).toBe(false);
     });
+
+    it('should scale sequencer tempo dynamically when setPlaybackSpeed() is called during playback', () => {
+      generator.play('cyber-pulse');
+      expect(generator.getPlaybackSpeed()).toBe(1.0);
+
+      generator.setPlaybackSpeed(2.0);
+      expect(generator.getPlaybackSpeed()).toBe(2.0);
+      expect(generator.getIsPlaying()).toBe(true);
+
+      // Advance timers at double speed
+      expect(() => {
+        vi.advanceTimersByTime(5000);
+      }).not.toThrow();
+
+      generator.setPlaybackSpeed(0.5);
+      expect(generator.getPlaybackSpeed()).toBe(0.5);
+      expect(generator.getIsPlaying()).toBe(true);
+
+      generator.stop();
+    });
   });
 });

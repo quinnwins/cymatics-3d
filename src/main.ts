@@ -17,7 +17,6 @@ import { PresentationTourEngine } from './visualizer/PresentationTourEngine';
 import { AcousticDataExporter } from './ui/AcousticDataExporter';
 import { SpectrumHUD } from './ui/SpectrumHUD';
 import { PhysicsDrawer } from './ui/PhysicsDrawer';
-import { ViewportCameraThemeHUD } from './ui/ViewportCameraThemeHUD';
 
 class App {
   private audioEngine: AudioEngine;
@@ -37,14 +36,12 @@ class App {
   private presentationTourEngine: PresentationTourEngine;
   private spectrumHUD: SpectrumHUD;
   private physicsDrawer: PhysicsDrawer;
-  private viewportHUD: ViewportCameraThemeHUD;
 
   private currentMode: EngineMode = 'music';
   private leftSidebarRoot: HTMLElement;
   private rightSidebarRoot: HTMLElement;
   private bottomTransportRoot: HTMLElement;
   private centerPromptRoot: HTMLElement;
-  private viewportHudRoot: HTMLElement;
   private isLeftSidebarOpen = typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
   private isRightSidebarOpen = typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
   private hasInteracted = false;
@@ -54,7 +51,6 @@ class App {
     this.rightSidebarRoot = document.getElementById('right-sidebar-root') as HTMLElement;
     this.bottomTransportRoot = document.getElementById('bottom-transport-root') as HTMLElement;
     this.centerPromptRoot = document.getElementById('center-prompt-root') as HTMLElement;
-    this.viewportHudRoot = document.getElementById('viewport-hud-root') as HTMLElement;
 
     if (!this.isLeftSidebarOpen) {
       this.leftSidebarRoot.classList.add('sidebar-collapsed');
@@ -126,6 +122,7 @@ class App {
       },
       mode => this.switchMode(mode)
     );
+    this.modalSweeperControls.syncInitialState();
 
     this.musicLibraryCard = new MusicLibraryCard(this.audioEngine, this.visualizer);
 
@@ -165,10 +162,6 @@ class App {
 
     this.spectrumHUD = new SpectrumHUD(this.audioEngine, this.visualizer);
     this.physicsDrawer = new PhysicsDrawer(this.visualizer);
-    this.viewportHUD = new ViewportCameraThemeHUD(this.visualizer);
-    if (this.viewportHudRoot) {
-      this.viewportHudRoot.appendChild(this.viewportHUD.getElement());
-    }
 
     // Periodic HUD update timer (10 Hz for smooth live metrics)
     setInterval(() => {
@@ -215,9 +208,6 @@ class App {
       this.presentationTourEngine.stopTour();
     }
     this.physicsDrawer.resetDefaults();
-    if (this.viewportHUD) {
-      this.viewportHUD.syncState();
-    }
     if (this.currentMode === 'music' || this.currentMode === 'cymatics') {
       this.visualizer.setStyle('cymatics');
       this.audioEngine.playDemoTrack('cosmic-odyssey');
@@ -351,6 +341,8 @@ class App {
       if (layers.plate && !layers.droplet && !layers.trap) {
         this.visualizer.setStyle('cymatics-2d');
       }
+      this.visualizer.cymaticsPlateMesh.setAutoModal(true);
+      this.visualizer.cymaticsMesh.setAutoModal(true);
 
       if (fromTour && this.hasInteracted) {
         this.audioEngine.playDemoTrack('cosmic-odyssey');
@@ -420,9 +412,6 @@ class App {
     }
     if (this.physicsDrawer) {
       this.physicsDrawer.setMode(normalizedMode);
-    }
-    if (this.viewportHUD) {
-      this.viewportHUD.setMode(normalizedMode);
     }
     this.audioControlsBar.setMode(normalizedMode);
   }
