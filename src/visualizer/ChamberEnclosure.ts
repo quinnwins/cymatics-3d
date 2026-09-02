@@ -104,11 +104,11 @@ void main() {
         float edgeBox = smoothstep(0.97, 1.0, max(max(edgeDist.x, edgeDist.y), edgeDist.z));
         gridLine += edgeBox * 0.6;
     } else if (uChamberType == 1) {
-        // Cylindrical Grid
-        float theta = atan(vLocalPosition.y, vLocalPosition.x);
+        // Cylindrical Grid on Vertical Standing Cylinder
+        float theta = atan(vLocalPosition.z, vLocalPosition.x);
         float thetaGrid = abs(fract(theta * 6.0 / TWO_PI) - 0.5);
-        float zGrid = abs(fract(vLocalPosition.z * 2.0) - 0.5);
-        gridLine = (smoothstep(0.04, 0.0, thetaGrid) + smoothstep(0.04, 0.0, zGrid)) * 0.35;
+        float yGrid = abs(fract(vLocalPosition.y * 2.0) - 0.5);
+        gridLine = (smoothstep(0.04, 0.0, thetaGrid) + smoothstep(0.04, 0.0, yGrid)) * 0.35;
     } else {
         // Spherical Polar Coordinates Grid
         vec3 nLoc = normalize(vLocalPosition);
@@ -259,6 +259,7 @@ export class ChamberEnclosure {
 
   constructor(initialPalette: PalettePreset, config?: ChamberEnclosureConfig) {
     this.group = new THREE.Group();
+    this.group.position.y = 0.45;
     this.chamberGroup = new THREE.Group();
     this.frameGroup = new THREE.Group();
 
@@ -266,7 +267,7 @@ export class ChamberEnclosure {
     this.group.add(this.frameGroup);
 
     this.chamberType = config?.chamberType ?? 'cube';
-    this.size = config?.size ?? 3.2;
+    this.size = config?.size ?? 1.95;
     this.glassOpacity = config?.glassOpacity ?? 0.01;
     this.refractiveIndex = config?.refractiveIndex ?? 1.52;
     this.dispersionStrength = config?.dispersionStrength ?? 0.015;
@@ -384,7 +385,7 @@ export class ChamberEnclosure {
   }
 
   private buildCylinderChamber(): void {
-    const radius = this.size * 1.02;
+    const radius = this.size;
     const height = this.size * 2.0;
 
     // Cylinder Glass Shell
@@ -421,7 +422,7 @@ export class ChamberEnclosure {
   }
 
   private buildSphereChamber(): void {
-    const radius = this.size * 1.08;
+    const radius = this.size;
 
     // Sphere Glass Shell
     const sphereGeo = new THREE.SphereGeometry(radius, 48, 48);
@@ -503,11 +504,6 @@ export class ChamberEnclosure {
     const su = this.strutMaterial.uniforms;
     su.uTime.value = time;
     su.uBandEnergies.value.copy(bands);
-
-    // Audio-reactive micro-wobble & rotation
-    const rotSpeed = this.autoRotationSpeed + bands.x * 0.05;
-    this.group.rotation.y = time * rotSpeed;
-    this.group.rotation.x = Math.sin(time * 0.15) * 0.04;
   }
 
   public setVisible(visible: boolean): void {

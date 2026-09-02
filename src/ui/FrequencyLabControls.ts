@@ -4,12 +4,20 @@ import { WaveformType } from '../audio/FrequencySynthesizer';
 import { EngineMode } from './Header';
 import { VisualizerEngine } from '../visualizer/VisualizerEngine';
 
+export type ChamberGeometry = 'cube' | 'cylinder' | 'sphere';
+export type TrappingMode = 'nodes' | 'antinodes';
+
 export class FrequencyLabControls {
   private element: HTMLElement;
   private currentFreq = 432;
-  private isAudioPlaying = false;
   private showHarmonicsDrawer = false;
   private onSwitchMode?: (mode: EngineMode) => void;
+
+  private geometry: ChamberGeometry = 'cube';
+  private showEnclosure = true;
+  private trappingMode: TrappingMode = 'nodes';
+  private audioCoupled = true;
+  private cymaticsVisibilityMode: 'both' | 'particles' | 'droplet' = 'both';
 
   constructor(
     private audioEngine: AudioEngine,
@@ -17,9 +25,50 @@ export class FrequencyLabControls {
     onSwitchMode?: (mode: EngineMode) => void
   ) {
     this.onSwitchMode = onSwitchMode;
+    if (this.visualizer?.cymaticsVisibilityMode) {
+      this.cymaticsVisibilityMode = this.visualizer.cymaticsVisibilityMode;
+    }
     this.element = document.createElement('div');
     this.element.className = 'w-full flex flex-col gap-2.5';
     this.preventEventBleeding();
+
+    window.addEventListener('modal-state-changed', ((e: CustomEvent<{
+      geometry?: ChamberGeometry;
+      trappingMode?: TrappingMode;
+      showEnclosure?: boolean;
+      audioCoupled?: boolean;
+      cymaticsVisibilityMode?: 'both' | 'particles' | 'droplet';
+    }>) => {
+      if (e.detail) {
+        if (e.detail.geometry) this.geometry = e.detail.geometry;
+        if (e.detail.trappingMode) this.trappingMode = e.detail.trappingMode;
+        if (typeof e.detail.showEnclosure === 'boolean') this.showEnclosure = e.detail.showEnclosure;
+        if (typeof e.detail.audioCoupled === 'boolean') this.audioCoupled = e.detail.audioCoupled;
+        if (e.detail.cymaticsVisibilityMode) {
+          this.cymaticsVisibilityMode = e.detail.cymaticsVisibilityMode;
+          if (this.visualizer) {
+            this.visualizer.setCymaticsVisibilityMode(e.detail.cymaticsVisibilityMode);
+          }
+        }
+        this.render();
+      }
+    }) as EventListener);
+
+    window.addEventListener('cymatics-visibility-changed', ((e: CustomEvent<{ mode?: 'both' | 'particles' | 'droplet' }>) => {
+      if (e.detail?.mode) {
+        this.cymaticsVisibilityMode = e.detail.mode;
+      } else if (this.visualizer?.cymaticsVisibilityMode) {
+        this.cymaticsVisibilityMode = this.visualizer.cymaticsVisibilityMode;
+      }
+      this.render();
+    }) as EventListener);
+
+    window.addEventListener('cymatics-layers-changed', (() => {
+      if (this.visualizer?.cymaticsVisibilityMode) {
+        this.cymaticsVisibilityMode = this.visualizer.cymaticsVisibilityMode;
+      }
+      this.render();
+    }) as EventListener);
   }
 
   private preventEventBleeding(): void {
@@ -30,6 +79,93 @@ export class FrequencyLabControls {
   public getElement(): HTMLElement {
     this.render();
     return this.element;
+  }
+
+  public getGeometry(): ChamberGeometry {
+    return this.geometry;
+  }
+
+  public getShowEnclosure(): boolean {
+    return this.showEnclosure;
+  }
+
+  public getTrappingMode(): TrappingMode {
+    return this.trappingMode;
+  }
+
+  public getAudioCoupled(): boolean {
+    return this.audioCoupled;
+  }
+
+  public getCymaticsVisibilityMode(): 'both' | 'particles' | 'droplet' {
+    return this.cymaticsVisibilityMode;
+  }
+
+  public getFrequency(): number {
+    return this.currentFreq;
+  }
+
+  public setGeometry(geom: ChamberGeometry): void {
+    this.geometry = geom;
+    if (this.visualizer) {
+      this.visualizer.cymaticsMesh.setChamberType(geom);
+      this.visualizer.gpuAcousticParticles.setChamberGeometry(geom);
+      this.visualizer.volumetricChladni.setChamberType(geom === 'cube' ? 0 : geom === 'cylinder' ? 1 : 2);
+      this.visualizer.chamberEnclosure.setChamberType(geom);
+    }
+    this.notifyChamberStateChanged();
+    this.render();
+  }
+
+  public setShowEnclosure(show: boolean): void {
+    this.showEnclosure = show;
+    if (this.visualizer) {
+      this.visualizer.chamberEnclosure.setVisible(show);
+    }
+    this.notifyChamberStateChanged();
+    this.render();
+  }
+
+  public setTrappingMode(mode: TrappingMode): void {
+    this.trappingMode = mode;
+    if (this.visualizer) {
+      this.visualizer.gpuAcousticParticles.setChladniMode(mode === 'nodes' ? 'normal' : 'inverse');
+    }
+    this.notifyChamberStateChanged();
+    this.render();
+  }
+
+  public setAudioCoupled(coupled: boolean): void {
+    this.audioCoupled = coupled;
+    if (this.visualizer) {
+      this.visualizer.cymaticsMesh.setAutoModal(coupled);
+    }
+    this.notifyChamberStateChanged();
+    this.render();
+  }
+
+  public setCymaticsVisibilityMode(visMode: 'both' | 'particles' | 'droplet'): void {
+    this.cymaticsVisibilityMode = visMode;
+    if (this.visualizer) {
+      this.visualizer.setCymaticsVisibilityMode(visMode);
+    }
+    this.notifyChamberStateChanged();
+    this.render();
+    window.dispatchEvent(new CustomEvent('cymatics-visibility-changed', { detail: { mode: visMode } }));
+  }
+
+  private notifyChamberStateChanged(): void {
+    window.dispatchEvent(
+      new CustomEvent('modal-state-changed', {
+        detail: {
+          geometry: this.geometry,
+          trappingMode: this.trappingMode,
+          showEnclosure: this.showEnclosure,
+          audioCoupled: this.audioCoupled,
+          cymaticsVisibilityMode: this.cymaticsVisibilityMode,
+        },
+      })
+    );
   }
 
   // Convert linear slider [0..1000] to logarithmic Hz [20..20000]
@@ -58,7 +194,7 @@ export class FrequencyLabControls {
       <!-- Acoustic Studio Hub Switcher -->
       <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border border-white/10 text-xs mb-1">
         <button id="hub-btn-modal" class="flex-1 py-1 px-1.5 rounded-xl font-semibold text-center transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-white/5">
-          3D Cymatics
+          Cymatics
         </button>
         <button id="hub-btn-freq" class="flex-1 py-1 px-1.5 rounded-xl font-bold text-center transition-all cursor-pointer glass-btn-active text-blue-300 shadow-sm ring-1 ring-blue-500/30">
           Tone Lab
@@ -207,6 +343,127 @@ export class FrequencyLabControls {
             : ''
         }
 
+        <!-- Chamber Physics & Boundary Controls -->
+        <div class="flex flex-col gap-2.5 pt-2 border-t border-white/10">
+          
+          <!-- 1. Chamber Geometry Selector -->
+          <div class="flex flex-col gap-1">
+            <span class="text-[10px] font-semibold text-gray-300">Chamber Shape:</span>
+            <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border-white/5">
+              ${[
+                { id: 'cube', label: 'Cube' },
+                { id: 'cylinder', label: 'Cylinder' },
+                { id: 'sphere', label: 'Sphere' },
+              ]
+                .map(
+                  g => `
+                <button
+                  data-geometry="${g.id}"
+                  class="btn-geometry flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                    this.geometry === g.id ? 'glass-btn-active font-bold shadow-sm' : 'text-gray-400 hover:text-gray-200'
+                  }"
+                >
+                  <span>${g.label}</span>
+                </button>
+              `
+                )
+                .join('')}
+            </div>
+          </div>
+
+          <!-- 2. Chamber Boundary Enclosure Selector -->
+          <div class="flex flex-col gap-1">
+            <span class="text-[10px] font-semibold text-gray-300">Chamber Boundary:</span>
+            <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border-white/5">
+              <button
+                id="btn-enclosure-glass"
+                class="flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  this.showEnclosure ? 'glass-btn-active font-bold text-cyan-300 shadow-sm' : 'text-gray-400 hover:text-gray-200'
+                }"
+              >
+                <span>Glass Box</span>
+              </button>
+              <button
+                id="btn-enclosure-free"
+                class="flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  !this.showEnclosure ? 'glass-btn-active font-bold text-cyan-300 shadow-sm' : 'text-gray-400 hover:text-gray-200'
+                }"
+              >
+                <span>Free Field (No Box)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 3. Specimen Display Layer Selector -->
+          <div class="flex flex-col gap-1">
+            <span class="text-[10px] font-semibold text-gray-300">Specimen Display:</span>
+            <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border-white/5">
+              ${[
+                { id: 'both', label: 'All Layers' },
+                { id: 'particles', label: 'Dust Only' },
+                { id: 'droplet', label: 'Droplet Only' },
+              ]
+                .map(
+                  v => `
+                <button
+                  data-cymatics-vis="${v.id}"
+                  class="btn-freq-vis flex-1 py-1.5 px-1.5 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                    this.cymaticsVisibilityMode === v.id
+                      ? 'glass-btn-active font-bold text-cyan-300 shadow-sm'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }"
+                >
+                  <span>${v.label}</span>
+                </button>
+              `
+                )
+                .join('')}
+            </div>
+          </div>
+
+          <!-- 4. Trapping Mode Switcher (Radiation Force Levitation) -->
+          <div class="flex flex-col gap-1">
+            <span class="text-[10px] font-semibold text-gray-300">Particle Trapping:</span>
+            <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border-white/5">
+              <button
+                id="btn-trap-nodes"
+                class="flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  this.trappingMode === 'nodes' ? 'glass-btn-active font-bold' : 'text-gray-400 hover:text-gray-200'
+                }"
+              >
+                <span>Nodes (Quiet Zones)</span>
+              </button>
+              <button
+                id="btn-trap-antinodes"
+                class="flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  this.trappingMode === 'antinodes' ? 'glass-btn-active font-bold' : 'text-gray-400 hover:text-gray-200'
+                }"
+              >
+                <span>Antinodes (Active)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 5. Audio Resonance Coupling Switch -->
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-semibold text-gray-300">Sync to Music:</span>
+              <span class="text-[9px] font-mono text-gray-400 font-semibold">${this.audioCoupled ? 'Active' : 'Off'}</span>
+            </div>
+            <button
+              id="btn-toggle-coupling"
+              class="w-full py-1.5 px-3 rounded-2xl text-xs font-semibold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                this.audioCoupled
+                  ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300 shadow-sm'
+                  : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
+              }"
+            >
+              <span>${this.audioCoupled ? 'Audio Sync Active' : 'Audio Sync Off'}</span>
+            </button>
+          </div>
+
+        </div>
+
       </div>
     `;
 
@@ -310,6 +567,51 @@ export class FrequencyLabControls {
       });
     });
 
+    // Chamber Geometry Buttons (Cube / Cylinder / Sphere)
+    this.element.querySelectorAll('.btn-geometry').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const target = e.currentTarget as HTMLElement;
+        const geom = target.getAttribute('data-geometry') as ChamberGeometry;
+        if (geom) {
+          this.setGeometry(geom);
+        }
+      });
+    });
+
+    // Chamber Boundary Enclosure Buttons (Glass Box / Free Field)
+    this.element.querySelector('#btn-enclosure-glass')?.addEventListener('click', () => {
+      this.setShowEnclosure(true);
+    });
+
+    this.element.querySelector('#btn-enclosure-free')?.addEventListener('click', () => {
+      this.setShowEnclosure(false);
+    });
+
+    // Specimen Layer Visibility Buttons (Both / Dust / Droplet)
+    this.element.querySelectorAll('.btn-freq-vis').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const target = e.currentTarget as HTMLElement;
+        const visMode = target.getAttribute('data-cymatics-vis') as 'both' | 'particles' | 'droplet';
+        if (visMode) {
+          this.setCymaticsVisibilityMode(visMode);
+        }
+      });
+    });
+
+    // Trapping Mode Buttons (Nodes / Antinodes)
+    this.element.querySelector('#btn-trap-nodes')?.addEventListener('click', () => {
+      this.setTrappingMode('nodes');
+    });
+
+    this.element.querySelector('#btn-trap-antinodes')?.addEventListener('click', () => {
+      this.setTrappingMode('antinodes');
+    });
+
+    // Audio Coupling Toggle
+    this.element.querySelector('#btn-toggle-coupling')?.addEventListener('click', () => {
+      this.setAudioCoupled(!this.audioCoupled);
+    });
+
     // Acoustic Studio Hub Switcher
     this.element.querySelector('#hub-btn-modal')?.addEventListener('click', () => {
       if (this.onSwitchMode) this.onSwitchMode('modal');
@@ -327,3 +629,4 @@ export class FrequencyLabControls {
     this.updateDisplay(fromSlider);
   }
 }
+

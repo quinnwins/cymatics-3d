@@ -117,6 +117,7 @@ export class CymaticsMesh {
 
     this.innerCore = new THREE.Mesh(innerGeo, this.innerCoreMaterial);
     this.group.add(this.innerCore);
+    this.group.position.y = 0.45;
   }
 
   private isAutoModal = true;
@@ -228,9 +229,6 @@ export class CymaticsMesh {
     this.mesh.rotation.x = Math.sin(time * 0.12) * 0.22 + bands.x * 0.15;
     this.innerCore.rotation.y = -time * 0.12;
     this.innerCore.rotation.z = Math.cos(time * 0.15) * 0.16;
-
-    // Micro levitation bobbing along acoustic standing wave axis
-    this.group.position.y = 0.45 + Math.sin(time * 2.2) * 0.045 + bands.x * 0.08;
   }
 
   public setPalette(palette: PalettePreset): void {

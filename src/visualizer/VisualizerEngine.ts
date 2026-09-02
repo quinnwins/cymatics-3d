@@ -19,11 +19,18 @@ import { BioAcousticResonator } from './BioAcousticResonator';
 import { AcousticTherapyLab } from './AcousticTherapyLab';
 import { VocalBiometricsLab } from './VocalBiometricsLab';
 import { NobelDiscoveryLab } from './NobelDiscoveryLab';
+import { CymaticsPlateMesh } from './CymaticsPlateMesh';
 import { ScientificGroundDatum } from './ScientificGroundDatum';
 import { ColorPalettes, PalettePreset } from './ColorPalettes';
 
-export type VisualStyle = 'wavefront' | 'particles' | 'cymatics' | 'ribbon' | 'hybrid' | 'bio-acoustics' | 'therapy-lab' | 'voice-biometrics' | 'nobel-lab';
+export type VisualStyle = 'wavefront' | 'particles' | 'cymatics' | 'cymatics-2d' | 'ribbon' | 'hybrid' | 'bio-acoustics' | 'therapy-lab' | 'voice-biometrics' | 'nobel-lab';
 export type CameraMode = 'orbit' | 'autocam' | 'emitter-lock' | 'top-down';
+
+export interface CymaticsLayerState {
+  plate: boolean;   // 2D Sand Plate
+  droplet: boolean; // 3D Fluid Droplet
+  trap: boolean;    // 3D Particle Trap
+}
 
 export class VisualizerEngine {
   private container: HTMLElement;
@@ -38,6 +45,7 @@ export class VisualizerEngine {
   public historyTexture: HistoryTexture;
   public wavefrontShells: WavefrontShells;
   public cymaticsMesh: CymaticsMesh;
+  public cymaticsPlateMesh: CymaticsPlateMesh;
   public particleNebula: ParticleNebula;
   public sonicRibbon: SonicRibbon;
   public centralEmitter: CentralEmitter;
@@ -62,6 +70,13 @@ export class VisualizerEngine {
   private cameraMode: CameraMode = 'autocam';
   private clock = new THREE.Clock();
 
+  // Multi-Select Cymatics Layer State (2D Sand Plate, 3D Fluid Droplet, 3D Particle Trap)
+  public cymaticsLayers: CymaticsLayerState = {
+    plate: false,
+    droplet: true,
+    trap: true,
+  };
+
   // 6-DOF Harmonic Camera Choreography & Recoil Springs
   private recoilOffset = new THREE.Vector3();
   private recoilVelocity = new THREE.Vector3();
@@ -76,6 +91,7 @@ export class VisualizerEngine {
   public particleDensity = 131072;
   public cymaticsVisibilityMode: 'both' | 'particles' | 'droplet' = 'both';
   public autoRotateSpeed = 0.5;
+  public groundGridVisible = false;
 
   // Performance telemetry
   public fps = 60;
@@ -128,7 +144,7 @@ export class VisualizerEngine {
       this.container.classList.add('is-grabbing');
       if (this.cameraMode === 'autocam') {
         this.cameraMode = 'orbit';
-        const isVolumetric = ['cymatics', 'bio-acoustics', 'therapy-lab', 'voice-biometrics', 'nobel-lab'].includes(this.currentStyle);
+        const isVolumetric = ['cymatics', 'cymatics-2d', 'bio-acoustics', 'therapy-lab', 'voice-biometrics', 'nobel-lab'].includes(this.currentStyle);
         const targetY = isVolumetric ? 0.45 : 0.0;
         this.controls.target.set(0, targetY, 0);
         this.controls.update();
@@ -146,6 +162,7 @@ export class VisualizerEngine {
     // 6. Visual Subsystems
     this.wavefrontShells = new WavefrontShells(this.historyTexture.texture, this.currentPalette);
     this.cymaticsMesh = new CymaticsMesh(this.currentPalette);
+    this.cymaticsPlateMesh = new CymaticsPlateMesh(this.currentPalette);
     this.particleNebula = new ParticleNebula(this.historyTexture.texture, this.currentPalette);
     this.sonicRibbon = new SonicRibbon(this.historyTexture.texture, this.currentPalette);
     this.centralEmitter = new CentralEmitter(this.currentPalette);
@@ -159,6 +176,7 @@ export class VisualizerEngine {
 
     this.scene.add(this.wavefrontShells.group);
     this.scene.add(this.cymaticsMesh.group);
+    this.scene.add(this.cymaticsPlateMesh.group);
     this.scene.add(this.particleNebula.group);
     this.scene.add(this.sonicRibbon.group);
     this.scene.add(this.centralEmitter.group);
@@ -192,6 +210,7 @@ export class VisualizerEngine {
 
     // 8. Scientific Ground Datum Grid (Anti-Aliased Ground Coordinate Plane)
     this.scientificGroundDatum = new ScientificGroundDatum(18.0);
+    this.scientificGroundDatum.setVisible(this.groundGridVisible);
     this.scene.add(this.scientificGroundDatum.mesh);
 
     // 9. Post-Processing Pipeline with Tuned UnrealBloomPass (threshold ~0.88, strength ~0.25)
@@ -227,7 +246,8 @@ export class VisualizerEngine {
     this.acousticTherapyLab.setVisible(false);
     this.vocalBiometricsLab.setVisible(false);
     this.nobelDiscoveryLab.setVisible(false);
-    this.scientificGroundDatum.setVisible(true);
+    this.cymaticsPlateMesh.setVisible(false);
+    this.scientificGroundDatum.setVisible(this.groundGridVisible);
 
     switch (style) {
       case 'wavefront':
@@ -245,20 +265,18 @@ export class VisualizerEngine {
         this.centralEmitter.group.visible = true;
         break;
       case 'cymatics':
+      case 'cymatics-2d':
         this.wavefrontShells.setVisible(false);
         this.particleNebula.setVisible(false);
-        const showDroplet = this.cymaticsVisibilityMode === 'both' || this.cymaticsVisibilityMode === 'droplet';
-        const showParticles = this.cymaticsVisibilityMode === 'both' || this.cymaticsVisibilityMode === 'particles';
-        this.cymaticsMesh.setVisible(showDroplet);
-        this.gpuAcousticParticles.setVisible(showParticles);
         this.sonicRibbon.setVisible(false);
         this.centralEmitter.group.visible = false;
         this.volumetricChladni.setVisible(false);
         this.chamberEnclosure.setVisible(false);
-        this.scientificGroundDatum.setVisible(true);
-        this.cymaticsMesh.group.position.y = 0.45;
-        this.gpuAcousticParticles.group.position.y = 0.45;
-        this.chamberEnclosure.group.position.y = 0.45;
+        this.scientificGroundDatum.setVisible(this.groundGridVisible);
+        if (style === 'cymatics-2d' && !this.cymaticsLayers.plate) {
+          this.cymaticsLayers.plate = true;
+        }
+        this.applyCymaticsLayers();
         break;
       case 'bio-acoustics':
         this.wavefrontShells.setVisible(false);
@@ -312,10 +330,67 @@ export class VisualizerEngine {
         this.centralEmitter.group.visible = true;
         break;
     }
+
+    window.dispatchEvent(new CustomEvent('visual-style-changed', { detail: { style } }));
   }
 
   public getStyle(): VisualStyle {
     return this.currentStyle;
+  }
+
+  public setCymaticsLayers(layers: Partial<CymaticsLayerState>): void {
+    if (layers.plate !== undefined) this.cymaticsLayers.plate = layers.plate;
+    if (layers.droplet !== undefined) this.cymaticsLayers.droplet = layers.droplet;
+    if (layers.trap !== undefined) this.cymaticsLayers.trap = layers.trap;
+
+    // Ensure at least one layer is active
+    if (!this.cymaticsLayers.plate && !this.cymaticsLayers.droplet && !this.cymaticsLayers.trap) {
+      this.cymaticsLayers.droplet = true;
+    }
+
+    // Keep cymaticsVisibilityMode synchronized with cymaticsLayers
+    if (this.cymaticsLayers.droplet && this.cymaticsLayers.trap) {
+      this.cymaticsVisibilityMode = 'both';
+    } else if (this.cymaticsLayers.trap) {
+      this.cymaticsVisibilityMode = 'particles';
+    } else if (this.cymaticsLayers.droplet) {
+      this.cymaticsVisibilityMode = 'droplet';
+    }
+
+    if (this.currentStyle === 'cymatics' || this.currentStyle === 'cymatics-2d') {
+      this.applyCymaticsLayers();
+    }
+
+    window.dispatchEvent(
+      new CustomEvent('cymatics-layers-changed', {
+        detail: { ...this.cymaticsLayers },
+      })
+    );
+  }
+
+  public getCymaticsLayers(): Readonly<CymaticsLayerState> {
+    return { ...this.cymaticsLayers };
+  }
+
+  public applyCymaticsLayers(): void {
+    this.cymaticsPlateMesh.setVisible(this.cymaticsLayers.plate);
+    this.cymaticsMesh.setVisible(this.cymaticsLayers.droplet);
+    this.gpuAcousticParticles.setVisible(this.cymaticsLayers.trap);
+
+    // Calibrated spatial positioning for multi-layer physical coherence:
+    if (this.cymaticsLayers.plate) {
+      this.cymaticsPlateMesh.group.position.y = 0.0;
+      // When 2D plate is active, droplet levitates above the plate
+      this.cymaticsMesh.group.position.y = 0.65;
+      this.gpuAcousticParticles.group.position.y = 0.45;
+      this.chamberEnclosure.group.position.y = 0.45;
+      this.volumetricChladni.group.position.y = 0.45;
+    } else {
+      this.cymaticsMesh.group.position.y = 0.45;
+      this.gpuAcousticParticles.group.position.y = 0.45;
+      this.chamberEnclosure.group.position.y = 0.45;
+      this.volumetricChladni.group.position.y = 0.45;
+    }
   }
 
   public setBloomStrength(strength: number): void {
@@ -329,6 +404,7 @@ export class VisualizerEngine {
     this.particleDensity = count;
     this.gpuAcousticParticles.setParticleDensity(count);
     this.particleNebula.setParticleDensity(count);
+    this.cymaticsPlateMesh.setParticleDensity(count);
   }
 
   public setParticleCount(count: number): void {
@@ -339,29 +415,37 @@ export class VisualizerEngine {
     this.particleScale = scale;
     this.gpuAcousticParticles.setParticleScale(scale);
     this.particleNebula.setParticleScale(scale);
+    this.cymaticsPlateMesh.setParticleScale(scale);
   }
 
-  public setCymaticsVisibilityMode(mode: 'both' | 'particles' | 'droplet'): void {
-    this.cymaticsVisibilityMode = mode;
-    if (this.currentStyle === 'cymatics') {
-      const showDroplet = mode === 'both' || mode === 'droplet';
-      const showParticles = mode === 'both' || mode === 'particles';
-      this.cymaticsMesh.setVisible(showDroplet);
-      this.gpuAcousticParticles.setVisible(showParticles);
+  public setCymaticsVisibilityMode(mode: 'both' | 'particles' | 'droplet' | 'plate' | 'all'): void {
+    if (mode === 'droplet') {
+      this.cymaticsVisibilityMode = 'droplet';
+      this.setCymaticsLayers({ plate: false, droplet: true, trap: false });
+    } else if (mode === 'particles') {
+      this.cymaticsVisibilityMode = 'particles';
+      this.setCymaticsLayers({ plate: false, droplet: false, trap: true });
+    } else if (mode === 'both') {
+      this.cymaticsVisibilityMode = 'both';
+      this.setCymaticsLayers({ plate: false, droplet: true, trap: true });
+    } else if (mode === 'plate') {
+      this.setCymaticsLayers({ plate: true, droplet: false, trap: false });
+    } else if (mode === 'all') {
+      this.setCymaticsLayers({ plate: true, droplet: true, trap: true });
     }
   }
 
   public setDropletVisible(visible: boolean): void {
-    const showParticles = this.gpuAcousticParticles.isVisible();
-    if (visible && showParticles) {
-      this.setCymaticsVisibilityMode('both');
-    } else if (visible && !showParticles) {
-      this.setCymaticsVisibilityMode('droplet');
-    } else if (!visible && showParticles) {
-      this.setCymaticsVisibilityMode('particles');
-    } else {
-      this.setCymaticsVisibilityMode('particles'); // fallback
-    }
+    this.setCymaticsLayers({ droplet: visible });
+  }
+
+  public setGroundGridVisible(visible: boolean): void {
+    this.groundGridVisible = visible;
+    this.scientificGroundDatum.setVisible(visible);
+  }
+
+  public getGroundGridVisible(): boolean {
+    return this.groundGridVisible;
   }
 
   public setPalette(paletteId: string): void {
@@ -369,6 +453,7 @@ export class VisualizerEngine {
     this.currentPalette = pal;
     this.wavefrontShells.setPalette(pal);
     this.cymaticsMesh.setPalette(pal);
+    this.cymaticsPlateMesh.setPalette(pal);
     this.particleNebula.setPalette(pal);
     this.sonicRibbon.setPalette(pal);
     this.centralEmitter.setPalette(pal);
@@ -383,11 +468,11 @@ export class VisualizerEngine {
 
   public setCameraMode(mode: CameraMode): void {
     this.cameraMode = mode;
-    const isVolumetric = ['cymatics', 'bio-acoustics', 'therapy-lab', 'voice-biometrics', 'nobel-lab'].includes(this.currentStyle);
+    const isVolumetric = ['cymatics', 'cymatics-2d', 'bio-acoustics', 'therapy-lab', 'voice-biometrics', 'nobel-lab'].includes(this.currentStyle);
     const targetY = isVolumetric ? 0.45 : 0.0;
 
     if (mode === 'top-down') {
-      this.camera.position.set(0, 15, 0.001);
+      this.camera.position.set(0, targetY + 14.5, 0.001);
       this.camera.lookAt(0, targetY, 0);
       this.controls.target.set(0, targetY, 0);
       this.controls.update();
@@ -451,18 +536,21 @@ export class VisualizerEngine {
     const vShockwaves = shockwaves.map(sw => new THREE.Vector4(sw.birthTime, sw.strength, sw.speed, 0));
 
     // Update 3D visual components
-    this.scientificGroundDatum.update(this.camera);
+    if (this.groundGridVisible) {
+      this.scientificGroundDatum.update(this.camera);
+    }
     this.wavefrontShells.update(time, historyHead, vBands03, vBands45, vShockwaves);
     const dt = this.lastAnimTime > 0 ? Math.min(0.1, time - this.lastAnimTime) : 0.016;
     this.lastAnimTime = time;
 
     this.cymaticsMesh.update(time, vBands03, vBands45, fundamentalHz, dt, this.camera);
+    this.cymaticsPlateMesh.update(time, vBands03, vBands45, fundamentalHz, dt, this.camera);
     this.particleNebula.update(time, historyHead, vBands03, vBands45, vShockwaves);
 
     this.sonicRibbon.update(time, historyHead, vBands03, vBands45);
     this.centralEmitter.update(time, bands.subBass, shockwaves.length > 0 ? shockwaves[0].strength : 0);
     this.volumetricChladni.update(time, vBands03, vBands45, fundamentalHz, this.camera);
-    if (this.currentStyle === 'particles' || this.currentStyle === 'cymatics') {
+    if (this.gpuAcousticParticles.isVisible()) {
       const activeModes = this.cymaticsMesh.getModes();
       this.gpuAcousticParticles.setModalNumbers(activeModes.x, activeModes.y, activeModes.z);
       this.gpuAcousticParticles.update(time, dt, vBands03, vBands45, vShockwaves, fundamentalHz);
@@ -510,28 +598,44 @@ export class VisualizerEngine {
     // Camera handling
     if (this.cameraMode === 'autocam') {
       const isCymatics = this.currentStyle === 'cymatics';
+      const isPlate = this.currentStyle === 'cymatics-2d';
       const isBio = this.currentStyle === 'bio-acoustics';
       const isTherapy = this.currentStyle === 'therapy-lab';
       const isVoice = this.currentStyle === 'voice-biometrics';
       const isNobel = this.currentStyle === 'nobel-lab';
       const isSorter = isBio && this.bioAcousticResonator.getViewMode() === 'microfluidic-sorter';
-      const radius = isCymatics ? 9.6 : isSorter ? 12.5 : isTherapy ? 8.2 : isBio ? 6.8 : isVoice ? 7.6 : isNobel ? 7.8 : 9.5;
-      const targetY = (isCymatics || isBio || isTherapy || isVoice || isNobel) ? 0.45 : 0.0;
+      const radius = isCymatics ? 8.6 : isPlate ? 8.2 : isSorter ? 12.5 : isTherapy ? 8.2 : isBio ? 6.8 : isVoice ? 7.6 : isNobel ? 7.8 : 9.5;
+      const targetY = (isCymatics || isPlate || isBio || isTherapy || isVoice || isNobel) ? 0.45 : 0.0;
 
-      // 6-DOF Harmonic Lissajous Path Choreography
-      const baseAngle = time * 0.10 * this.autoRotateSpeed;
-      const lissX = Math.sin(baseAngle) * radius + Math.sin(time * 0.23) * 0.25;
-      const lissZ = Math.cos(baseAngle) * radius + Math.cos(time * 0.19) * 0.25;
-      const baseHeight = isCymatics ? 2.8 : isSorter ? 3.0 : isTherapy ? 2.2 : isBio ? 1.6 : isVoice ? 2.0 : isNobel ? 2.2 : 3.2;
-      const lissY = baseHeight + Math.sin(time * 0.15) * 0.45 + Math.cos(time * 0.31) * 0.20;
+      // Camera Choreography
+      if (isVoice) {
+        // Frontal Parallax Arc for Side-by-Side Dual-Stage Clarity (Zero Occlusion)
+        const sweepX = Math.sin(time * 0.12 * this.autoRotateSpeed) * 1.6;
+        const sweepY = 1.6 + Math.sin(time * 0.18) * 0.25;
+        const sweepZ = 9.4 + Math.cos(time * 0.12 * this.autoRotateSpeed) * 0.6;
+        this.camera.position.set(
+          sweepX + this.recoilOffset.x,
+          sweepY + this.recoilOffset.y,
+          sweepZ + this.recoilOffset.z
+        );
+        this.camera.lookAt(0, targetY, 0);
+        this.controls.target.set(0, targetY, 0);
+      } else {
+        // 6-DOF Harmonic Lissajous Path Choreography for Central Single-Stage Systems
+        const baseAngle = time * 0.10 * this.autoRotateSpeed;
+        const lissX = Math.sin(baseAngle) * radius + Math.sin(time * 0.23) * 0.25;
+        const lissZ = Math.cos(baseAngle) * radius + Math.cos(time * 0.19) * 0.25;
+        const baseHeight = isCymatics ? 3.0 : isPlate ? 3.4 : isSorter ? 3.0 : isTherapy ? 2.2 : isBio ? 1.6 : isNobel ? 2.2 : 3.2;
+        const lissY = baseHeight + Math.sin(time * 0.15) * 0.45 + Math.cos(time * 0.31) * 0.20;
 
-      this.camera.position.set(
-        lissX + this.recoilOffset.x,
-        lissY + this.recoilOffset.y,
-        lissZ + this.recoilOffset.z
-      );
-      this.camera.lookAt(0, targetY, 0);
-      this.controls.target.set(0, targetY, 0);
+        this.camera.position.set(
+          lissX + this.recoilOffset.x,
+          lissY + this.recoilOffset.y,
+          lissZ + this.recoilOffset.z
+        );
+        this.camera.lookAt(0, targetY, 0);
+        this.controls.target.set(0, targetY, 0);
+      }
     } else {
       this.controls.update();
     }

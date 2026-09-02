@@ -39,6 +39,12 @@ describe('ChamberEnclosure - Minimal Wireframe Datum Frame', () => {
     camera.position.set(0, 3, 9);
 
     enclosure.update(1.0, 0.016, bands, highs, camera);
-    expect(enclosure.group.rotation.y).toBeGreaterThan(0);
+    expect(enclosure.group.rotation.y).toBe(0);
+    expect(enclosure.group.rotation.x).toBe(0);
+  });
+
+  it('aligns concentrically with acoustic particles and droplet at y = 0.45', () => {
+    const enclosure = new ChamberEnclosure(palette);
+    expect(enclosure.group.position.y).toBeCloseTo(0.45, 2);
   });
 });

@@ -59,9 +59,10 @@ export class PhysicsDrawer {
     const activeStyle = this.visualizer.getStyle();
 
     const isMusicMode = this.currentMode === 'music';
-    const isCymaticsMode = this.currentMode === 'modal';
+    const isCymaticsMode = this.currentMode === 'modal' || this.currentMode === 'frequency';
     const isToneMode = this.currentMode === 'frequency';
     const isSpecializedLab = ['therapy', 'nobel', 'bio', 'voice'].includes(this.currentMode);
+    const isCymaticsStyleActive = activeStyle === 'cymatics' || activeStyle === 'cymatics-2d';
 
     const showVisualsSection = isMusicMode || isCymaticsMode || isToneMode;
     const showRenderStyles = isMusicMode;
@@ -70,8 +71,9 @@ export class PhysicsDrawer {
     const showWaveControls = isMusicMode;
     const showParticleScale = isMusicMode || isCymaticsMode;
     const showParticleDensity = isMusicMode || isCymaticsMode;
-    const showCymaticsDisplay = isCymaticsMode;
+    const showCymaticsDisplay = isCymaticsMode || (isMusicMode && isCymaticsStyleActive);
     const showGlowControl = true; // Universal bloom across all modes
+    const cymaticsLayers = this.visualizer.getCymaticsLayers ? this.visualizer.getCymaticsLayers() : { plate: false, droplet: true, trap: true };
 
     let headerTitle = 'Physics & Visuals';
     if (isSpecializedLab) {
@@ -104,6 +106,7 @@ export class PhysicsDrawer {
                   { id: 'wavefront', label: 'Wavefront' },
                   { id: 'particles', label: 'Tracer Dust' },
                   { id: 'ribbon', label: 'Sonic Ribbon' },
+                  { id: 'cymatics-2d', label: 'Cymatics 2D' },
                 ]
                   .map(
                     s => `
@@ -124,25 +127,28 @@ export class PhysicsDrawer {
             ${
               showCymaticsDisplay
                 ? `
-            <!-- Specimen Layer Toggle (3D Cymatics) -->
+            <!-- Cymatics Apparatus Multi-Select (Cymatics Mode & Music Space) -->
             <div class="flex flex-col gap-1">
-              <span class="text-[10px] text-slate-400 font-medium">Specimen Display:</span>
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] text-slate-400 font-medium">Cymatics Apparatus:</span>
+                <span class="text-[9px] text-cyan-400 font-mono">Multi-Layer</span>
+              </div>
               <div class="grid grid-cols-3 gap-1">
-                ${[
-                  { id: 'both', label: 'All Layers' },
-                  { id: 'particles', label: 'Dust Only' },
-                  { id: 'droplet', label: 'Droplet Only' },
-                ]
-                  .map(
-                    v => `
-                  <button data-cymatics-vis="${v.id}" class="btn-cymatics-vis glass-btn py-1.5 px-1 rounded-lg text-[10px] font-medium transition-all text-center cursor-pointer ${
-                      this.visualizer.cymaticsVisibilityMode === v.id ? 'glass-btn-active font-bold shadow-sm ring-1 ring-cyan-400/30 text-cyan-300' : 'text-gray-300 hover:text-white'
-                    }">
-                    ${v.label}
-                  </button>
-                `
-                  )
-                  .join('')}
+                <button data-cymatics-layer="plate" class="btn-cymatics-layer btn-cymatics-app glass-btn py-1.5 px-1 rounded-lg text-[10px] font-medium transition-all text-center cursor-pointer ${
+                  cymaticsLayers.plate ? 'glass-btn-active font-bold shadow-sm ring-1 ring-cyan-400/30 text-cyan-300' : 'text-gray-400 hover:text-white'
+                }">
+                  ${cymaticsLayers.plate ? '✓ ' : ''}2D Sand Plate
+                </button>
+                <button data-cymatics-layer="droplet" class="btn-cymatics-layer btn-cymatics-app glass-btn py-1.5 px-1 rounded-lg text-[10px] font-medium transition-all text-center cursor-pointer ${
+                  cymaticsLayers.droplet ? 'glass-btn-active font-bold shadow-sm ring-1 ring-cyan-400/30 text-cyan-300' : 'text-gray-400 hover:text-white'
+                }">
+                  ${cymaticsLayers.droplet ? '✓ ' : ''}3D Droplet
+                </button>
+                <button data-cymatics-layer="trap" class="btn-cymatics-layer btn-cymatics-app glass-btn py-1.5 px-1 rounded-lg text-[10px] font-medium transition-all text-center cursor-pointer ${
+                  cymaticsLayers.trap ? 'glass-btn-active font-bold shadow-sm ring-1 ring-cyan-400/30 text-cyan-300' : 'text-gray-400 hover:text-white'
+                }">
+                  ${cymaticsLayers.trap ? '✓ ' : ''}3D Trap
+                </button>
               </div>
             </div>
             `
@@ -335,6 +341,18 @@ export class PhysicsDrawer {
             `
                 : ''
             }
+
+            <!-- Floor Reference Grid Toggle (Universal) -->
+            <div class="flex items-center justify-between pt-1.5 border-t border-white/5">
+              <span class="text-[10px] text-slate-300">Floor Grid</span>
+              <button id="btn-toggle-ground-grid" class="glass-btn px-2.5 py-0.5 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                this.visualizer.getGroundGridVisible && this.visualizer.getGroundGridVisible()
+                  ? 'glass-btn-active text-cyan-300 ring-1 ring-cyan-400/30 font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }">
+                ${this.visualizer.getGroundGridVisible && this.visualizer.getGroundGridVisible() ? '✓ On' : 'Off'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -394,6 +412,7 @@ export class PhysicsDrawer {
       this.visualizer.wavefrontShells.setPropagationSpeed(val);
       this.visualizer.particleNebula.setPropagationSpeed(val);
       this.visualizer.sonicRibbon.setPropagationSpeed(val);
+      this.visualizer.cymaticsPlateMesh.setWaveSpeed(val);
       const valEl = this.element.querySelector('#val-wave-speed');
       if (valEl) valEl.textContent = val.toFixed(1);
     });
@@ -404,11 +423,50 @@ export class PhysicsDrawer {
       const val = parseFloat(dampingSlider.value);
       this.visualizer.waveDamping = val;
       this.visualizer.wavefrontShells.setWaveDamping(val);
+      this.visualizer.cymaticsPlateMesh.setWaveDamping(val);
       const valEl = this.element.querySelector('#val-wave-damping');
       if (valEl) valEl.textContent = val.toFixed(2);
     });
 
-    // Cymatics Specimen Layer Visibility Toggle
+    // Cymatics Apparatus Multi-Select Layer Toggles
+    this.element.querySelectorAll('.btn-cymatics-layer').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const target = e.currentTarget as HTMLElement;
+        const layer = target.getAttribute('data-cymatics-layer') as 'plate' | 'droplet' | 'trap';
+        if (layer && this.visualizer.getCymaticsLayers) {
+          const curLayers = this.visualizer.getCymaticsLayers();
+          const targetState = !curLayers[layer];
+          // Ensure at least one layer is active
+          const otherActive = Object.entries(curLayers).some(([k, v]) => k !== layer && v);
+          if (!targetState && !otherActive) {
+            return; // Don't allow deselecting the only active layer
+          }
+          this.visualizer.setCymaticsLayers({ [layer]: targetState });
+          if (this.visualizer.getStyle() !== 'cymatics' && this.visualizer.getStyle() !== 'cymatics-2d') {
+            this.visualizer.setStyle('cymatics');
+          }
+          this.render();
+        }
+      });
+    });
+
+    // Cymatics Apparatus Legacy Toggle (fallback)
+    this.element.querySelectorAll('.btn-cymatics-app:not(.btn-cymatics-layer)').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const target = e.currentTarget as HTMLElement;
+        const app = target.getAttribute('data-cymatics-app');
+        if (app === '2d-plate') {
+          this.visualizer.setCymaticsLayers({ plate: true, droplet: false, trap: false });
+        } else if (app === '3d-droplet') {
+          this.visualizer.setCymaticsLayers({ plate: false, droplet: true, trap: false });
+        } else if (app === '3d-particles') {
+          this.visualizer.setCymaticsLayers({ plate: false, droplet: false, trap: true });
+        }
+        this.render();
+      });
+    });
+
+    // Cymatics Specimen Layer Visibility Toggle (legacy support)
     this.element.querySelectorAll('.btn-cymatics-vis').forEach(btn => {
       btn.addEventListener('click', e => {
         const target = e.currentTarget as HTMLElement;
@@ -449,6 +507,15 @@ export class PhysicsDrawer {
       if (valEl) valEl.textContent = `${val.toFixed(1)}×`;
     });
 
+    // Floor Reference Grid Toggle
+    this.element.querySelector('#btn-toggle-ground-grid')?.addEventListener('click', () => {
+      if (this.visualizer.setGroundGridVisible && this.visualizer.getGroundGridVisible) {
+        const nextState = !this.visualizer.getGroundGridVisible();
+        this.visualizer.setGroundGridVisible(nextState);
+        this.render();
+      }
+    });
+
     // Camera Mode
     this.element.querySelectorAll('.btn-cam-mode').forEach(btn => {
       btn.addEventListener('click', e => {
@@ -482,10 +549,16 @@ export class PhysicsDrawer {
       });
     }) as EventListener);
 
-    window.addEventListener('cymatics-visibility-changed', ((e: CustomEvent<{ mode: 'both' | 'particles' | 'droplet' }>) => {
-      if (this.currentMode === 'modal') {
-        this.render();
-      }
+    window.addEventListener('cymatics-layers-changed', (() => {
+      this.render();
+    }) as EventListener);
+
+    window.addEventListener('visual-style-changed', (() => {
+      this.render();
+    }) as EventListener);
+
+    window.addEventListener('cymatics-visibility-changed', (() => {
+      this.render();
     }) as EventListener);
 
     window.addEventListener('particle-density-changed', ((e: CustomEvent<{ density: number }>) => {

@@ -96,10 +96,10 @@ export class Header {
           }">
             <span>Music Space</span>
           </button>
-          <button id="btn-mode-modal" title="3D cavity modes, standing waves & acoustic levitation" class="px-2.5 md:px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
+          <button id="btn-mode-modal" title="2D Chladni sand plate, 3D fluid droplet & acoustic levitation" class="px-2.5 md:px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
             this.currentMode === 'modal' ? 'glass-btn-active font-bold text-white shadow-md' : 'text-gray-300 hover:text-white hover:bg-white/5'
           }">
-            <span>3D Cymatics</span>
+            <span>Cymatics</span>
           </button>
           <button id="btn-mode-therapy" title="Targeted ultrasound, 180° phase cancellation & oncology" class="px-2.5 md:px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
             this.currentMode === 'therapy' ? 'glass-btn-active font-bold text-rose-300 shadow-md ring-1 ring-rose-500/40' : 'text-gray-300 hover:text-white hover:bg-white/5'

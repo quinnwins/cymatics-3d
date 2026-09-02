@@ -3,10 +3,10 @@ import { PalettePreset } from './ColorPalettes';
 import { CYMATICS_CORE_GLSL } from './shaders/cymaticsCore';
 
 export type ChladniMode = 'normal' | 'inverse';
-export type ChamberGeometryType = 'cube' | 'cylinder' | 'sphere';
+export type ChamberGeometryType = 'cube' | 'cylinder' | 'sphere' | 'human';
 
 export interface GpuParticleConfig {
-  simResolution?: number; // 512 -> 262,144 particles
+  particleCount?: number;
   gorkovStrength?: number;
   stokesDrag?: number;
   acousticExcitation?: number;
@@ -16,420 +16,26 @@ export interface GpuParticleConfig {
 }
 
 // ----------------------------------------------------------------------------
-// GPGPU Velocity Simulation Shader
-// Computes Gor'kov Radiation Force F = -∇U, Stokes Drag, Shockwaves, and Boundaries
+// Analytical 3D Acoustic Radiation Trapping & Rayleigh Streaming Vertex Shader
+// Computes Gor'kov Nodal Trapping, Tangent In-Plane Vortex Streaming,
+// Droplet Sheath Flow, and Audio Spectral Kinetic Excitation directly per-vertex.
 // ----------------------------------------------------------------------------
-const GPU_VELOCITY_UPDATE_SHADER = `
+const PARTICLE_VERTEX_SHADER = `
 ${CYMATICS_CORE_GLSL}
 
-uniform sampler2D uPosTexture;
-uniform sampler2D uVelTexture;
-uniform float uDeltaTime;
-uniform float uTime;
-uniform int uMode; // 0 = Normal Chladni (nodal p=0), 1 = Inverse Chladni (antinode centers)
-uniform int uChamberType; // 0 = Cube, 1 = Cylinder, 2 = Sphere
-uniform float uChamberSize;
-uniform vec3 uModalNumbers; // (n, m, l) 3D standing wave mode indices
-uniform vec4 uBandEnergies; // x=SubBass, y=Bass, z=LowMid, w=Mid
-uniform vec2 uHighEnergies; // x=HighMid, y=High
-uniform float uFundamentalFreq;
-uniform float uGorkovStrength;
-uniform float uStokesDrag;
-uniform float uAcousticExcitation;
-uniform float uBrownianMotion;
-uniform vec4 uShockwaves[4];
-
-varying vec2 vUv;
-
-// 3D Simplex / Hash Noise for Acoustic Streaming Micro-Turbulence
-float hash31(vec3 p) {
-    p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3));
-    p *= 17.0;
-    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-
-vec3 hash33(vec3 p) {
-    p = fract(p * vec3(0.1031, 0.1030, 0.0973));
-    p += dot(p, p.yxz + 33.33);
-    return fract((p.xxy + p.yxx) * p.zyx) * 2.0 - 1.0;
-}
-
-// 3D Cartesian Acoustic Cavity Pressure and Exact Analytical Gradient
-void evalCartesianPressureAndGradient(
-    vec3 p, 
-    vec3 nml, 
-    float L, 
-    out float pressure, 
-    out vec3 gradP
-) {
-    vec3 k = (nml * PI) / L;
-    
-    // Primary Modal Eigenfunction: cos(kx * x) * cos(ky * y) * cos(kz * z)
-    float cX = cos(k.x * p.x);
-    float cY = cos(k.y * p.y);
-    float cZ = cos(k.z * p.z);
-    float sX = sin(k.x * p.x);
-    float sY = sin(k.y * p.y);
-    float sZ = sin(k.z * p.z);
-
-    // Permuted Degenerate / Harmonic Mode 2: cos(ky * x) * cos(kz * y) * cos(kx * z)
-    float cX2 = cos(k.y * p.x); float cY2 = cos(k.z * p.y); float cZ2 = cos(k.x * p.z);
-    float sX2 = sin(k.y * p.x); float sY2 = sin(k.z * p.y); float sZ2 = sin(k.x * p.z);
-
-    // Permuted Degenerate / Harmonic Mode 3: cos(kz * x) * cos(kx * y) * cos(ky * z)
-    float cX3 = cos(k.z * p.x); float cY3 = cos(k.x * p.y); float cZ3 = cos(k.y * p.z);
-    float sX3 = sin(k.z * p.x); float sY3 = sin(k.x * p.y); float sZ3 = sin(k.y * p.z);
-
-    // Superposition weights driven by audio spectral energy
-    float w1 = 1.0;
-    float w2 = 0.55 + 0.35 * uBandEnergies.y;
-    float w3 = 0.35 + 0.45 * uBandEnergies.z;
-
-    pressure = w1 * (cX * cY * cZ) - w2 * (cX2 * cY2 * cZ2) + w3 * (cX3 * cY3 * cZ3);
-
-    // Analytical Spatial Gradient ∇p = (∂p/∂x, ∂p/∂y, ∂p/∂z)
-    float dpdx = w1 * (-k.x * sX * cY * cZ) - w2 * (-k.y * sX2 * cY2 * cZ2) + w3 * (-k.z * sX3 * cY3 * cZ3);
-    float dpdy = w1 * (-k.y * cX * sY * cZ) - w2 * (-k.z * cX2 * sY2 * cZ2) + w3 * (-k.x * cX3 * sY3 * cZ3);
-    float dpdz = w1 * (-k.z * cX * cY * sZ) - w2 * (-k.x * cX2 * cY2 * sZ2) + w3 * (-k.y * cX3 * cY3 * sZ3);
-
-    gradP = vec3(dpdx, dpdy, dpdz);
-}
-
-// 3D Cylindrical Cavity Pressure and Gradient
-void evalCylindricalPressureAndGradient(
-    vec3 p,
-    vec3 nml,
-    float L,
-    out float pressure,
-    out vec3 gradP
-) {
-    float r = length(p.xy);
-    float theta = atan(p.y, p.x);
-    float n = max(0.5, nml.x);
-    float m = max(0.0, nml.y);
-    float l = max(0.0, nml.z);
-
-    float k = PI * (n + 0.5 * m + 0.25) / L;
-    float kz = (l * PI) / (L * 2.0);
-
-    float bessel = evalBesselJ(m, k * r);
-    float angular = cos(m * theta);
-    float axial = cos(kz * p.z);
-
-    pressure = bessel * angular * axial;
-
-    // Numerical gradient for Bessel dynamics
-    float eps = 0.01;
-    float rPlus = evalBesselJ(m, k * (r + eps));
-    float rMinus = evalBesselJ(m, k * max(0.0, r - eps));
-    float dbesselDr = (rPlus - rMinus) / (2.0 * eps);
-
-    vec2 nXY = r > 1e-4 ? p.xy / r : vec2(1.0, 0.0);
-    vec2 gradXY = dbesselDr * angular * axial * nXY;
-    float gradZ = -bessel * angular * kz * sin(kz * p.z);
-
-    gradP = vec3(gradXY, gradZ);
-}
-
-// 3D Spherical Resonator Acoustic Pressure Field with Dynamic Modal Numbers (n, m, l)
-float evalSphericalModalPressure(
-    vec3 p, 
-    vec3 nml, 
-    vec4 bands, 
-    vec2 highs, 
-    float wavenumber, 
-    float time
-) {
-    float r = length(p);
-    if (r < 1e-4) return 0.0;
-    vec3 n = p / r;
-
-    float nMode = max(1.0, nml.x);
-    float mMode = max(1.0, nml.y);
-    float lMode = max(1.0, nml.z);
-
-    // Evaluate Real Spherical Harmonics
-    vec4 sh01 = evalSH_L0_L1(n);
-    float sh2[5]; evalSH_L2(n, sh2);
-    float sh3[7]; evalSH_L3(n, sh3);
-
-    // Compute radial Spherical Bessel standing wave harmonics scaled by modal frequencies
-    float u = wavenumber * r;
-    float j0 = sphericalBessel_j0(u * (nMode * 0.45));
-    float j1 = sphericalBessel_j1(u * (mMode * 0.45));
-    float j2 = sphericalBessel_j2(u * (lMode * 0.40));
-    float j3 = sphericalBessel_j3(u * ((nMode + mMode) * 0.30));
-
-    float subBass = bands.x;
-    float bass = bands.y;
-    float lowMid = bands.z;
-    float mid = bands.w;
-
-    // Dynamic standing wave multi-pole interference
-    float mode0 = (0.7 + subBass * 2.2) * j0 * sh01.x * 2.5;
-    float mode1 = (0.6 + bass * 1.8) * j1 * (sh01.y * sin(time * 2.8) + sh01.w * cos(time * 2.4));
-    float mode2 = (0.5 + lowMid * 1.6) * j2 * (sh2[0] * cos(mMode * n.x * 2.0) + sh2[2] * 0.8 + sh2[4]);
-    float mode3 = (0.4 + mid * 1.4) * j3 * (sh3[0] + sh3[3] * sin(lMode * n.z * 2.0) + sh3[6]);
-
-    // High frequency 3D modal ripple
-    float chladni = (cos(n.x * nMode * 3.14159) * cos(n.y * mMode * 3.14159) * cos(n.z * lMode * 3.14159)) * (0.35 + highs.x * 0.8);
-
-    return (mode0 + mode1 + mode2 + mode3 + chladni) * (1.0 / (1.0 + 0.12 * r));
-}
-
-// 3D Spherical Resonator Acoustic Pressure and Finite-Difference Gradient
-void evalSphericalPressureAndGradient(
-    vec3 p, 
-    vec3 nml,
-    float wavenumber, 
-    out float pressure, 
-    out vec3 gradP
-) {
-    pressure = evalSphericalModalPressure(p, nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
-    
-    // Central finite differences for exact gradient
-    float eps = 0.008;
-    float px = evalSphericalModalPressure(p + vec3(eps, 0.0, 0.0), nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
-    float mx = evalSphericalModalPressure(p - vec3(eps, 0.0, 0.0), nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
-    float py = evalSphericalModalPressure(p + vec3(0.0, eps, 0.0), nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
-    float my = evalSphericalModalPressure(p - vec3(0.0, eps, 0.0), nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
-    float pz = evalSphericalModalPressure(p + vec3(0.0, 0.0, eps), nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
-    float mz = evalSphericalModalPressure(p - vec3(0.0, 0.0, eps), nml, uBandEnergies, uHighEnergies, wavenumber, uTime);
-
-    gradP = vec3(px - mx, py - my, pz - mz) / (2.0 * eps);
-}
-
-void main() {
-    vec4 posData = texture2D(uPosTexture, vUv);
-    vec4 velData = texture2D(uVelTexture, vUv);
-
-    vec3 pos = posData.xyz;
-    float particleMass = max(posData.w, 0.1);
-    vec3 vel = velData.xyz;
-
-    float pressure = 0.0;
-    vec3 gradP = vec3(0.0);
-
-    float L = uChamberSize;
-
-    if (uChamberType == 0) {
-        // Cartesian Mode
-        evalCartesianPressureAndGradient(pos, uModalNumbers, L, pressure, gradP);
-    } else if (uChamberType == 1) {
-        // Cylindrical Mode
-        evalCylindricalPressureAndGradient(pos, uModalNumbers, L, pressure, gradP);
-    } else {
-        // Spherical Mode
-        float k = (2.0 * PI * max(uFundamentalFreq, 100.0)) / 343.0;
-        k = clamp(k * 0.15, 1.2, 4.5);
-        evalSphericalPressureAndGradient(pos, uModalNumbers, k, pressure, gradP);
-    }
-
-    // 1. Gor'kov Acoustic Radiation Force Field (F = -∇U)
-    // Primary pressure term: -∇<p^2> = -p * ∇p (drives particles to p = 0 nodal planes)
-    // Secondary acoustic radiation trapping potential: confines particles into crisp nodal beads
-    vec3 F_gorkov = vec3(0.0);
-    float audioAmp = 0.5 + uBandEnergies.x * 2.2 + uBandEnergies.y * 1.5;
-    
-    if (uMode == 0) {
-        // Normal Chladni: Trapping at pressure nodes (Gor'kov potential minima)
-        vec3 gorkovGrad = pressure * gradP;
-        F_gorkov = -gorkovGrad * (uGorkovStrength * audioAmp);
-    } else {
-        // Inverse Chladni: Trapping at antinode centers
-        vec3 gorkovGrad = pressure * gradP;
-        F_gorkov = +gorkovGrad * (uGorkovStrength * audioAmp);
-    }
-
-    // 2. Viscous Stokes Drag Force
-    vec3 F_drag = -vel * uStokesDrag;
-
-    // 3. Acoustic Streaming & Micro-Turbulence (Brownian Jitter on Beats)
-    vec3 noiseDir = hash33(pos * 4.0 + vec3(uTime * 0.5, uTime * 0.3, uTime * 0.7));
-    float beatAgitation = uBandEnergies.x * 1.8 + uBandEnergies.y * 1.2 + uHighEnergies.x * 0.8;
-    vec3 F_streaming = noiseDir * (uBrownianMotion * (0.25 + beatAgitation));
-
-    // 4. Acoustic Transient Shockwaves
-    vec3 F_shock = vec3(0.0);
-    float r = length(pos);
-    vec3 nPos = r > 0.001 ? pos / r : vec3(0.0, 1.0, 0.0);
-
-    for (int i = 0; i < 4; i++) {
-        float birth = uShockwaves[i].x;
-        float strength = uShockwaves[i].y;
-        float speed = uShockwaves[i].z;
-        if (birth > 0.0) {
-            float dt = uTime - birth;
-            float frontR = speed * dt;
-            float distFromFront = abs(r - frontR);
-            float pulse = exp(-distFromFront * 3.5) * exp(-dt * 2.5) * strength;
-            F_shock += nPos * (pulse * 25.0 * sin(distFromFront * 12.0 - dt * 20.0));
-        }
-    }
-
-    // 5. Boundary Confinement Force (Elastic Repulsive Wall)
-    vec3 F_boundary = vec3(0.0);
-    if (uChamberType == 0) {
-        // Cube boundary
-        float margin = L * 0.08;
-        vec3 dDist = abs(pos) - vec3(L - margin);
-        vec3 excess = max(dDist, vec3(0.0));
-        F_boundary = -sign(pos) * excess * excess * 180.0;
-    } else if (uChamberType == 1) {
-        // Cylinder boundary
-        float margin = L * 0.08;
-        float rXY = length(pos.xy);
-        float excessR = max(rXY - (L - margin), 0.0);
-        float excessZ = max(abs(pos.z) - (L - margin), 0.0);
-        vec2 nXY = rXY > 1e-4 ? pos.xy / rXY : vec2(0.0);
-        float normVelR = dot(vel.xy, nXY);
-        F_boundary.xy = -nXY * (excessR * excessR * 180.0) - nXY * max(0.0, normVelR) * 8.0;
-        F_boundary.z = -sign(pos.z) * (excessZ * excessZ * 180.0) - sign(pos.z) * max(0.0, vel.z * sign(pos.z)) * 8.0;
-    } else {
-        // Sphere boundary with viscoelastic damping
-        float margin = L * 0.08;
-        float excess = max(r - (L - margin), 0.0);
-        float normVel = dot(vel, nPos);
-        F_boundary = -nPos * (excess * excess * 180.0) - nPos * max(0.0, normVel) * 8.0;
-    }
-
-    // Total Force Integration
-    vec3 F_total = F_gorkov + F_drag + F_streaming + F_shock + F_boundary;
-    vec3 acceleration = F_total / particleMass;
-
-    // Symplectic Euler / Verlet velocity update
-    vec3 newVel = vel + acceleration * uDeltaTime;
-
-    // Smooth Algebraic Soft-Saturation (C^1 continuous, eliminates hard clamping snaps)
-    float maxSpeed = 16.0;
-    float speedSq = dot(newVel, newVel);
-    newVel = newVel * (maxSpeed / sqrt(speedSq + maxSpeed * maxSpeed));
-
-    // Store updated velocity in rgb, acoustic pressure magnitude in a
-    gl_FragColor = vec4(newVel, abs(pressure));
-}
-`;
-
-// ----------------------------------------------------------------------------
-// GPGPU Position Simulation Shader
-// ----------------------------------------------------------------------------
-const GPU_POSITION_UPDATE_SHADER = `
-precision highp float;
-
-uniform sampler2D uPosTexture;
-uniform sampler2D uVelTexture;
-uniform float uDeltaTime;
-uniform int uChamberType;
-uniform float uChamberSize;
-uniform float uTime;
-uniform float uReset;
-
-varying vec2 vUv;
-
-// Pseudo-random distribution generator
-float rand(vec2 co) {
-    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
-}
-
-vec3 getInitialPosition(vec2 uv, float chamberSize, int chamberType) {
-    float r1 = rand(uv + vec2(uTime * 0.01, 0.12));
-    float r2 = rand(uv + vec2(0.34, uTime * 0.02));
-    float r3 = rand(uv + vec2(0.56, 0.78));
-
-    if (chamberType == 0) {
-        // Uniform cube distribution
-        return (vec3(r1, r2, r3) * 2.0 - 1.0) * (chamberSize * 0.85);
-    } else if (chamberType == 1) {
-        // Uniform cylinder distribution
-        float theta = r1 * 2.0 * 3.14159265;
-        float rad = sqrt(r2) * (chamberSize * 0.85);
-        float z = (r3 * 2.0 - 1.0) * (chamberSize * 0.85);
-        return vec3(rad * cos(theta), rad * sin(theta), z);
-    } else {
-        // Uniform sphere distribution
-        float theta = r1 * 2.0 * 3.14159265;
-        float phi = acos(2.0 * r2 - 1.0);
-        float rad = pow(r3, 0.3333) * (chamberSize * 0.85);
-        return vec3(
-            rad * sin(phi) * cos(theta),
-            rad * cos(phi),
-            rad * sin(phi) * sin(theta)
-        );
-    }
-}
-
-void main() {
-    vec4 posData = texture2D(uPosTexture, vUv);
-    vec4 velData = texture2D(uVelTexture, vUv);
-
-    vec3 pos = posData.xyz;
-    float particleMass = posData.w;
-    vec3 vel = velData.xyz;
-
-    float L = uChamberSize;
-
-    // Check reset or invalid bounds
-    bool isOutOfBounds = false;
-    if (uChamberType == 0) {
-        if (any(greaterThan(abs(pos), vec3(L * 1.05)))) isOutOfBounds = true;
-    } else if (uChamberType == 1) {
-        if (length(pos.xy) > L * 1.05 || abs(pos.z) > L * 1.05) isOutOfBounds = true;
-    } else {
-        if (length(pos) > L * 1.05) isOutOfBounds = true;
-    }
-
-    if (uReset > 0.5 || isOutOfBounds || isnan(pos.x)) {
-        vec3 reseededPos = getInitialPosition(vUv, L, uChamberType);
-        gl_FragColor = vec4(reseededPos, particleMass);
-        return;
-    }
-
-    // Position integration
-    vec3 newPos = pos + vel * uDeltaTime;
-
-    // Hard Boundary Restitution
-    if (uChamberType == 0) {
-        newPos = clamp(newPos, -vec3(L * 0.98), vec3(L * 0.98));
-    } else if (uChamberType == 1) {
-        float rXY = length(newPos.xy);
-        if (rXY > L * 0.98) {
-            newPos.xy = (newPos.xy / rXY) * (L * 0.98);
-        }
-        newPos.z = clamp(newPos.z, -L * 0.98, L * 0.98);
-    } else {
-        float r = length(newPos);
-        if (r > L * 0.98) {
-            newPos = (newPos / r) * (L * 0.98);
-        }
-    }
-
-    gl_FragColor = vec4(newPos, particleMass);
-}
-`;
-
-// ----------------------------------------------------------------------------
-// Fullscreen Quad Vertex Shader for FBO passes
-// ----------------------------------------------------------------------------
-const GPU_QUAD_VERTEX_SHADER = `
-varying vec2 vUv;
-void main() {
-    vUv = uv;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-}
-`;
-
-// ----------------------------------------------------------------------------
-// Particle Volumetric Point Rendering Shaders (Fine Luminous Acoustic Tracer Dust)
-// ----------------------------------------------------------------------------
-const PARTICLE_RENDER_VERTEX_SHADER = `
-${CYMATICS_CORE_GLSL}
-
-uniform sampler2D uPosTexture;
-uniform sampler2D uVelTexture;
 uniform float uTime;
 uniform float uParticleScale;
+uniform float uChamberSize;
+uniform int uChamberType;
+uniform int uMode; // 0 = Normal Chladni (nodal p=0), 1 = Inverse Chladni (antinodes)
+uniform vec3 uModalNumbers;
 uniform vec4 uBandEnergies;
 uniform vec2 uHighEnergies;
+uniform vec4 uShockwaves[4];
+uniform float uGorkovStrength;
+uniform float uStokesDrag;
+uniform float uBrownianMotion;
+
 uniform vec3 uPaletteA;
 uniform vec3 uPaletteB;
 uniform vec3 uPaletteC;
@@ -437,52 +43,258 @@ uniform vec3 uPaletteD;
 uniform vec3 uCoreGlow;
 uniform vec3 uAccent;
 
-attribute vec2 aParticleUv;
 attribute float aParticleSeed;
+attribute float aParticlePhase;
 
 varying vec4 vColor;
 varying float vIntensity;
 varying float vSpeed;
 varying float vDepthFade;
 
+// 3D Cartesian Acoustic Cavity Pressure
+float evalCartesianPressure(vec3 p, vec3 nml, float L) {
+    vec3 k = (nml * PI) / (2.0 * L);
+    float cX = cos(k.x * p.x); float cY = cos(k.y * p.y); float cZ = cos(k.z * p.z);
+    float cX2 = cos(k.y * p.x); float cY2 = cos(k.z * p.y); float cZ2 = cos(k.x * p.z);
+    float cX3 = cos(k.z * p.x); float cY3 = cos(k.x * p.y); float cZ3 = cos(k.y * p.z);
+
+    float w1 = 1.0;
+    float w2 = 0.55 + 0.35 * uBandEnergies.y;
+    float w3 = 0.35 + 0.45 * uBandEnergies.z;
+
+    return w1 * (cX * cY * cZ) - w2 * (cX2 * cY2 * cZ2) + w3 * (cX3 * cY3 * cZ3);
+}
+
+// 3D Cylindrical Cavity Pressure (Vertical Standing Cylinder along Y)
+float evalCylindricalPressure(vec3 p, vec3 nml, float L) {
+    float r = length(p.xz);
+    float theta = (abs(p.x) < 1e-6 && abs(p.z) < 1e-6) ? 0.0 : atan(p.z, p.x);
+    float n = max(0.5, nml.x);
+    float m = max(0.0, nml.y);
+    float l = max(0.0, nml.z);
+
+    float k = PI * (n + 0.5 * m - 0.25) / L;
+    float ky = (l * PI) / (2.0 * L);
+
+    float bessel = evalBesselJ(m, k * r);
+    float angular = cos(m * theta);
+    float axial = cos(ky * p.y);
+
+    return bessel * angular * axial;
+}
+
+// 3D Spherical Field with Spherical Harmonics L0-L3 & Radial Bessel Waves
+float evalSphericalPressure(vec3 p, vec3 nml, float L) {
+    float r = length(p);
+    if (r < 1e-5) return 1.0;
+    vec3 n = p / r;
+    
+    vec4 sh01 = evalSH_L0_L1(n);
+    float sh2[5]; evalSH_L2(n, sh2);
+    float sh3[7]; evalSH_L3(n, sh3);
+
+    float u = (3.14159265 * (nml.x + 0.5) * r) / L;
+    float j0 = sphericalBessel_j0(u);
+    float j1 = sphericalBessel_j1(u * (nml.y / max(nml.x, 1.0)));
+    float j2 = sphericalBessel_j2(u * (nml.z / max(nml.x, 1.0)));
+    float j3 = sphericalBessel_j3(u * 0.8);
+
+    float mode0 = (0.7 + uBandEnergies.x * 2.2) * j0 * sh01.x * 2.5;
+    float mode1 = (0.6 + uBandEnergies.y * 1.8) * j1 * (sh01.y * sin(uTime * 2.4) + sh01.w * cos(uTime * 2.0));
+    float mode2 = (0.5 + uBandEnergies.z * 1.5) * j2 * (sh2[0] * cos(nml.y * n.x * 2.0) + sh2[2] * 0.8 + sh2[4]);
+    float mode3 = (0.4 + uBandEnergies.w * 1.2) * j3 * (sh3[0] + sh3[3] * sin(nml.z * n.z * 2.0) + sh3[6]);
+
+    return (mode0 + mode1 + mode2 + mode3) * (1.0 / (1.0 + 0.08 * r));
+}
+
+// Unified Chamber Pressure Evaluator
+float evalChamberPressure(vec3 p, vec3 nml, float L, int chamberType) {
+    if (chamberType == 0) {
+        return evalCartesianPressure(p, nml, L);
+    } else if (chamberType == 1) {
+        return evalCylindricalPressure(p, nml, L);
+    } else if (chamberType == 2) {
+        return evalSphericalPressure(p, nml, L);
+    }
+    return evalCartesianPressure(p, nml, L);
+}
+
+// Exact 3D Spatial Gradient via Central Finite Differences
+vec3 evalPressureGradient(vec3 p, vec3 nml, float L, int chamberType, out float pressure) {
+    pressure = evalChamberPressure(p, nml, L, chamberType);
+    float eps = clamp(0.006 * L, 0.001, 0.012);
+    float dx = evalChamberPressure(p + vec3(eps, 0.0, 0.0), nml, L, chamberType) - evalChamberPressure(p - vec3(eps, 0.0, 0.0), nml, L, chamberType);
+    float dy = evalChamberPressure(p + vec3(0.0, eps, 0.0), nml, L, chamberType) - evalChamberPressure(p - vec3(0.0, eps, 0.0), nml, L, chamberType);
+    float dz = evalChamberPressure(p + vec3(0.0, 0.0, eps), nml, L, chamberType) - evalChamberPressure(p - vec3(0.0, 0.0, eps), nml, L, chamberType);
+    return vec3(dx, dy, dz) / (2.0 * eps);
+}
+
 void main() {
-    vec4 posData = texture2D(uPosTexture, aParticleUv);
-    vec4 velData = texture2D(uVelTexture, aParticleUv);
+    vec3 p0 = position;
+    float L = uChamberSize;
 
-    vec3 pos = posData.xyz;
-    vec3 vel = velData.xyz;
-    float acousticPressure = velData.w;
+    // Adapt base position domain to match active chamber geometry with uniform density
+    if (uChamberType == 1) {
+        // Full 4-Quadrant Shirley-Chiu concentric mapping from square [-L, L]^2 to 360° circular cylinder
+        vec2 uv = p0.xz / (L * 0.95);
+        float r = 0.0;
+        float phi = 0.0;
+        if (abs(uv.x) > 1e-6 || abs(uv.y) > 1e-6) {
+            if (uv.x >= -uv.y) {
+                if (uv.x > uv.y) {
+                    r = uv.x;
+                    phi = (PI * 0.25) * (uv.y / uv.x);
+                } else {
+                    r = uv.y;
+                    phi = (PI * 0.25) * (2.0 - uv.x / uv.y);
+                }
+            } else {
+                if (uv.x < uv.y) {
+                    r = -uv.x;
+                    phi = (PI * 0.25) * (4.0 + uv.y / uv.x);
+                } else {
+                    r = -uv.y;
+                    phi = (PI * 0.25) * (6.0 - uv.x / uv.y);
+                }
+            }
+        }
+        float radiusDisc = abs(r) * (L * 0.95);
+        p0.x = radiusDisc * cos(phi);
+        p0.z = radiusDisc * sin(phi);
+        p0.y = clamp(p0.y, -L * 0.95, L * 0.95);
+    } else if (uChamberType == 2) {
+        // Uniform 3D sphere volume distribution (r proportional to u^(1/3))
+        float rTot = length(p0);
+        vec3 dir = rTot > 1e-5 ? p0 / rTot : vec3(0.0, 1.0, 0.0);
+        float seedVal = clamp(aParticleSeed, 0.0001, 1.0);
+        float mappedRadius = (L * 0.95) * pow(seedVal, 1.0 / 3.0);
+        p0 = dir * mappedRadius;
+    }
 
-    float speed = length(vel);
+    float pressure = 0.0;
+    vec3 gradP = evalPressureGradient(p0, uModalNumbers, L, uChamberType, pressure);
+
+    // 1. Exact 3D Gor'kov Nodal Manifold Projection
+    // Snaps particles precisely onto the 3D nodal surfaces p(x,y,z) = 0
+    float gradSq = dot(gradP, gradP);
+    vec3 deltaNodal = - (pressure * gradP) / (gradSq + 0.04);
+    
+    // Smooth Gor'kov trapping blend
+    float trapAmount = clamp(uGorkovStrength * 0.035, 0.5, 1.0);
+    if (uMode == 1) {
+        // Inverse Chladni: Trapping onto antinodes
+        deltaNodal = -deltaNodal;
+    }
+    vec3 trappedPos = p0 + deltaNodal * trapAmount;
+
+    // Refinement step 2 for razor-sharp nodal sheet definition
+    float p2 = 0.0;
+    vec3 g2 = evalPressureGradient(trappedPos, uModalNumbers, L, uChamberType, p2);
+    float g2Sq = dot(g2, g2);
+    vec3 normG2 = g2Sq > 1e-4 ? g2 / sqrt(g2Sq) : vec3(0.0);
+    trappedPos = trappedPos - (p2 * g2) / (g2Sq + 0.04) * (trapAmount * 0.90);
+
+    // 2. Continuous 3D Rayleigh In-Plane Streaming Flow (confined strictly to the nodal sheet)
+    float audioScale = 0.85 + uBandEnergies.x * 2.2 + uBandEnergies.y * 1.5;
+    vec3 k = (uModalNumbers * PI) / (2.0 * L);
+    
+    vec3 vRayleigh = vec3(
+        -sin(2.0 * k.x * trappedPos.x) * cos(2.0 * k.y * trappedPos.y) * cos(k.z * trappedPos.z),
+        +cos(2.0 * k.x * trappedPos.x) * sin(2.0 * k.y * trappedPos.y) * cos(k.z * trappedPos.z),
+        +sin(2.0 * k.z * trappedPos.z) * cos(2.0 * k.x * trappedPos.x) * sin(k.y * trappedPos.y)
+    );
+
+    // Tangential projection onto the nodal sheet tangent plane (preserves razor-sharp sheet lines)
+    vec3 vTangent = vRayleigh - normG2 * dot(vRayleigh, normG2);
+
+    float streamPhase = uTime * (1.2 * audioScale) + aParticlePhase * 6.28318;
+    vec3 streamingDisp = vTangent * (0.24 * sin(streamPhase) * audioScale);
+
+    // 3. In-Plane Beat Jitter (confined strictly to the tangent plane of the nodal sheet)
+    vec3 rawJitter = vec3(
+        sin(trappedPos.x * 5.0 + uTime * 4.0 + aParticleSeed * 10.0),
+        cos(trappedPos.y * 5.0 + uTime * 3.5 + aParticleSeed * 10.0),
+        sin(trappedPos.z * 5.0 + uTime * 4.5 + aParticleSeed * 10.0)
+    );
+    vec3 jitterTangent = rawJitter - normG2 * dot(rawJitter, normG2);
+    vec3 jitterDisp = jitterTangent * (0.015 + uBandEnergies.x * 0.025) * uBrownianMotion;
+
+    // 4. Central Droplet Sheath Flow & Deflection (radius 1.15)
+    vec3 currentPos = trappedPos + streamingDisp + jitterDisp;
+    float rDrop = length(currentPos);
+    if (rDrop < 1.35 && rDrop > 1e-4) {
+        vec3 nDrop = currentPos / rDrop;
+        float repel = smoothstep(1.35, 0.90, rDrop);
+        currentPos += nDrop * (repel * 0.35);
+    }
+
+    // 5. Shockwave Pulses
+    float rPos = length(currentPos);
+    vec3 nShock = rPos > 1e-4 ? currentPos / rPos : vec3(0.0, 1.0, 0.0);
+    float shockDisp = 0.0;
+    for (int i = 0; i < 4; i++) {
+        float birth = uShockwaves[i].x;
+        float strength = uShockwaves[i].y;
+        float speed = uShockwaves[i].z;
+        if (birth > 0.0) {
+            float dt = uTime - birth;
+            if (dt >= 0.0 && dt < 4.0) {
+                float frontR = speed * dt;
+                float distFromFront = abs(rPos - frontR);
+                float pulse = exp(-distFromFront * 3.5) * exp(-dt * 2.0) * strength;
+                shockDisp += pulse * sin(distFromFront * 12.0 - dt * 18.0);
+            }
+        }
+    }
+    currentPos += nShock * (shockDisp * 0.8);
+
+    // 6. Strict Physical Chamber Boundary Confinement
+    // Fills the full rectangular box in Cube mode, cylinder in Cylinder mode, sphere in Sphere mode
+    if (uChamberType == 0) {
+        // Cube: [-L * 0.96, L * 0.96]^3 (Fills all 6 flat square faces wall-to-wall)
+        currentPos = clamp(currentPos, -vec3(L * 0.96), vec3(L * 0.96));
+    } else if (uChamberType == 1) {
+        // Vertical Cylinder: Radius in XZ <= L * 0.96, Height in Y in [-L * 0.96, L * 0.96]
+        float rXZ = length(currentPos.xz);
+        if (rXZ > L * 0.96 && rXZ > 1e-4) {
+            currentPos.xz = (currentPos.xz / rXZ) * (L * 0.96);
+        }
+        currentPos.y = clamp(currentPos.y, -L * 0.96, L * 0.96);
+    } else if (uChamberType == 2) {
+        // Sphere: Radius L * 0.96
+        float rTot = length(currentPos);
+        if (rTot > L * 0.96 && rTot > 1e-4) {
+            currentPos = (currentPos / rTot) * (L * 0.96);
+        }
+    }
+
+    // 7. Kinetic Speed & Visual OKLab Excitation
+    float speed = length(streamingDisp + jitterDisp * 2.0);
     vSpeed = speed;
-
-    // Coherent Acoustic Kinetic Energy (0 = quiet nodal plane, high = active flow)
-    float excitation = clamp(speed * 0.25 + acousticPressure * 1.2 + uBandEnergies.x * 1.5, 0.0, 3.0);
+    float excitation = clamp(speed * 3.0 + abs(pressure) * 1.2 + uBandEnergies.x * 1.5 + shockDisp * 1.5, 0.0, 3.0);
     vIntensity = excitation;
 
-    // Smooth, coherent scientific colormap (no random rainbow confetti seeds)
-    float colorPhase = length(pos) * 0.15 + speed * 0.12 - uTime * 0.03;
+    float colorPhase = length(currentPos) * 0.12 + speed * 0.20 - uTime * 0.04 + aParticleSeed * 0.2;
     vec3 palColor = oklabCosinePalette(colorPhase, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
-    // Subtle luminescent tracer dust styling
-    vec3 finalColor = palColor * (0.85 + 0.35 * excitation);
-    finalColor += uCoreGlow * (excitation * 0.40);
-    finalColor += uAccent * (clamp(speed * 0.20, 0.0, 0.8));
+    vec3 finalColor = palColor * (0.85 + 0.30 * excitation);
+    finalColor += uCoreGlow * (excitation * 0.30);
+    finalColor += uAccent * (clamp(speed * 0.25, 0.0, 0.6));
 
-    // Semi-translucent base opacity for refined tracer dust (prevents blowout on overlapping nodes)
-    float alpha = clamp(0.24 + excitation * 0.22, 0.10, 0.60);
+    // Refined translucent opacity for ultra-dense 262k particle planar sheets
+    float alpha = clamp(0.14 + excitation * 0.14, 0.06, 0.35);
     vColor = vec4(finalColor, alpha);
 
-    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+    // Camera Transform
+    vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
 
-    // Soft camera near-plane depth fade to prevent clipping
     float zDist = max(0.1, -mvPosition.z);
     vDepthFade = smoothstep(0.3, 1.2, zDist);
 
-    // Fine, calibrated point size for 262k acoustic dust particles
-    float pSize = (0.70 + excitation * 0.40) * uParticleScale * (38.0 / max(zDist, 0.25));
-    gl_PointSize = clamp(pSize, 1.0, 4.2);
+    // Crisp point size calibrated for 262k particles
+    float pSize = (0.50 + excitation * 0.30) * uParticleScale * (28.0 / max(zDist, 0.25));
+    gl_PointSize = clamp(pSize, 0.8, 2.8);
 }
 `;
 
@@ -512,28 +324,8 @@ void main() {
 
 export class GpuAcousticParticles {
   public group: THREE.Group;
-  private renderer: THREE.WebGLRenderer;
-
-  // Ping-Pong FBO Render Targets (512x512 = 262,144 particles)
-  private readonly simResolution: number;
-  private readonly particleCount: number;
-
-  private posTargetA!: THREE.WebGLRenderTarget;
-  private posTargetB!: THREE.WebGLRenderTarget;
-  private velTargetA!: THREE.WebGLRenderTarget;
-  private velTargetB!: THREE.WebGLRenderTarget;
-
-  private currentPosTarget!: THREE.WebGLRenderTarget;
-  private nextPosTarget!: THREE.WebGLRenderTarget;
-  private currentVelTarget!: THREE.WebGLRenderTarget;
-  private nextVelTarget!: THREE.WebGLRenderTarget;
-
-  // Offscreen Quad Simulation Pipeline
-  private simScene: THREE.Scene;
-  private simCamera: THREE.OrthographicCamera;
-  private simQuad: THREE.Mesh;
-  private velSimMaterial: THREE.ShaderMaterial;
-  private posSimMaterial: THREE.ShaderMaterial;
+  private readonly particleCount: number = 262144; // 262k particles for ultra-dense, filled acoustic geometry
+  private activeParticleCount: number = 262144;
 
   // Particle Mesh & Render Pipeline
   private pointsMesh: THREE.Points;
@@ -542,20 +334,20 @@ export class GpuAcousticParticles {
   // Acoustic Simulation State
   private chladniMode: ChladniMode = 'normal';
   private chamberType: ChamberGeometryType = 'cube';
-  private chamberSize = 3.2;
-  private modalNumbers = new THREE.Vector3(3.0, 2.0, 4.0);
+  private chamberSize = 1.95;
+  private modalNumbers = new THREE.Vector3(1.0, 1.0, 1.0);
   private gorkovStrength = 35.0;
   private stokesDrag = 2.8;
   private acousticExcitation = 1.0;
   private brownianMotion = 0.8;
   private particleScale = 1.0;
-  private isInitialized = false;
 
-  constructor(renderer: THREE.WebGLRenderer, initialPalette: PalettePreset, config?: GpuParticleConfig) {
+  constructor(_renderer: THREE.WebGLRenderer, initialPalette: PalettePreset, config?: GpuParticleConfig) {
     this.group = new THREE.Group();
-    this.renderer = renderer;
-    this.simResolution = config?.simResolution ?? 512;
-    this.particleCount = this.simResolution * this.simResolution;
+    this.group.position.y = 0.45;
+
+    if (config?.particleCount !== undefined) this.particleCount = config.particleCount;
+    this.activeParticleCount = this.particleCount;
 
     if (config?.gorkovStrength !== undefined) this.gorkovStrength = config.gorkovStrength;
     if (config?.stokesDrag !== undefined) this.stokesDrag = config.stokesDrag;
@@ -564,32 +356,25 @@ export class GpuAcousticParticles {
     if (config?.particleScale !== undefined) this.particleScale = config.particleScale;
     if (config?.chamberSize !== undefined) this.chamberSize = config.chamberSize;
 
-    // 1. Initialize Ping-Pong Render Targets
-    this.initRenderTargets();
+    // 1. Initialize Particle Geometry with 3D Low-Discrepancy (R3) Volume Distribution
+    const particleGeometry = this.buildParticleGeometry();
 
-    // 2. Offscreen Quad & Simulation Materials
-    this.simScene = new THREE.Scene();
-    this.simCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-
-    this.velSimMaterial = new THREE.ShaderMaterial({
-      vertexShader: GPU_QUAD_VERTEX_SHADER,
-      fragmentShader: GPU_VELOCITY_UPDATE_SHADER,
+    // 2. Initialize Direct 120 FPS Acoustic Shader Material
+    this.renderMaterial = new THREE.ShaderMaterial({
+      vertexShader: PARTICLE_VERTEX_SHADER,
+      fragmentShader: PARTICLE_RENDER_FRAGMENT_SHADER,
       uniforms: {
-        uPosTexture: { value: null },
-        uVelTexture: { value: null },
-        uDeltaTime: { value: 0.016 },
         uTime: { value: 0 },
-        uMode: { value: 0 }, // 0 = Normal, 1 = Inverse
-        uChamberType: { value: 0 }, // 0 = Cube, 1 = Cylinder, 2 = Sphere
+        uParticleScale: { value: this.particleScale },
         uChamberSize: { value: this.chamberSize },
+        uChamberType: { value: 0 },
+        uMode: { value: 0 },
         uModalNumbers: { value: this.modalNumbers.clone() },
-        uBandEnergies: { value: new THREE.Vector4() },
-        uHighEnergies: { value: new THREE.Vector2() },
-        uFundamentalFreq: { value: 432 },
         uGorkovStrength: { value: this.gorkovStrength },
         uStokesDrag: { value: this.stokesDrag },
-        uAcousticExcitation: { value: this.acousticExcitation },
         uBrownianMotion: { value: this.brownianMotion },
+        uBandEnergies: { value: new THREE.Vector4() },
+        uHighEnergies: { value: new THREE.Vector2() },
         uShockwaves: {
           value: [
             new THREE.Vector4(0, 0, 7.5, 0),
@@ -598,43 +383,6 @@ export class GpuAcousticParticles {
             new THREE.Vector4(0, 0, 7.5, 0),
           ],
         },
-      },
-      depthWrite: false,
-      depthTest: false,
-    });
-
-    this.posSimMaterial = new THREE.ShaderMaterial({
-      vertexShader: GPU_QUAD_VERTEX_SHADER,
-      fragmentShader: GPU_POSITION_UPDATE_SHADER,
-      uniforms: {
-        uPosTexture: { value: null },
-        uVelTexture: { value: null },
-        uDeltaTime: { value: 0.016 },
-        uChamberType: { value: 0 },
-        uChamberSize: { value: this.chamberSize },
-        uTime: { value: 0 },
-        uReset: { value: 0.0 },
-      },
-      depthWrite: false,
-      depthTest: false,
-    });
-
-    this.simQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.velSimMaterial);
-    this.simScene.add(this.simQuad);
-
-    // 3. Initialize Particle Render Mesh & Geometry
-    const particleGeometry = this.buildParticleGeometry();
-
-    this.renderMaterial = new THREE.ShaderMaterial({
-      vertexShader: PARTICLE_RENDER_VERTEX_SHADER,
-      fragmentShader: PARTICLE_RENDER_FRAGMENT_SHADER,
-      uniforms: {
-        uPosTexture: { value: null },
-        uVelTexture: { value: null },
-        uTime: { value: 0 },
-        uParticleScale: { value: this.particleScale },
-        uBandEnergies: { value: new THREE.Vector4() },
-        uHighEnergies: { value: new THREE.Vector2() },
         uPaletteA: { value: initialPalette.a.clone() },
         uPaletteB: { value: initialPalette.b.clone() },
         uPaletteC: { value: initialPalette.c.clone() },
@@ -650,117 +398,54 @@ export class GpuAcousticParticles {
     this.pointsMesh = new THREE.Points(particleGeometry, this.renderMaterial);
     this.pointsMesh.frustumCulled = false;
     this.group.add(this.pointsMesh);
-
-    // 4. Seed initial particle FBO textures
-    this.seedInitialFboData();
   }
-
-  private initRenderTargets(): void {
-    const isWebGL2 = this.renderer.capabilities.isWebGL2;
-    const renderType = isWebGL2 ? THREE.FloatType : THREE.HalfFloatType;
-
-    const rtOptions: THREE.RenderTargetOptions = {
-      minFilter: THREE.NearestFilter,
-      magFilter: THREE.NearestFilter,
-      format: THREE.RGBAFormat,
-      type: renderType,
-      depthBuffer: false,
-      stencilBuffer: false,
-    };
-
-    this.posTargetA = new THREE.WebGLRenderTarget(this.simResolution, this.simResolution, rtOptions);
-    this.posTargetB = new THREE.WebGLRenderTarget(this.simResolution, this.simResolution, rtOptions);
-    this.velTargetA = new THREE.WebGLRenderTarget(this.simResolution, this.simResolution, rtOptions);
-    this.velTargetB = new THREE.WebGLRenderTarget(this.simResolution, this.simResolution, rtOptions);
-
-    this.currentPosTarget = this.posTargetA;
-    this.nextPosTarget = this.posTargetB;
-    this.currentVelTarget = this.velTargetA;
-    this.nextVelTarget = this.velTargetB;
-  }
-
-  private activeParticleCount = 131072;
 
   private buildParticleGeometry(): THREE.BufferGeometry {
     const geo = new THREE.BufferGeometry();
     const positions = new Float32Array(this.particleCount * 3);
-    const particleUvs = new Float32Array(this.particleCount * 2);
     const particleSeeds = new Float32Array(this.particleCount);
+    const particlePhases = new Float32Array(this.particleCount);
 
-    // Stratified index permutation (stride coprime to 262144) for uniform spatial distribution at any draw range
-    const stride = 1031;
-    let idx = 0;
+    const L = this.chamberSize;
+    const phi3 = 1.22074408460575947536;
+    const a1 = 1.0 / phi3;
+    const a2 = 1.0 / (phi3 * phi3);
+    const a3 = 1.0 / (phi3 * phi3 * phi3);
+
     for (let i = 0; i < this.particleCount; i++) {
-      const permuted = (i * stride) % this.particleCount;
-      const x = permuted % this.simResolution;
-      const y = Math.floor(permuted / this.simResolution);
+      // 3D Low-Discrepancy (R3) Quasi-Random Sequence:
+      // Invariant Property: ANY prefix [0, K] fills the entire 3D volume uniformly from wall to wall!
+      const ux = (0.5 + i * a1) % 1.0;
+      const uy = (0.5 + i * a2) % 1.0;
+      const uz = (0.5 + i * a3) % 1.0;
 
-      const u = (x + 0.5) / this.simResolution;
-      const v = (y + 0.5) / this.simResolution;
+      const jx = (Math.random() - 0.5) * 0.003;
+      const jy = (Math.random() - 0.5) * 0.003;
+      const jz = (Math.random() - 0.5) * 0.003;
 
-      particleUvs[idx * 2 + 0] = u;
-      particleUvs[idx * 2 + 1] = v;
-      particleSeeds[idx] = Math.random();
+      const posX = ((ux + jx) * 2.0 - 1.0) * (L * 0.95);
+      const posY = ((uy + jy) * 2.0 - 1.0) * (L * 0.95);
+      const posZ = ((uz + jz) * 2.0 - 1.0) * (L * 0.95);
 
-      positions[idx * 3 + 0] = 0;
-      positions[idx * 3 + 1] = 0;
-      positions[idx * 3 + 2] = 0;
+      positions[i * 3 + 0] = posX;
+      positions[i * 3 + 1] = posY;
+      positions[i * 3 + 2] = posZ;
 
-      idx++;
+      particleSeeds[i] = (i * 0.61803398875) % 1.0;
+      particlePhases[i] = (i * 0.38196601125) % 1.0;
     }
 
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute('aParticleUv', new THREE.BufferAttribute(particleUvs, 2));
     geo.setAttribute('aParticleSeed', new THREE.BufferAttribute(particleSeeds, 1));
+    geo.setAttribute('aParticlePhase', new THREE.BufferAttribute(particlePhases, 1));
     geo.setDrawRange(0, this.activeParticleCount);
 
     return geo;
   }
 
-  private seedInitialFboData(): void {
-    const posArray = new Float32Array(this.particleCount * 4);
-    const velArray = new Float32Array(this.particleCount * 4);
-
-    const L = this.chamberSize;
-    for (let i = 0; i < this.particleCount; i++) {
-      // Random uniform distribution in chamber volume
-      posArray[i * 4 + 0] = (Math.random() * 2 - 1) * (L * 0.85);
-      posArray[i * 4 + 1] = (Math.random() * 2 - 1) * (L * 0.85);
-      posArray[i * 4 + 2] = (Math.random() * 2 - 1) * (L * 0.85);
-      posArray[i * 4 + 3] = 0.5 + Math.random() * 0.5; // Mass / Inertia
-
-      velArray[i * 4 + 0] = (Math.random() * 2 - 1) * 0.05;
-      velArray[i * 4 + 1] = (Math.random() * 2 - 1) * 0.05;
-      velArray[i * 4 + 2] = (Math.random() * 2 - 1) * 0.05;
-      velArray[i * 4 + 3] = 0.0; // Initial excitation
-    }
-
-    const posTex = new THREE.DataTexture(posArray, this.simResolution, this.simResolution, THREE.RGBAFormat, THREE.FloatType);
-    posTex.needsUpdate = true;
-    const velTex = new THREE.DataTexture(velArray, this.simResolution, this.simResolution, THREE.RGBAFormat, THREE.FloatType);
-    velTex.needsUpdate = true;
-
-    // Render initial data into current FBOs
-    const initMat = new THREE.MeshBasicMaterial({ map: posTex });
-    this.simQuad.material = initMat;
-    this.renderer.setRenderTarget(this.currentPosTarget);
-    this.renderer.render(this.simScene, this.simCamera);
-
-    initMat.map = velTex;
-    this.renderer.setRenderTarget(this.currentVelTarget);
-    this.renderer.render(this.simScene, this.simCamera);
-
-    this.renderer.setRenderTarget(null);
-    posTex.dispose();
-    velTex.dispose();
-    initMat.dispose();
-
-    this.isInitialized = true;
-  }
-
   public setChladniMode(mode: ChladniMode): void {
     this.chladniMode = mode;
-    this.velSimMaterial.uniforms.uMode.value = mode === 'normal' ? 0 : 1;
+    this.renderMaterial.uniforms.uMode.value = mode === 'normal' ? 0 : 1;
   }
 
   public getChladniMode(): ChladniMode {
@@ -769,9 +454,8 @@ export class GpuAcousticParticles {
 
   public setChamberGeometry(type: ChamberGeometryType): void {
     this.chamberType = type;
-    const typeInt = type === 'cube' ? 0 : type === 'cylinder' ? 1 : 2;
-    this.velSimMaterial.uniforms.uChamberType.value = typeInt;
-    this.posSimMaterial.uniforms.uChamberType.value = typeInt;
+    const typeInt = type === 'cube' ? 0 : type === 'cylinder' ? 1 : type === 'sphere' ? 2 : 3;
+    this.renderMaterial.uniforms.uChamberType.value = typeInt;
   }
 
   public getChamberGeometry(): ChamberGeometryType {
@@ -780,28 +464,26 @@ export class GpuAcousticParticles {
 
   public setChamberSize(size: number): void {
     this.chamberSize = size;
-    this.velSimMaterial.uniforms.uChamberSize.value = size;
-    this.posSimMaterial.uniforms.uChamberSize.value = size;
+    this.renderMaterial.uniforms.uChamberSize.value = size;
   }
 
   public setModalNumbers(n: number, m: number, l: number): void {
     this.modalNumbers.set(n, m, l);
-    this.velSimMaterial.uniforms.uModalNumbers.value.copy(this.modalNumbers);
+    this.renderMaterial.uniforms.uModalNumbers.value.copy(this.modalNumbers);
   }
 
   public setGorkovStrength(strength: number): void {
     this.gorkovStrength = strength;
-    this.velSimMaterial.uniforms.uGorkovStrength.value = strength;
+    this.renderMaterial.uniforms.uGorkovStrength.value = strength;
   }
 
   public setStokesDrag(drag: number): void {
     this.stokesDrag = drag;
-    this.velSimMaterial.uniforms.uStokesDrag.value = drag;
+    this.renderMaterial.uniforms.uStokesDrag.value = drag;
   }
 
   public setAcousticExcitation(excitation: number): void {
     this.acousticExcitation = excitation;
-    this.velSimMaterial.uniforms.uAcousticExcitation.value = excitation;
   }
 
   public setParticleScale(scale: number): void {
@@ -815,6 +497,10 @@ export class GpuAcousticParticles {
     if (this.pointsMesh && this.pointsMesh.geometry) {
       this.pointsMesh.geometry.setDrawRange(0, clamped);
     }
+    // Dynamic point size scaling so lower density modes maintain complete structural presence
+    const densityRatio = clamped / this.particleCount;
+    const densityScale = Math.pow(1.0 / Math.max(0.1, densityRatio), 0.22);
+    this.renderMaterial.uniforms.uParticleScale.value = this.particleScale * densityScale;
   }
 
   public setParticleCount(count: number): void {
@@ -836,75 +522,56 @@ export class GpuAcousticParticles {
   }
 
   public resetParticles(): void {
-    this.posSimMaterial.uniforms.uReset.value = 1.0;
+    const posAttr = this.pointsMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+    if (!posAttr) return;
+    const arr = posAttr.array as Float32Array;
+    const L = this.chamberSize;
+    const phi3 = 1.22074408460575947536;
+    const a1 = 1.0 / phi3;
+    const a2 = 1.0 / (phi3 * phi3);
+    const a3 = 1.0 / (phi3 * phi3 * phi3);
+
+    for (let i = 0; i < this.particleCount; i++) {
+      const ux = (0.5 + i * a1) % 1.0;
+      const uy = (0.5 + i * a2) % 1.0;
+      const uz = (0.5 + i * a3) % 1.0;
+
+      const jx = (Math.random() - 0.5) * 0.003;
+      const jy = (Math.random() - 0.5) * 0.003;
+      const jz = (Math.random() - 0.5) * 0.003;
+
+      arr[i * 3 + 0] = ((ux + jx) * 2.0 - 1.0) * (L * 0.95);
+      arr[i * 3 + 1] = ((uy + jy) * 2.0 - 1.0) * (L * 0.95);
+      arr[i * 3 + 2] = ((uz + jz) * 2.0 - 1.0) * (L * 0.95);
+    }
+    posAttr.needsUpdate = true;
   }
 
   public update(
     time: number,
-    dt: number,
+    _dt: number,
     bands: THREE.Vector4,
     highs: THREE.Vector2,
     shockwaves: THREE.Vector4[],
-    fundamentalHz = 432
+    _fundamentalHz = 432
   ): void {
-    if (!this.isInitialized) return;
-
-    const clampedDt = Math.min(dt, 0.033);
-
-    // Step 1: Update Velocity (GPGPU Pass 1)
-    const velU = this.velSimMaterial.uniforms;
-    velU.uPosTexture.value = this.currentPosTarget.texture;
-    velU.uVelTexture.value = this.currentVelTarget.texture;
-    velU.uDeltaTime.value = clampedDt;
-    velU.uTime.value = time;
-    velU.uModalNumbers.value.copy(this.modalNumbers);
-    velU.uBandEnergies.value.copy(bands);
-    velU.uHighEnergies.value.copy(highs);
-    velU.uFundamentalFreq.value = fundamentalHz;
+    const renderU = this.renderMaterial.uniforms;
+    renderU.uTime.value = time;
+    renderU.uModalNumbers.value.copy(this.modalNumbers);
+    renderU.uBandEnergies.value.copy(bands);
+    renderU.uHighEnergies.value.copy(highs);
+    renderU.uChamberType.value = this.chamberType === 'cube' ? 0 : this.chamberType === 'cylinder' ? 1 : this.chamberType === 'sphere' ? 2 : 3;
+    renderU.uChamberSize.value = this.chamberSize;
+    renderU.uMode.value = this.chladniMode === 'normal' ? 0 : 1;
+    renderU.uGorkovStrength.value = this.gorkovStrength;
+    renderU.uStokesDrag.value = this.stokesDrag;
+    renderU.uBrownianMotion.value = this.brownianMotion;
 
     for (let i = 0; i < 4; i++) {
       if (shockwaves[i]) {
-        (velU.uShockwaves.value[i] as THREE.Vector4).copy(shockwaves[i]);
+        (renderU.uShockwaves.value[i] as THREE.Vector4).copy(shockwaves[i]);
       }
     }
-
-    this.simQuad.material = this.velSimMaterial;
-    this.renderer.setRenderTarget(this.nextVelTarget);
-    this.renderer.render(this.simScene, this.simCamera);
-
-    // Step 2: Update Position (GPGPU Pass 2)
-    const posU = this.posSimMaterial.uniforms;
-    posU.uPosTexture.value = this.currentPosTarget.texture;
-    posU.uVelTexture.value = this.nextVelTarget.texture;
-    posU.uDeltaTime.value = clampedDt;
-    posU.uTime.value = time;
-
-    this.simQuad.material = this.posSimMaterial;
-    this.renderer.setRenderTarget(this.nextPosTarget);
-    this.renderer.render(this.simScene, this.simCamera);
-    posU.uReset.value = 0.0;
-
-    // Step 3: Swap Ping-Pong Buffers
-    const tempPos = this.currentPosTarget;
-    this.currentPosTarget = this.nextPosTarget;
-    this.nextPosTarget = tempPos;
-
-    const tempVel = this.currentVelTarget;
-    this.currentVelTarget = this.nextVelTarget;
-    this.nextVelTarget = tempVel;
-
-    this.renderer.setRenderTarget(null);
-
-    // Step 4: Feed updated FBO textures to Particle Render Shader
-    const renderU = this.renderMaterial.uniforms;
-    renderU.uPosTexture.value = this.currentPosTarget.texture;
-    renderU.uVelTexture.value = this.currentVelTarget.texture;
-    renderU.uTime.value = time;
-    renderU.uBandEnergies.value.copy(bands);
-    renderU.uHighEnergies.value.copy(highs);
-
-    // Subtle group orbital rotation
-    this.pointsMesh.rotation.y = time * 0.05;
   }
 
   public setVisible(visible: boolean): void {
@@ -916,12 +583,6 @@ export class GpuAcousticParticles {
   }
 
   public dispose(): void {
-    this.posTargetA.dispose();
-    this.posTargetB.dispose();
-    this.velTargetA.dispose();
-    this.velTargetB.dispose();
-    this.velSimMaterial.dispose();
-    this.posSimMaterial.dispose();
     this.renderMaterial.dispose();
     this.pointsMesh.geometry.dispose();
   }

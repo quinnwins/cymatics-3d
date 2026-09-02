@@ -16,6 +16,9 @@ function createMockVisualizer(): VisualizerEngine {
     particleScale: 1.0,
     particleDensity: 131072,
     cymaticsVisibilityMode: 'both',
+    groundGridVisible: false,
+    getGroundGridVisible: () => false,
+    setGroundGridVisible: (_v: boolean) => {},
     setBloomStrength: (_b: number) => {},
     setParticleDensity: (_d: number) => {},
     setParticleScale: (_s: number) => {},
@@ -64,17 +67,28 @@ describe('Camera & Physics Interaction Architecture', () => {
     target.removeEventListener('camera-mode-changed', handler);
   });
 
-  it('renders render style buttons in music mode', () => {
+  it('renders 6 render style buttons in music mode including Cymatics 2D', () => {
+    let selectedStyle: VisualStyle | null = null;
     const visualizer = createMockVisualizer();
+    visualizer.setStyle = (s: VisualStyle) => {
+      selectedStyle = s;
+    };
     const drawer = new PhysicsDrawer(visualizer);
     drawer.setMode('music');
 
     const el = drawer.getElement();
     const styleButtons = el.querySelectorAll('.btn-style');
-    expect(styleButtons.length).toBe(5);
+    expect(styleButtons.length).toBe(6);
     expect(el.querySelector('#slider-wave-speed')).not.toBeNull();
     expect(el.querySelector('#slider-wave-damping')).not.toBeNull();
     expect(el.querySelector('#slider-particle-density')).not.toBeNull();
+
+    const cymatics2dBtn = el.querySelector('[data-style="cymatics-2d"]') as HTMLElement;
+    expect(cymatics2dBtn).not.toBeNull();
+    expect(cymatics2dBtn.textContent?.trim()).toBe('Cymatics 2D');
+
+    cymatics2dBtn.click();
+    expect(selectedStyle).toBe('cymatics-2d');
   });
 
   it('hides render style buttons in specialized lab modes (voice, therapy, nobel, bio)', () => {
@@ -95,7 +109,7 @@ describe('Camera & Physics Interaction Architecture', () => {
     }
   });
 
-  it('hides render style buttons but preserves theme, particle density, and specimen toggle in modal (3D Cymatics) mode', () => {
+  it('hides render style buttons but preserves theme, particle density, and apparatus toggle in modal (Cymatics) mode', () => {
     const visualizer = createMockVisualizer();
     const drawer = new PhysicsDrawer(visualizer);
     drawer.setMode('modal');
@@ -105,8 +119,46 @@ describe('Camera & Physics Interaction Architecture', () => {
     expect(el.querySelector('#theme-selector')).not.toBeNull();
     expect(el.querySelector('#slider-particle-density')).not.toBeNull();
     expect(el.querySelector('#slider-particle-scale')).not.toBeNull();
-    expect(el.querySelectorAll('.btn-cymatics-vis').length).toBe(3);
+    expect(el.querySelectorAll('.btn-cymatics-app').length).toBe(3);
     expect(el.querySelector('#slider-wave-speed')).toBeNull();
     expect(el.querySelectorAll('.btn-cam-mode').length).toBe(4);
+  });
+
+  it('provides full option parity in frequency (Tone Lab) mode matching Cymatics', () => {
+    const visualizer = createMockVisualizer();
+    const drawer = new PhysicsDrawer(visualizer);
+    drawer.setMode('frequency');
+
+    const el = drawer.getElement();
+    expect(el.querySelectorAll('.btn-style').length).toBe(0);
+    expect(el.querySelector('#theme-selector')).not.toBeNull();
+    expect(el.querySelector('#slider-particle-density')).not.toBeNull();
+    expect(el.querySelector('#slider-particle-scale')).not.toBeNull();
+    expect(el.querySelectorAll('.btn-cymatics-app').length).toBe(3);
+    expect(el.querySelector('#slider-wave-speed')).toBeNull();
+    expect(el.querySelectorAll('.btn-cam-mode').length).toBe(4);
+    expect(el.querySelector('#slider-bloom')).not.toBeNull();
+  });
+
+  it('allows toggling the floor reference grid seamlessly', () => {
+    let gridVisible = false;
+    const visualizer = createMockVisualizer();
+    visualizer.getGroundGridVisible = () => gridVisible;
+    visualizer.setGroundGridVisible = (v: boolean) => {
+      gridVisible = v;
+    };
+    const drawer = new PhysicsDrawer(visualizer);
+    const el = drawer.getElement();
+
+    const gridBtn = el.querySelector('#btn-toggle-ground-grid') as HTMLElement;
+    expect(gridBtn).not.toBeNull();
+    expect(gridBtn.textContent?.trim()).toBe('Off');
+
+    gridBtn.click();
+    expect(gridVisible).toBe(true);
+
+    const updatedEl = drawer.getElement();
+    const updatedGridBtn = updatedEl.querySelector('#btn-toggle-ground-grid') as HTMLElement;
+    expect(updatedGridBtn.textContent?.trim()).toBe('✓ On');
   });
 });

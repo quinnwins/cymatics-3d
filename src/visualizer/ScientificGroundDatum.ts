@@ -50,16 +50,16 @@ void main() {
     }
 
     // Minor (0.25m) and Major (1.0m) coordinate grid lines
-    float minorGrid = getGrid(pos, uGridScale * 0.25, 1.0) * 0.18;
-    float majorGrid = getGrid(pos, uGridScale * 1.0, 1.5) * 0.45;
-    float axisX = getGrid(vec2(pos.y, 0.0), 100.0, 2.0) * 0.75 * smoothstep(2.5, 0.0, abs(pos.y));
-    float axisZ = getGrid(vec2(pos.x, 0.0), 100.0, 2.0) * 0.75 * smoothstep(2.5, 0.0, abs(pos.x));
+    float minorGrid = getGrid(pos, uGridScale * 0.25, 1.0) * 0.10;
+    float majorGrid = getGrid(pos, uGridScale * 1.0, 1.2) * 0.25;
+    float axisX = getGrid(vec2(pos.y, 0.0), 100.0, 1.5) * 0.40 * smoothstep(2.5, 0.0, abs(pos.y));
+    float axisZ = getGrid(vec2(pos.x, 0.0), 100.0, 1.5) * 0.40 * smoothstep(2.5, 0.0, abs(pos.x));
 
     float totalGrid = clamp(minorGrid + majorGrid + axisX + axisZ, 0.0, 1.0);
 
-    // Subtle dark slate pedestal with glowing grid lines
+    // Subtle dark slate pedestal with soft non-glaring datum lines
     vec3 color = mix(uBaseColor, uGridColor, totalGrid);
-    float alpha = (0.12 + totalGrid * 0.55) * radialFalloff;
+    float alpha = (0.04 + totalGrid * 0.30) * radialFalloff;
 
     gl_FragColor = vec4(color, alpha);
 }
@@ -78,7 +78,7 @@ export class ScientificGroundDatum {
       fragmentShader: GROUND_DATUM_FRAGMENT_SHADER,
       uniforms: {
         uGridColor: { value: new THREE.Color(0x38bdf8) }, // Crisp scientific cyan/ice
-        uBaseColor: { value: new THREE.Color(0x030712) }, // Deep void slate
+        uBaseColor: { value: new THREE.Color(0x020617) }, // Deep void slate
         uGridScale: { value: 1.0 },
         uRadius: { value: radius },
         uCameraPos: { value: new THREE.Vector3() },
@@ -90,7 +90,7 @@ export class ScientificGroundDatum {
     });
 
     this.mesh = new THREE.Mesh(geometry, this.material);
-    this.mesh.position.y = -1.8; // Positioned cleanly below center stage
+    this.mesh.position.y = 0.0; // Ground plane datum reference at y = 0.0
     this.mesh.renderOrder = 0;
   }
 
