@@ -138,4 +138,23 @@ describe("MusicLibraryCard UI - 5-Way Unified Source Deck", () => {
     expect(seekSpy).toHaveBeenCalledWith(90);
     expect(el.querySelector("#lib-file-cur-time")?.textContent).toBe("1:30");
   });
+
+  it("should stop active audio playback when switching between source tabs", () => {
+    const stopAllSpy = vi.spyOn(audioEngine, "stopAll");
+
+    card.setActiveSource("apple-music");
+    expect(stopAllSpy).toHaveBeenCalledTimes(1);
+
+    card.setActiveSource("spotify");
+    expect(stopAllSpy).toHaveBeenCalledTimes(2);
+
+    card.setActiveSource("upload");
+    expect(stopAllSpy).toHaveBeenCalledTimes(3);
+
+    card.setActiveSource("mic");
+    expect(stopAllSpy).toHaveBeenCalledTimes(4);
+
+    card.setActiveSource("crate");
+    expect(stopAllSpy).toHaveBeenCalledTimes(5);
+  });
 });

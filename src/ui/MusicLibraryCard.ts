@@ -84,6 +84,9 @@ export class MusicLibraryCard {
   }
 
   public setActiveSource(source: MusicSourceTab): void {
+    if (this.activeSource !== source) {
+      this.audioEngine.stopAll();
+    }
     this.activeSource = source;
     this.selectedCategory = 'all';
     this.searchQuery = '';
