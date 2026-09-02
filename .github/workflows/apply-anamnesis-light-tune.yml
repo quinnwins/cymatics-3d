@@ -1,0 +1,66 @@
+name: Apply Final Anamnesis Light Tune
+
+on:
+  push:
+    branches:
+      - codex/anamnesis-song-memory
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]' && contains(github.event.head_commit.message, '[light-tune]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/anamnesis-song-memory
+          fetch-depth: 0
+
+      - name: Apply final luminance and proof-capture refinements
+        run: |
+          python3 scripts/tune-anamnesis-light.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/verify-anamnesis.mjs')
+          source = path.read_text()
+
+          gate = '''    if (visualProof.outerLit < 900 || visualProof.spanX < 340 || visualProof.spanY < 170) {
+      throw new Error(`Anamnesis is technically present but not visually legible: ${JSON.stringify(visualProof)}`);
+    }
+'''
+          replacement = '''    // Always preserve visual proof, including on a failed legibility gate, so
+    // artistic regressions remain inspectable instead of collapsing to numbers.
+    await page.screenshot({ path: SCREENSHOT_PATH, fullPage: false });
+
+    if (visualProof.outerLit < 900 || visualProof.spanX < 340 || visualProof.spanY < 170) {
+      throw new Error(`Anamnesis is technically present but not visually legible: ${JSON.stringify(visualProof)}`);
+    }
+'''
+          if source.count(gate) != 1:
+              raise SystemExit('visual gate insertion point not found exactly once')
+          source = source.replace(gate, replacement, 1)
+
+          later = '''    await page.screenshot({ path: SCREENSHOT_PATH, fullPage: false });
+    await page.keyboard.press('Escape');
+'''
+          if source.count(later) != 1:
+              raise SystemExit('later screenshot block not found exactly once')
+          source = source.replace(later, "    await page.keyboard.press('Escape');\n", 1)
+          path.write_text(source)
+          PY
+          git diff --check
+
+      - name: Commit source and remove one-use scaffolding
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm scripts/tune-anamnesis-light.py
+          rm .github/workflows/apply-anamnesis-light-tune.yml
+          git add -A
+          git commit -m "fix: complete Anamnesis visual legibility"
+          git push origin HEAD:codex/anamnesis-song-memory
