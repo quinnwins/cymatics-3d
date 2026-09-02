@@ -51,8 +51,8 @@ export class HistoryTexture {
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const normalizedCurrentHead = (this.writeHead + 0.5) / this.height;
 
+    // Freezing must preserve both the texture and its visible signal strength.
     if (!temporalMemory.shouldCapture()) {
-      temporalMemory.recordIdle();
       return normalizedCurrentHead;
     }
 
