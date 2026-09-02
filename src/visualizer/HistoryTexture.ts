@@ -57,10 +57,21 @@ export class HistoryTexture {
     }
 
     const minimumInterval = 1000 / this.captureRateHz;
-    if (now - this.lastWriteAt < minimumInterval || fftData.length === 0) {
+    if (fftData.length === 0) {
       return normalizedCurrentHead;
     }
-    this.lastWriteAt = now;
+    if (Number.isFinite(this.lastWriteAt)) {
+      const elapsed = now - this.lastWriteAt;
+      if (elapsed < minimumInterval) {
+        return normalizedCurrentHead;
+      }
+      // Keep the capture clock on a fixed cadence. This alternates frame gaps
+      // naturally on 60/120 Hz displays instead of collapsing to 30/40 Hz.
+      const elapsedIntervals = Math.max(1, Math.floor(elapsed / minimumInterval));
+      this.lastWriteAt += elapsedIntervals * minimumInterval;
+    } else {
+      this.lastWriteAt = now;
+    }
 
     const row = this.writeHead;
     const rowOffset = row * this.width * 4;
@@ -141,7 +152,7 @@ export class HistoryTexture {
     this.texture.needsUpdate = true;
     this.writeHead = 0;
     this.lastWriteAt = -Infinity;
-    temporalMemory.recordFrame(0, 0);
+    temporalMemory.resetHistoryState();
   }
 
   public dispose(): void {
