@@ -17,7 +17,7 @@ concurrency:
 jobs:
   test-build-browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
 
     steps:
       - name: Check out repository
@@ -32,8 +32,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Keep functional coverage deterministic, then give the deliberate
-      # sub-1.5 ms voice-DSP microbenchmark an uncontended process of its own.
       - name: Run functional tests
         run: npm test -- --reporter=verbose --maxWorkers=1 --minWorkers=1 --exclude src/math/VoiceBiometricsPhysics.test.ts
 
@@ -43,16 +41,20 @@ jobs:
       - name: Build production bundle
         run: npm run build
 
-      - name: Run Sonic Memory in headless Chrome
+      - name: Verify Sonic Memory in headless Chrome
         run: node scripts/verify-sonic-memory.mjs
+
+      - name: Verify Anamnesis recurrence in headless Chrome
+        run: node scripts/verify-anamnesis.mjs
 
       - name: Upload deployable build and visual proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: soundform-dist-and-sonic-memory-qa
+          name: soundform-dist-and-memory-qa
           path: |
             dist
             qa_screenshots/sonic-memory-smoke.png
+            qa_screenshots/anamnesis-song-remembers.png
           if-no-files-found: ignore
           retention-days: 7
