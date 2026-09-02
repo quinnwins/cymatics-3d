@@ -68,7 +68,7 @@ void main() {
     + age * uWarp * 0.13
   );
 
-  // Bass carries the large form; higher bins create fine filaments.
+  // Bias sampling toward the lower spectrum while retaining high-frequency filaments.
   float lowWeightedBin = mix(angularScan, angularScan * angularScan * angularScan, 0.68);
   lowWeightedBin = clamp(lowWeightedBin, 0.002, 0.996);
   float neighborBin = clamp(fract(lowWeightedBin + 0.011 + aSeed * 0.007), 0.002, 0.996);
@@ -106,11 +106,12 @@ void main() {
 
   vec3 displaced = direction * (baseLength + displacement);
 
-  // Older sound becomes a helix rather than a flat stack of shells.
+  // Older sound turns into a gentle spatial helix instead of a flat stack of shells.
   float twist = age * uWarp * 2.4 + spectralMotion * 0.72 + uTime * 0.022 * (1.0 - age);
   displaced.xz = rotate2d(twist) * displaced.xz;
   displaced += direction * (radialForm - 0.5) * 0.075 * activation;
 
+  // Let bass breathe the whole memory volume while upper bands create fine anisotropy.
   float bassBreath = 1.0 + uBandEnergies.x * 0.035 + uBandEnergies.y * 0.022;
   displaced *= bassBreath;
   displaced.y += sin(azimuth * TAU * 3.0 + uTime * 0.16) * uHighEnergies.x * 0.035 * age;
@@ -189,6 +190,7 @@ export class TemporalSculpture {
   private readonly material: THREE.ShaderMaterial;
   private readonly presentShell: THREE.Mesh;
   private readonly presentShellMaterial: THREE.MeshBasicMaterial;
+  private sculptureTime = 0;
 
   constructor(initialPalette: PalettePreset, pointCount = POINT_COUNT) {
     this.group = new THREE.Group();
@@ -252,7 +254,13 @@ export class TemporalSculpture {
     camera?: THREE.Camera
   ): void {
     const state = temporalMemory.getUniformState();
+    const settings = temporalMemory.getSettings();
     const uniforms = this.material.uniforms;
+
+    // Freeze the spatial artwork while still allowing the camera to orbit it.
+    if (!settings.frozen) {
+      this.sculptureTime = time;
+    }
 
     if (state.texture && uniforms.uHistory.value !== state.texture) {
       uniforms.uHistory.value = state.texture;
@@ -266,7 +274,7 @@ export class TemporalSculpture {
     uniforms.uWarp.value = state.warp;
     uniforms.uColorByAge.value = state.colorByAge;
     uniforms.uSignal.value = state.signal;
-    uniforms.uTime.value = time;
+    uniforms.uTime.value = this.sculptureTime;
     uniforms.uBandEnergies.value.copy(bands);
     uniforms.uHighEnergies.value.copy(highs);
     uniforms.uFundamentalHz.value = fundamentalHz;
@@ -279,8 +287,8 @@ export class TemporalSculpture {
 
     const pulse = 1 + bands.x * 0.08 + bands.y * 0.04 + state.signal * 0.025;
     this.presentShell.scale.setScalar(pulse);
-    this.presentShell.rotation.y = time * 0.09;
-    this.presentShell.rotation.z = -time * 0.055;
+    this.presentShell.rotation.y = this.sculptureTime * 0.09;
+    this.presentShell.rotation.z = -this.sculptureTime * 0.055;
     this.presentShellMaterial.opacity = 0.045 + state.signal * 0.12;
 
     if (camera) {
