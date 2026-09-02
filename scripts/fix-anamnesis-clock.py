@@ -1,0 +1,122 @@
+from pathlib import Path
+
+path = Path('src/visualizer/AnamnesisExperience.ts')
+source = path.read_text()
+
+replacements = [
+    (
+        "  private frameId: number | null = null;\n  private lastFrameAt = 0;\n",
+        "  private frameId: number | null = null;\n  private sampleTimer: number | null = null;\n  private lastFrameAt = 0;\n  private lastSampleClock = 0;\n",
+    ),
+    (
+        "    this.lastFrameAt = performance.now();\n    this.frameId = requestAnimationFrame(this.animate);\n",
+        "    this.lastFrameAt = performance.now();\n    this.lastSampleClock = this.lastFrameAt;\n    // Analysis cadence must not collapse when the GPU is busy. The model owns\n    // its 400 ms sampling interval; this lightweight clock simply gives it\n    // regular opportunities independent of the render frame rate.\n    this.sampleTimer = window.setInterval(this.captureAudio, 100);\n    this.frameId = requestAnimationFrame(this.animate);\n",
+    ),
+    (
+        "    if (this.frameId !== null) cancelAnimationFrame(this.frameId);\n    this.setFocus(false);\n",
+        "    if (this.frameId !== null) cancelAnimationFrame(this.frameId);\n    if (this.sampleTimer !== null) window.clearInterval(this.sampleTimer);\n    this.setFocus(false);\n",
+    ),
+]
+
+for old, new in replacements:
+    if source.count(old) != 1:
+        raise SystemExit(f'expected replacement target not found exactly once: {old[:80]!r}')
+    source = source.replace(old, new, 1)
+
+old_animate = '''  private readonly animate = (nowMs: number): void => {
+    if (this.disposed) return;
+    const dt = Math.min(0.1, Math.max(0, (nowMs - this.lastFrameAt) / 1000));
+    this.lastFrameAt = nowMs;
+    this.visualTime = Number(this.visualizer.simTime) || nowMs / 1000;
+
+    const style = this.visualizer.getStyle();
+    this.contextVisible = style === 'cymatics' || style === 'cymatics-2d';
+    const mode = this.audio.getMode();
+    const memorySource = this.isMemorySource(mode);
+    const shouldShow = this.enabled && this.contextVisible && memorySource;
+    this.field.setEnabled(shouldShow);
+    this.field.update(this.visualTime, dt, window.innerHeight);
+
+    if (!shouldShow) {
+      if (this.expanded) this.setExpanded(false);
+    } else {
+      const meta = this.resolveSessionMeta(mode);
+      if (meta.identity !== this.sessionIdentity) this.beginSession(meta);
+      if (this.audio.getIsPlaying() && !this.viewingRelic) {
+        const playbackTime = this.getPlaybackTime(mode, dt);
+        this.ingestObservation({
+          timeSeconds: playbackTime,
+          durationSeconds: meta.durationSeconds,
+          sampleRate: this.getSampleRate(),
+          spectrum: this.audio.getRawFrequencyData(),
+          bands: this.audio.getAudioBands(),
+          fundamentalHz: this.audio.getFundamentalFrequency(),
+          transient: strongestTransient(this.audio, this.visualTime),
+        });
+      }
+    }
+
+    if (this.visualTime - this.lastUiUpdate > 0.2) {
+      this.lastUiUpdate = this.visualTime;
+      this.renderUi(this.visualTime);
+    }
+    this.frameId = requestAnimationFrame(this.animate);
+  };
+'''
+
+new_animate = '''  private readonly captureAudio = (): void => {
+    if (this.disposed) return;
+
+    const nowMs = performance.now();
+    const elapsedSeconds = Math.max(0, (nowMs - this.lastSampleClock) / 1000);
+    this.lastSampleClock = nowMs;
+
+    const style = this.visualizer.getStyle();
+    const mode = this.audio.getMode();
+    const contextVisible = style === 'cymatics' || style === 'cymatics-2d';
+    if (!this.enabled || !contextVisible || !this.isMemorySource(mode)) return;
+
+    const meta = this.resolveSessionMeta(mode);
+    if (meta.identity !== this.sessionIdentity) this.beginSession(meta);
+    if (!this.audio.getIsPlaying() || this.viewingRelic) return;
+
+    const playbackTime = this.getPlaybackTime(mode, elapsedSeconds);
+    this.ingestObservation({
+      timeSeconds: playbackTime,
+      durationSeconds: meta.durationSeconds,
+      sampleRate: this.getSampleRate(),
+      spectrum: this.audio.getRawFrequencyData(),
+      bands: this.audio.getAudioBands(),
+      fundamentalHz: this.audio.getFundamentalFrequency(),
+      transient: strongestTransient(this.audio, this.visualTime),
+    });
+  };
+
+  private readonly animate = (nowMs: number): void => {
+    if (this.disposed) return;
+    const dt = Math.min(0.1, Math.max(0, (nowMs - this.lastFrameAt) / 1000));
+    this.lastFrameAt = nowMs;
+    this.visualTime = Number(this.visualizer.simTime) || nowMs / 1000;
+
+    const style = this.visualizer.getStyle();
+    this.contextVisible = style === 'cymatics' || style === 'cymatics-2d';
+    const mode = this.audio.getMode();
+    const memorySource = this.isMemorySource(mode);
+    const shouldShow = this.enabled && this.contextVisible && memorySource;
+    this.field.setEnabled(shouldShow);
+    this.field.update(this.visualTime, dt, window.innerHeight);
+
+    if (!shouldShow && this.expanded) this.setExpanded(false);
+
+    if (this.visualTime - this.lastUiUpdate > 0.2) {
+      this.lastUiUpdate = this.visualTime;
+      this.renderUi(this.visualTime);
+    }
+    this.frameId = requestAnimationFrame(this.animate);
+  };
+'''
+
+if source.count(old_animate) != 1:
+    raise SystemExit('animate block did not match the expected source exactly once')
+source = source.replace(old_animate, new_animate, 1)
+path.write_text(source)
