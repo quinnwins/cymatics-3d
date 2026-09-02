@@ -94,14 +94,25 @@ void main() {
     + aSeed * TAU
   );
 
-  float activation = smoothstep(0.018, 0.82, energy * uGain);
-  float memoryTexture = mix(0.22, 1.0, angularForm * radialForm);
+  // Separate broad presence from fine structure. Ordinary mastered music often
+  // lives well below full scale; the old 0.82 ceiling suppressed almost every
+  // point after alpha multiplication. The lower knee keeps quiet harmonics
+  // visible while exact silence still produces zero global presence below.
+  float activation = smoothstep(0.004, 0.34, energy * uGain);
+  float ridge = pow(clamp(angularForm * radialForm, 0.0, 1.0), 1.65);
+  float shellRidge = pow(radialForm, 3.0);
+  float filamentRidge = pow(angularForm, 4.0);
+  float memoryTexture = clamp(
+    0.10 + ridge * 0.78 + shellRidge * 0.28 + filamentRidge * 0.18,
+    0.0,
+    1.25
+  );
   float transientShell = impulse * (0.55 + 0.45 * angularForm);
 
   float displacement = (
-    energy * (0.24 + 0.30 * angularForm)
-    + transientShell * 0.22
-    + spectralMotion * 0.05
+    energy * (0.30 + 0.42 * angularForm)
+    + transientShell * 0.28
+    + spectralMotion * 0.065
   ) * uGain;
 
   vec3 displaced = direction * (baseLength + displacement);
@@ -109,7 +120,7 @@ void main() {
   // Older sound turns into a gentle spatial helix instead of a flat stack of shells.
   float twist = age * uWarp * 2.4 + spectralMotion * 0.72 + uTime * 0.022 * (1.0 - age);
   displaced.xz = rotate2d(twist) * displaced.xz;
-  displaced += direction * (radialForm - 0.5) * 0.075 * activation;
+  displaced += direction * (radialForm - 0.5) * (0.07 + ridge * 0.08) * activation;
 
   // Let bass breathe the whole memory volume while upper bands create fine anisotropy.
   float bassBreath = 1.0 + uBandEnergies.x * 0.035 + uBandEnergies.y * 0.022;
@@ -120,18 +131,23 @@ void main() {
   gl_Position = projectionMatrix * mvPosition;
 
   float perspective = clamp(24.0 / max(2.0, -mvPosition.z), 0.55, 3.2);
-  float pointSize = (0.55 + activation * 1.9 + impulse * 1.6) * perspective * uPointScale;
-  gl_PointSize = clamp(pointSize, 0.7, 7.2);
+  float pointSize = (
+    0.68
+    + activation * 2.15
+    + impulse * 1.65
+    + ridge * 0.62
+  ) * perspective * uPointScale;
+  gl_PointSize = clamp(pointSize, 0.8, 7.6);
 
   vec3 spectrumColor = cosinePalette(lowWeightedBin * 0.78 + pitch * 0.28 + spectralMotion * 0.08);
   vec3 ageColor = cosinePalette(0.05 + age * 0.84 + uTime * 0.006);
   vec3 color = mix(spectrumColor, ageColor, uColorByAge * 0.74);
-  color = mix(color, uAccent, impulse * 0.38);
-  color = mix(color, vec3(1.0), impulse * 0.28 + activation * 0.08);
+  vec3 temporalTint = mix(uCoreGlow, uAccent, clamp(age * 0.82 + impulse * 0.18, 0.0, 1.0));
+  color = mix(color, temporalTint, 0.15 + ridge * 0.18);
+  color = mix(color, vec3(1.0), impulse * 0.30 + activation * 0.10 + ridge * 0.05);
 
   float innerFade = smoothstep(0.015, 0.11, age);
   float outerFade = 1.0 - smoothstep(0.90, 1.0, age);
-  float historyPresence = 0.18 + 0.82 * memoryTexture;
   float broadEnergy = clamp(
     uBandEnergies.x * 0.36
     + uBandEnergies.y * 0.25
@@ -143,14 +159,19 @@ void main() {
     1.0
   );
 
+  float globalSignal = max(uSignal, broadEnergy * 0.82);
+  float globalPresence = smoothstep(0.004, 0.18, globalSignal);
+  float localPresence = 0.035 + activation * (0.82 + 0.18 * memoryTexture);
+  float structuralPresence = 0.32 + memoryTexture * 0.88;
+  float radialEnvelope = innerFade * (0.46 + 0.54 * outerFade);
+
   vColor = color;
-  vHotCore = impulse * 0.7 + activation * 0.25;
+  vHotCore = impulse * 0.72 + activation * 0.32 + ridge * 0.18;
   vAlpha = uEnabled
-    * max(uSignal, broadEnergy * 0.65)
-    * activation
-    * historyPresence
-    * innerFade
-    * (0.28 + 0.72 * outerFade);
+    * globalPresence
+    * localPresence
+    * structuralPresence
+    * radialEnvelope;
 }
 `;
 
@@ -168,10 +189,10 @@ void main() {
 
   float gaussian = exp(-radiusSquared * 4.8);
   float edge = 1.0 - smoothstep(0.68, 1.0, sqrt(radiusSquared));
-  float alpha = clamp(vAlpha * gaussian * edge, 0.0, 0.82);
-  if (alpha < 0.004) discard;
+  float alpha = clamp(vAlpha * gaussian * edge, 0.0, 0.74);
+  if (alpha < 0.002) discard;
 
-  vec3 color = vColor * (0.88 + gaussian * 0.62 + vHotCore * 0.35);
+  vec3 color = vColor * (1.02 + gaussian * 0.82 + vHotCore * 0.42);
   gl_FragColor = vec4(color, alpha);
 }
 `;
