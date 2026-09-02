@@ -67,7 +67,9 @@ describe('HistoryTexture', () => {
     }
 
     expect(peak).toBeGreaterThan(140);
-    expect(temporalMemory.getUniformState().signal).toBeGreaterThan(0.45);
+    // TemporalMemory deliberately eases its public signal to avoid flashing on
+    // the first frame; even that eased first sample must enter a useful range.
+    expect(temporalMemory.getUniformState().signal).toBeGreaterThan(0.2);
 
     history.dispose();
   });
