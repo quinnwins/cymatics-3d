@@ -75,6 +75,10 @@ export class VocalBiometricsLab {
     }
   }
 
+  public setStageMode(mode: StageFocusMode): void {
+    this.setFocusMode(mode);
+  }
+
   public getFocusMode(): StageFocusMode {
     return this.currentFocusMode;
   }

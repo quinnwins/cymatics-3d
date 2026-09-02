@@ -129,6 +129,7 @@ export class CymaticsPlateMesh {
     });
 
     this.dustParticles = new THREE.Points(this.dustGeometry, this.dustMaterial);
+    this.dustParticles.frustumCulled = false;
     this.group.add(this.dustParticles);
 
     // 3. Anodized Machined Bezel Perimeter Frame
@@ -203,12 +204,17 @@ export class CymaticsPlateMesh {
     u.uTime.value = time;
     u.uBandEnergies.value.copy(bands);
     u.uHighEnergies.value.copy(highs);
-    u.uFundamentalFreq.value = fundamentalHz > 20 ? fundamentalHz : 432.0;
+    u.uFundamentalFreq.value = fundamentalHz > 20 ? fundamentalHz : (bands.x + bands.y + bands.z > 0.05 ? 220.0 : 432.0);
 
     if (this.isAutoModal) {
-      // Dynamically couple modal numbers (n, m) to audio harmonics
-      const dynamicN = Math.max(1.0, 1.0 + Math.round(bands.x * 2.0 + bands.y * 3.0));
-      const dynamicM = Math.max(2.0, 2.0 + Math.round(bands.z * 3.0 + highs.x * 2.0));
+      // Continuous pitch log-scale harmonic modal synthesis (Smooth, zero integer jumping)
+      const effectiveHz = fundamentalHz > 20 ? fundamentalHz : 110.0;
+      const logFreq = Math.max(0, Math.log2(effectiveHz / 35.0));
+      const baseHarmonic = 1.0 + logFreq * 0.75;
+
+      const dynamicN = Math.max(1.0, Math.min(8.0, baseHarmonic + bands.x * 2.2 + bands.y * 1.5));
+      const dynamicM = Math.max(1.0, Math.min(8.0, baseHarmonic * 1.15 + bands.z * 2.5 + highs.x * 1.8));
+
       u.uModes.value.set(dynamicN, dynamicM, 1.0);
     } else {
       u.uModes.value.copy(this.modes);
@@ -219,8 +225,12 @@ export class CymaticsPlateMesh {
     du.uTime.value = time;
     du.uBandEnergies.value.copy(bands);
     du.uHighEnergies.value.copy(highs);
-    du.uFundamentalFreq.value = fundamentalHz > 20 ? fundamentalHz : 432.0;
+    du.uFundamentalFreq.value = u.uFundamentalFreq.value;
     du.uModes.value.copy(u.uModes.value);
+  }
+
+  public getModes(): THREE.Vector3 {
+    return this.modes.clone();
   }
 
   public setModes(n: number, m: number, l: number = 1.0): void {
@@ -230,10 +240,25 @@ export class CymaticsPlateMesh {
     this.dustMaterial.uniforms.uModes.value.copy(this.modes);
   }
 
+  public setModalNumbers(n: number, m: number, l: number = 1.0): void {
+    this.setModes(n, m, l);
+  }
+
+  public setFrequency(freq: number): void {
+    if (this.plateMaterial.uniforms.uFundamentalFreq) {
+      this.plateMaterial.uniforms.uFundamentalFreq.value = freq;
+    }
+  }
+
   public setChamberType(type: 'square' | 'circle' | number): void {
     this.chamberType = type === 'circle' || type === 1 ? 1.0 : 0.0;
     this.plateMaterial.uniforms.uChamberType.value = this.chamberType;
     this.dustMaterial.uniforms.uChamberType.value = this.chamberType;
+  }
+
+  public setChamberGeometry(type: any): void {
+    const isCircle = type === 'circle' || type === 'cylinder' || type === 1;
+    this.setChamberType(isCircle ? 'circle' : 'square');
   }
 
   public setWaveSpeed(speed: number): void {
@@ -251,6 +276,10 @@ export class CymaticsPlateMesh {
   public setParticleDensity(count: number): void {
     this.currentDustCount = Math.min(Math.max(1024, count), this.maxDustCount);
     this.dustGeometry.setDrawRange(0, this.currentDustCount);
+  }
+
+  public setParticleCount(count: number): void {
+    this.setParticleDensity(count);
   }
 
   public setParticleScale(scale: number): void {

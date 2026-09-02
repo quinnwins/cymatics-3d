@@ -6,7 +6,7 @@ export class WavefrontShells {
   public group: THREE.Group;
   private material: THREE.ShaderMaterial;
   private shells: THREE.Mesh[] = [];
-  private shellCount = 14;
+  private shellCount = 8;
 
   constructor(historyTexture: THREE.Texture, initialPalette: PalettePreset) {
     this.group = new THREE.Group();
@@ -39,7 +39,7 @@ export class WavefrontShells {
       },
       transparent: true,
       depthWrite: false,
-      blending: THREE.NormalBlending,
+      blending: THREE.AdditiveBlending,
       side: THREE.FrontSide,
     });
 
@@ -48,9 +48,11 @@ export class WavefrontShells {
 
   private buildConcentricShells(): void {
     const baseGeo = new THREE.IcosahedronGeometry(1.0, 4);
+    const baseRadius = 1.2;
+    const radiusStep = 0.9;
 
     for (let i = 0; i < this.shellCount; i++) {
-      const radius = 0.8 + i * 0.55;
+      const radius = baseRadius + i * radiusStep;
       const geo = baseGeo.clone();
       geo.scale(radius, radius, radius);
 

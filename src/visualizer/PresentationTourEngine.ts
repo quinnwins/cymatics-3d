@@ -7,6 +7,7 @@
  * 2. Synchronized audio synthesis & pitch changes.
  * 3. Autonomous camera orbit and focus trajectories.
  * 4. Step-by-step timer management with pause/resume support.
+ * 5. Keyboard hotkeys: Space (Pause/Resume), ArrowRight (Next), ArrowLeft (Prev), Escape (Exit).
  */
 
 import { VisualizerEngine } from './VisualizerEngine';
@@ -19,6 +20,7 @@ export class PresentationTourEngine {
   private isRunning = false;
   private isPaused = false;
   private timerHandle: any = null;
+  private keydownListener: ((e: KeyboardEvent) => void) | null = null;
 
   public static readonly TOUR_STEPS: TourStep[] = [
     {
@@ -91,6 +93,7 @@ export class PresentationTourEngine {
     this.isPaused = false;
     this.currentStepIndex = 0;
     this.hud.setVisible(true);
+    this.attachKeyboardListener();
     this.executeCurrentStep();
   }
 
@@ -98,7 +101,11 @@ export class PresentationTourEngine {
     this.isRunning = false;
     this.isPaused = false;
     if (this.timerHandle) clearTimeout(this.timerHandle);
+    this.detachKeyboardListener();
     this.hud.setVisible(false);
+    this.audioEngine.stopFrequency();
+    this.audioEngine.stopPersonalizedSoundMedicine();
+    this.audioEngine.stopMicrophone();
   }
 
   public getIsRunning(): boolean {
@@ -130,6 +137,36 @@ export class PresentationTourEngine {
     }
   }
 
+  private attachKeyboardListener() {
+    if (this.keydownListener || typeof window === 'undefined') return;
+    this.keydownListener = (e: KeyboardEvent) => {
+      if (!this.isRunning) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        this.togglePause();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        this.nextStep();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        this.prevStep();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        this.stopTour();
+      }
+    };
+    window.addEventListener('keydown', this.keydownListener);
+  }
+
+  private detachKeyboardListener() {
+    if (this.keydownListener && typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.keydownListener);
+      this.keydownListener = null;
+    }
+  }
+
   private executeCurrentStep() {
     if (this.timerHandle) clearTimeout(this.timerHandle);
     const step = PresentationTourEngine.TOUR_STEPS[this.currentStepIndex];
@@ -139,12 +176,12 @@ export class PresentationTourEngine {
     switch (step.id) {
       case 'music-space':
         this.onModeChangeCallback('music');
-        this.visualizer.setStyle('hybrid');
+        this.visualizer.setStyle('cymatics');
         this.audioEngine.playDemoTrack('cosmic-odyssey');
         break;
 
       case 'cymatics-lab':
-        this.onModeChangeCallback('modal');
+        this.onModeChangeCallback('frequency');
         this.visualizer.setStyle('cymatics');
         this.visualizer.volumetricChladni.setModes(2, 2, 2);
         this.audioEngine.playFrequency(118);

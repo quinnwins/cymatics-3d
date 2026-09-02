@@ -7,9 +7,25 @@
  * for immediate physical benchtop wet-lab execution and sonication rig control.
  */
 
-import { OptimizedOncotripsyProtocol } from '../math/OncotripsyOptimizer';
+import { OptimizedOncotripsyProtocol, OncotripsyOptimizer } from '../math/OncotripsyOptimizer';
+import { OncotripsyPhysics } from '../math/OncotripsyPhysics';
 
 export class ClinicalProtocolExporter {
+  public static downloadClinicalProtocol(
+    tumorId: string,
+    _experiment?: string,
+    _freq?: number,
+    _phase?: number,
+    _power?: number,
+    _heterodyne?: boolean,
+    _antiPhase?: boolean
+  ): void {
+    const profile = OncotripsyPhysics.CLINICAL_PROFILES[tumorId] || OncotripsyPhysics.CLINICAL_PROFILES['mda-mb-231'];
+    const protocol = OncotripsyOptimizer.optimizeClinicalProfile(profile);
+    const md = this.generateClinicalMarkdown(protocol);
+    const filename = `Clinical_Protocol_${profile.id}_${new Date().toISOString().slice(0, 10)}.md`;
+    this.triggerDownload(filename, md, 'text/markdown');
+  }
   public static generateProtocolId(tumorName: string): string {
     const cleanName = tumorName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 8);
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -231,6 +247,8 @@ export class ClinicalProtocolExporter {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
   }
 }

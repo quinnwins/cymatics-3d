@@ -321,11 +321,16 @@ export class FormantSpaceManifold {
       const idx = Math.floor(t);
       const frac = t - idx;
 
-      // Sample ring points
-      const p0 = this.ringPoints[(this.ringHead - this.ringCount + idx - 1 + this.maxControlPoints * 2) % this.maxControlPoints];
-      const p1 = this.ringPoints[(this.ringHead - this.ringCount + idx + this.maxControlPoints * 2) % this.maxControlPoints];
-      const p2 = this.ringPoints[(this.ringHead - this.ringCount + idx + 1 + this.maxControlPoints * 2) % this.maxControlPoints];
-      const p3 = this.ringPoints[(this.ringHead - this.ringCount + idx + 2 + this.maxControlPoints * 2) % this.maxControlPoints];
+      // Sample ring points safely clamped to valid count
+      const i0 = Math.max(0, Math.min(this.ringCount - 1, idx - 1));
+      const i1 = Math.max(0, Math.min(this.ringCount - 1, idx));
+      const i2 = Math.max(0, Math.min(this.ringCount - 1, idx + 1));
+      const i3 = Math.max(0, Math.min(this.ringCount - 1, idx + 2));
+
+      const p0 = this.ringPoints[(this.ringHead - this.ringCount + i0 + this.maxControlPoints * 2) % this.maxControlPoints];
+      const p1 = this.ringPoints[(this.ringHead - this.ringCount + i1 + this.maxControlPoints * 2) % this.maxControlPoints];
+      const p2 = this.ringPoints[(this.ringHead - this.ringCount + i2 + this.maxControlPoints * 2) % this.maxControlPoints];
+      const p3 = this.ringPoints[(this.ringHead - this.ringCount + i3 + this.maxControlPoints * 2) % this.maxControlPoints];
 
       // Catmull-Rom interpolation
       const x = 0.5 * (2 * p1.x + (-p0.x + p2.x) * frac + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * frac * frac + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * frac * frac * frac);
@@ -391,5 +396,13 @@ export class FormantSpaceManifold {
     (this.trajectoryMesh.material as THREE.Material).dispose();
     this.liveCursorMesh.geometry.dispose();
     (this.liveCursorMesh.material as THREE.Material).dispose();
+    (this.liveCursorGlow.material as THREE.Material).dispose();
+
+    this.vowelDiscsGroup.traverse((child) => {
+      if (child instanceof THREE.Sprite) {
+        if (child.material.map) child.material.map.dispose();
+        child.material.dispose();
+      }
+    });
   }
 }

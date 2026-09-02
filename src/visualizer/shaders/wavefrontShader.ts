@@ -15,19 +15,20 @@ uniform float uWaveDamping;
 attribute float aShellIndex; // Concentric shell index [0..N-1]
 attribute float aShellRadius;
 
-varying vec3 vViewNormal;
+varying vec3 vWorldNormal;
+varying vec3 vLocalNormal;
 varying vec3 vViewPosition;
 varying vec2 vUv;
 varying float vDisplacement;
 varying float vRadius;
 varying float vIntensity;
-varying vec3 vWorldPos;
 
 void main() {
     vUv = uv;
     vec3 basePos = position;
     float baseR = length(basePos);
     vec3 n = baseR > 1e-5 ? basePos / baseR : vec3(0.0, 1.0, 0.0);
+    vLocalNormal = n;
     vRadius = baseR;
 
     // 1. Physical Retarded-Time lookup: tau = r / c
@@ -77,19 +78,10 @@ void main() {
 
     vec3 displacedPos = basePos + n * totalDisp;
 
-    // Analytical Tangent-Space Wave Slope Normal Perturbation
-    vec3 b1, b2;
-    buildOrthonormalBasis(n, b1, b2);
-    float slopeU = -radialDisp * waveK * 0.45;
-    float slopeV = cymaticsDisp * 0.35;
-    vec3 unnormNormal = n - b1 * slopeU - b2 * slopeV;
-    vec3 perturbedNormal = length(unnormNormal) > 1e-5 ? normalize(unnormNormal) : n;
-
-    vec3 transNormal = normalMatrix * perturbedNormal;
-    vViewNormal = length(transNormal) > 1e-5 ? normalize(transNormal) : vec3(0.0, 0.0, 1.0);
+    // Compute view position & normal
+    vWorldNormal = normalize(normalMatrix * n);
     vec4 mvPosition = modelViewMatrix * vec4(displacedPos, 1.0);
     vViewPosition = -mvPosition.xyz;
-    vWorldPos = (modelMatrix * vec4(displacedPos, 1.0)).xyz;
     gl_Position = projectionMatrix * mvPosition;
 }
 `;
@@ -106,44 +98,51 @@ uniform vec3 uCoreGlow;
 uniform vec3 uAccent;
 uniform vec4 uBandEnergies;
 
-varying vec3 vViewNormal;
+varying vec3 vWorldNormal;
+varying vec3 vLocalNormal;
 varying vec3 vViewPosition;
 varying vec2 vUv;
 varying float vDisplacement;
 varying float vRadius;
 varying float vIntensity;
-varying vec3 vWorldPos;
 
 void main() {
-    vec3 N = length(vViewNormal) > 1e-5 ? normalize(vViewNormal) : vec3(0.0, 0.0, 1.0);
+    vec3 N = length(vWorldNormal) > 1e-5 ? normalize(vWorldNormal) : vec3(0.0, 1.0, 0.0);
     vec3 V = length(vViewPosition) > 1e-5 ? normalize(vViewPosition) : vec3(0.0, 0.0, 1.0);
 
-    // Propagating wave crest excitation (dynamic acoustic energy)
-    float waveCrest = smoothstep(0.02, 0.22, abs(vDisplacement) * 2.0);
+    // 1. 3D Spherical Coordinate Isobar Grid (Latitude, Longitude & Equator Radar Lines)
+    float theta = acos(clamp(vLocalNormal.y, -1.0, 1.0)); // [0 .. PI]
+    float phi = atan(vLocalNormal.z, vLocalNormal.x);      // [-PI .. PI]
 
-    // Physical Fresnel limb-brightening: glancing edges glow as acoustic crests
-    float NdotV = clamp(dot(N, V), 0.0, 1.0);
-    float rimFresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), 2.6);
+    float latLines = abs(fract(theta / PI * 8.0) - 0.5);
+    float lonLines = abs(fract(phi / TWO_PI * 12.0) - 0.5);
+    float isobarGrid = smoothstep(0.40, 0.48, max(latLines, lonLines));
+    float equatorGlow = smoothstep(0.05, 0.0, abs(vLocalNormal.y)) * 0.8;
 
-    // Dynamic Cosine palette color based on radial distance and displacement
-    float colorT = vRadius * 0.12 - uTime * 0.08 + vDisplacement * 0.5;
-    vec3 palColor = cosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
+    // 2. High-Frequency Traveling Acoustic Wave Pulse along Radial Direction
+    float wavePhase = vRadius * 2.8 - uTime * 6.5 + vDisplacement * 2.0;
+    float travelingCrest = pow(max(0.0, cos(wavePhase)), 8.0) * (0.4 + 1.2 * vIntensity);
 
-    // Core glowing wave crests with Apple radiant glow shoulder
-    vec3 crestColor = mix(palColor, uCoreGlow, clamp(vDisplacement * 1.5, 0.0, 1.0));
-    vec3 finalRgb = appleRadiantGlow(crestColor, clamp(vIntensity * 0.35 + waveCrest * 0.25, 0.0, 5.0), 0.15);
-    finalRgb = mix(finalRgb, uAccent, clamp(rimFresnel * 0.7, 0.0, 1.0));
+    // 3. Tangential Fresnel Rim Glow
+    float NdotV = clamp(abs(dot(N, V)), 0.0, 1.0);
+    float fresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), 3.0);
 
-    // Ethereal translucent shell: limb-brightened at glancing angles, clear through the core
-    float innerFade = smoothstep(0.6, 2.0, vRadius);
-    float alpha = clamp(0.12 + rimFresnel * 0.65 + waveCrest * 0.45, 0.0, 0.85);
-    alpha *= exp(-0.035 * vRadius) * innerFade;
-
-    // Safety guard against NaN / Inf escaping into the HDR postprocessing bloom buffer
-    if (isnan(finalRgb.r) || isnan(finalRgb.g) || isnan(finalRgb.b) || isnan(alpha) ||
-        isinf(finalRgb.r) || isinf(finalRgb.g) || isinf(finalRgb.b) || isinf(alpha)) {
+    // 4. Strict Spatial Discard: Keep 85% of shell hollow so 3D depth and parallax are crystal-clear
+    if (isobarGrid < 0.12 && travelingCrest < 0.06 && fresnel < 0.35 && equatorGlow < 0.1) {
         discard;
     }
+
+    // Dynamic Cosine Palette
+    float colorT = vRadius * 0.12 - uTime * 0.08 + vDisplacement * 0.3;
+    vec3 palColor = cosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
+
+    // Combine Line Color, Traveling Crest, and Core Glow
+    vec3 finalRgb = palColor * (0.6 + 0.8 * vIntensity);
+    finalRgb += uCoreGlow * (travelingCrest * 1.2 + equatorGlow);
+    finalRgb += uAccent * (isobarGrid * 0.9 + fresnel * 1.5);
+
+    float alpha = clamp(isobarGrid * 0.75 + travelingCrest * 0.85 + fresnel * 0.65 + equatorGlow, 0.0, 0.95);
+    alpha *= exp(-0.045 * vRadius); // Spherical dissipation
 
     gl_FragColor = vec4(clamp(finalRgb, 0.0, 10.0), clamp(alpha, 0.0, 1.0));
 }

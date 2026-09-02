@@ -123,7 +123,6 @@ uniform float uTime;
 uniform float uEntrainmentSpeed;
 uniform vec3  uStreamColor;
 
-varying vec2  vUv;
 varying float vProgress;
 
 void main() {

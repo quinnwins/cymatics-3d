@@ -101,7 +101,9 @@ export class AcousticDataExporter {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
   }
 
   public static generateVocalDossier(
@@ -302,7 +304,16 @@ ${
       dossier.soundMedicinePrescription.binauralBeatHz,
     ];
 
-    return `${headers.join(',')}\n${values.join(',')}\n`;
+    return `${headers.join(',')}\n${values.map(AcousticDataExporter.escapeCsvCell).join(',')}\n`;
+  }
+
+  private static escapeCsvCell(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
   }
 
   public static generateRecord(

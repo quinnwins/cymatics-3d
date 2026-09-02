@@ -66,4 +66,8 @@ export class HistoryTexture {
     this.texture.needsUpdate = true;
     this.writeHead = 0;
   }
+
+  public dispose(): void {
+    this.texture.dispose();
+  }
 }

@@ -35,9 +35,12 @@ export class NobelDiscoveryControls {
     this.render();
   }
 
+  public getElement(): HTMLElement {
+    return this.container;
+  }
+
   private preventEventBleeding(): void {
     this.container.addEventListener('wheel', e => e.stopPropagation(), { passive: false });
-    this.container.addEventListener('pointerdown', e => e.stopPropagation());
   }
 
   public setState(newState: Partial<NobelLabState>) {
@@ -55,20 +58,7 @@ export class NobelDiscoveryControls {
     const selectedVirus = NobelBiophysics.VIRUS_PROFILES[this.state.selectedVirusId] || viruses[0];
 
     this.container.innerHTML = `
-      <!-- Biophysics Studio Hub Switcher -->
-      <div class="glass-panel p-1 rounded-2xl flex items-center gap-1 bg-slate-900/60 border border-white/10 text-xs mb-1">
-        <button id="hub-btn-bio" class="flex-1 py-1 px-1.5 rounded-xl font-semibold text-center transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-white/5">
-          Cell Mechanics
-        </button>
-        <button id="hub-btn-therapy" class="flex-1 py-1 px-1.5 rounded-xl font-semibold text-center transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-white/5">
-          Cancer Lab
-        </button>
-        <button id="hub-btn-nobel" class="flex-1 py-1 px-1.5 rounded-xl font-bold text-center transition-all cursor-pointer glass-btn-active text-amber-300 shadow-sm ring-1 ring-amber-500/30">
-          Nobel Lab
-        </button>
-      </div>
-
-      <div class="glass-panel p-3.5 sm:p-4 rounded-3xl flex flex-col gap-3 w-full shadow-xl border border-white/10 text-white select-none">
+      <div class="glass-panel p-3.5 sm:p-4 rounded-2xl flex flex-col gap-3 w-full shadow-xl border border-white/10 text-white select-none">
         <!-- 1. Frontier Selector Tabs -->
         <div class="flex flex-col gap-2 border-b border-white/10 pb-2.5">
           <div class="flex items-center gap-2">
@@ -169,9 +159,9 @@ export class NobelDiscoveryControls {
               <div>
                 <div class="flex justify-between text-xs text-slate-300 mb-1">
                   <span>Acoustic Pressure</span>
-                  <span class="font-mono text-amber-300 font-semibold">${this.state.acousticPressureKPa} kPa</span>
+                  <span id="val-mech-pressure" class="font-mono text-amber-300 font-semibold">${this.state.acousticPressureKPa} kPa</span>
                 </div>
-                <input type="range" id="slider-mech-pressure" min="10" max="250" step="5" value="${this.state.acousticPressureKPa}" class="w-full cursor-pointer" />
+                <input type="range" id="slider-mech-pressure" min="10" max="250" step="5" value="${this.state.acousticPressureKPa}" class="w-full min-w-0 cursor-pointer slider-amber" />
               </div>
               <button id="btn-trigger-p53" class="w-full py-2.5 px-4 rounded-xl font-semibold text-xs tracking-wide transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer ${
                 this.state.isP53TranscriptionActive
@@ -186,9 +176,9 @@ export class NobelDiscoveryControls {
               <div>
                 <div class="flex justify-between text-xs text-slate-300 mb-1">
                   <span>Ultrasound Intensity</span>
-                  <span class="font-mono text-cyan-300">${this.state.fusPowerMPa} MPa</span>
+                  <span id="val-bbb-fus" class="font-mono text-cyan-300">${this.state.fusPowerMPa} MPa</span>
                 </div>
-                <input type="range" id="slider-bbb-fus" min="0.1" max="1.5" step="0.05" value="${this.state.fusPowerMPa}" class="w-full cursor-pointer" />
+                <input type="range" id="slider-bbb-fus" min="0.1" max="1.5" step="0.05" value="${this.state.fusPowerMPa}" class="w-full min-w-0 cursor-pointer slider-cyan" />
               </div>
               <button id="btn-trigger-nanomedicine" class="w-full py-2.5 px-4 rounded-xl font-semibold text-xs tracking-wide transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer ${
                 this.state.isNanomedicineFlowing
@@ -224,9 +214,9 @@ export class NobelDiscoveryControls {
               <div>
                 <div class="flex justify-between text-xs text-slate-300 mb-1">
                   <span>Pulse Strength</span>
-                  <span class="font-mono text-emerald-300">${this.state.shockwaveIntensity.toFixed(1)}×</span>
+                  <span id="val-seno-intensity" class="font-mono text-emerald-300">${this.state.shockwaveIntensity.toFixed(1)}×</span>
                 </div>
-                <input type="range" id="slider-seno-intensity" min="0.5" max="2.5" step="0.1" value="${this.state.shockwaveIntensity}" class="w-full cursor-pointer" />
+                <input type="range" id="slider-seno-intensity" min="0.5" max="2.5" step="0.1" value="${this.state.shockwaveIntensity}" class="w-full min-w-0 cursor-pointer slider-emerald" />
               </div>
               <button id="btn-trigger-senolytic" class="w-full py-2.5 px-4 rounded-xl font-semibold text-xs tracking-wide transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer ${
                 this.state.isSenolyticPulseActive
@@ -246,14 +236,6 @@ export class NobelDiscoveryControls {
   }
 
   private attachEventListeners() {
-    // Biophysics Studio Hub Switcher
-    this.container.querySelector('#hub-btn-bio')?.addEventListener('click', () => {
-      if (this.onSwitchMode) this.onSwitchMode('bio');
-    });
-    this.container.querySelector('#hub-btn-therapy')?.addEventListener('click', () => {
-      if (this.onSwitchMode) this.onSwitchMode('therapy');
-    });
-
     // Frontier Tabs
     this.container.querySelector('#btn-frontier-mech')?.addEventListener('click', () => {
       this.state.frontierId = 'mechanogenomics';
@@ -278,8 +260,10 @@ export class NobelDiscoveryControls {
 
     // Mechanogenomics
     const sliderMech = this.container.querySelector('#slider-mech-pressure') as HTMLInputElement;
+    const valMech = this.container.querySelector('#val-mech-pressure');
     sliderMech?.addEventListener('input', () => {
       this.state.acousticPressureKPa = parseFloat(sliderMech.value);
+      if (valMech) valMech.textContent = `${this.state.acousticPressureKPa} kPa`;
       this.onStateChange(this.state);
     });
     this.container.querySelector('#btn-trigger-p53')?.addEventListener('click', () => {
@@ -290,8 +274,10 @@ export class NobelDiscoveryControls {
 
     // BBB
     const sliderBbb = this.container.querySelector('#slider-bbb-fus') as HTMLInputElement;
+    const valBbb = this.container.querySelector('#val-bbb-fus');
     sliderBbb?.addEventListener('input', () => {
       this.state.fusPowerMPa = parseFloat(sliderBbb.value);
+      if (valBbb) valBbb.textContent = `${this.state.fusPowerMPa} MPa`;
       this.onStateChange(this.state);
     });
     this.container.querySelector('#btn-trigger-nanomedicine')?.addEventListener('click', () => {
@@ -317,8 +303,10 @@ export class NobelDiscoveryControls {
 
     // Senolytic
     const sliderSeno = this.container.querySelector('#slider-seno-intensity') as HTMLInputElement;
+    const valSeno = this.container.querySelector('#val-seno-intensity');
     sliderSeno?.addEventListener('input', () => {
       this.state.shockwaveIntensity = parseFloat(sliderSeno.value);
+      if (valSeno) valSeno.textContent = `${this.state.shockwaveIntensity.toFixed(1)}×`;
       this.onStateChange(this.state);
     });
     this.container.querySelector('#btn-trigger-senolytic')?.addEventListener('click', () => {

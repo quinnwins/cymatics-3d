@@ -43,6 +43,9 @@ export class SpectralAnalyzer {
   public pitchConfidence = 0;
   private lastFrameTime = 0;
 
+  // External Synthetic Analysis Override (for DRM audio or streaming analysis sync)
+  private externalBandsOverride: AudioBands | null = null;
+
   constructor(analyserNode: AnalyserNode, sampleRate = 44100) {
     this.analyser = analyserNode;
     this.sampleRate = sampleRate;
@@ -76,6 +79,23 @@ export class SpectralAnalyzer {
     });
   }
 
+  public setExternalBands(bands: AudioBands | null): void {
+    this.externalBandsOverride = bands ? { ...bands } : null;
+  }
+
+  public getExternalBands(): AudioBands | null {
+    return this.externalBandsOverride;
+  }
+
+  public triggerShockwave(strength = 2.0, speed = 7.5): void {
+    this.activeShockwaves.unshift({
+      birthTime: this.lastFrameTime || performance.now() / 1000,
+      strength: Math.min(3.5, Math.max(0.5, strength)),
+      speed,
+    });
+    if (this.activeShockwaves.length > 4) this.activeShockwaves.pop();
+  }
+
   public update(currentTimeSeconds: number): void {
     this.analyser.getFloatFrequencyData(this.freqData as any);
     this.analyser.getFloatTimeDomainData(this.timeData as any);
@@ -84,22 +104,34 @@ export class SpectralAnalyzer {
     const rawBands = [0, 0, 0, 0, 0, 0];
     let totalEnergy = 0;
 
-    for (let b = 0; b < this.binRanges.length; b++) {
-      const [start, end] = this.binRanges[b];
-      let sum = 0;
-      for (let k = start; k <= end; k++) {
-        const rawDb = this.freqData[k];
-        const db = Number.isFinite(rawDb) ? rawDb : -100;
-        // Convert dB (-100..0) to normalized linear amplitude [0..1]
-        const lin = db > -90 ? Math.pow(10, (db + 10) / 40) : 0;
-        sum += lin * lin;
+    if (this.externalBandsOverride) {
+      rawBands[0] = this.externalBandsOverride.subBass;
+      rawBands[1] = this.externalBandsOverride.bass;
+      rawBands[2] = this.externalBandsOverride.lowMid;
+      rawBands[3] = this.externalBandsOverride.mid;
+      rawBands[4] = this.externalBandsOverride.highMid;
+      rawBands[5] = this.externalBandsOverride.high;
+      totalEnergy = rawBands.reduce((a, b) => a + b, 0);
+    } else {
+      for (let b = 0; b < this.binRanges.length; b++) {
+        const [start, end] = this.binRanges[b];
+        let sum = 0;
+        for (let k = start; k <= end; k++) {
+          const rawDb = this.freqData[k];
+          const db = Number.isFinite(rawDb) ? rawDb : -100;
+          // Convert dB (-100..0) to normalized linear amplitude [0..1]
+          const lin = db > -90 ? Math.pow(10, (db + 10) / 40) : 0;
+          sum += lin * lin;
+        }
+        const count = Math.max(1, end - start + 1);
+        rawBands[b] = Math.min(2.0, Math.sqrt(sum / count) * 1.8);
+        totalEnergy += rawBands[b];
       }
-      const count = Math.max(1, end - start + 1);
-      rawBands[b] = Math.min(2.0, Math.sqrt(sum / count) * 1.8);
-      totalEnergy += rawBands[b];
     }
 
-    const rms = Math.min(2.0, totalEnergy / 6);
+    const rms = this.externalBandsOverride
+      ? this.externalBandsOverride.rms
+      : Math.min(2.0, totalEnergy / 6);
 
     // Framerate-independent continuous dual-speed ballistics (Apple ProMotion 60Hz/120Hz consistency)
     const dt = currentTimeSeconds > 0 && (currentTimeSeconds - this.lastFrameTime) > 0.001

@@ -162,7 +162,7 @@ export class SenolyticClearancePhysics {
     const I_sppa = (params.peakPressureMPa ** 2 * 1e12) / (2.0 * 1060.0 * 1540.0) * 1e-4; // W/cm^2
     const I_spta = I_sppa * dutyCycle;
     const deltaT = Number(((2.0 * 0.05 * I_spta * params.exposureDurationSec) / (1060.0 * 3700.0 * 1e-4)).toFixed(3));
-    const cem43 = Number((params.exposureDurationSec * (deltaT > 0 ? 0.25 ** Math.max(0, 43 - (37 + deltaT)) : 0)).toFixed(6));
+    const cem43 = Number(((params.exposureDurationSec / 60.0) * (deltaT > 0 ? 0.25 ** Math.max(0, 43 - (37 + deltaT)) : 0)).toFixed(6));
 
     const isSelective = lysis >= 90.0 && youngSurvival >= 99.0 && deltaT < 1.0;
 

@@ -86,5 +86,36 @@ describe('CymaticsPlateMesh - 2D Resonant Chladni Cymatics Plate with Dust Parti
     plate.setAutoModal(true);
     plate.update(1.0, bands, highs, 432, 0.016, camera);
     expect(uniforms.uModes.value.x).toBeGreaterThanOrEqual(1);
+    expect(uniforms.uModes.value.y).toBeGreaterThanOrEqual(1);
+  });
+
+  it('smoothly scales dynamic modes with varying fundamental pitch frequencies', () => {
+    const plate = new CymaticsPlateMesh(palette);
+    plate.setAutoModal(true);
+
+    const bands = new THREE.Vector4(0.4, 0.3, 0.2, 0.1);
+    const highs = new THREE.Vector2(0.1, 0.05);
+    const camera = new THREE.PerspectiveCamera();
+    const uniforms = (plate.plateMesh.material as THREE.ShaderMaterial).uniforms;
+
+    // Test sub-bass frequency (55 Hz)
+    plate.update(0.1, bands, highs, 55, 0.016, camera);
+    const lowPitchN = uniforms.uModes.value.x;
+
+    // Test treble frequency (1100 Hz)
+    plate.update(0.2, bands, highs, 1100, 0.016, camera);
+    const highPitchN = uniforms.uModes.value.x;
+
+    expect(highPitchN).toBeGreaterThan(lowPitchN);
+  });
+
+  it('handles circular Bessel plate mode and updates uniforms accurately', () => {
+    const plate = new CymaticsPlateMesh(palette);
+    plate.setChamberType('circle');
+    const uniforms = (plate.plateMesh.material as THREE.ShaderMaterial).uniforms;
+    expect(uniforms.uChamberType.value).toBe(1.0);
+
+    plate.setChamberType('square');
+    expect(uniforms.uChamberType.value).toBe(0.0);
   });
 });

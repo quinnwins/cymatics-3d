@@ -24,18 +24,17 @@ attribute float aShellRadius;
 
 varying vec4 vColor;
 varying float vIntensity;
-varying float vDepthFade;
 
 void main() {
     vec3 basePos = position;
     float baseR = length(basePos);
-    vec3 n = baseR > 1e-5 ? basePos / baseR : vec3(0.0, 1.0, 0.0);
+    vec3 n = normalize(basePos);
 
     // 1. Spatiotemporal Retarded-Time Audio Sample
-    float travelTime = baseR / max(uPropagationSpeed, 0.001);
+    float travelTime = baseR / uPropagationSpeed;
     float historyRow = fract(uHistoryHead - travelTime * 0.15);
     vec4 audioSample = texture2D(uAudioHistory, vec2(aParticleFreq, historyRow));
-    float localAmp = clamp(audioSample.r, 0.0, 10.0);
+    float localAmp = audioSample.r;
 
     // 2. Physical Spherical Wave Propagation
     float waveK = 3.14159 * (1.2 + aParticleFreq * 7.0);
@@ -59,12 +58,10 @@ void main() {
         float speed = uShockwaves[i].z;
         if (birth > 0.0) {
             float dt = uTime - birth;
-            if (dt >= 0.0 && dt < 4.0) {
-                float frontR = speed * dt;
-                float distFromFront = abs(baseR - frontR);
-                float pulse = exp(-distFromFront * 4.0) * exp(-dt * 2.0) * strength;
-                shockDisp += pulse * sin(distFromFront * 14.0 - dt * 18.0);
-            }
+            float frontR = speed * dt;
+            float distFromFront = abs(baseR - frontR);
+            float pulse = exp(-distFromFront * 4.0) * exp(-dt * 2.0) * strength;
+            shockDisp += pulse * sin(distFromFront * 14.0 - dt * 18.0);
         }
     }
 
@@ -76,55 +73,43 @@ void main() {
     float colorT = aParticleFreq + baseR * 0.08 - uTime * 0.05 + totalDisp * 0.2;
     vec3 palColor = cosinePalette(colorT, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
-    // Intensity boost on transient or heavy sub-bass
-    float intensity = clamp(localAmp * 1.8 + abs(totalDisp) * 0.6 + shockDisp * 1.2, 0.0, 3.0);
-    vIntensity = intensity;
+    // Acoustic Wavefront Excitation: Particles ignite when wave energy passes through them
+    float excitation = clamp(localAmp * 2.8 + abs(totalDisp) * 1.6 + shockDisp * 2.5, 0.0, 3.0);
+    vIntensity = excitation;
 
-    vec3 finalColor = palColor * (0.80 + 0.40 * intensity);
-    finalColor += uCoreGlow * (uBandEnergies.x * 0.6);
-    finalColor += uAccent * (shockDisp * 0.8);
+    vec3 finalColor = palColor * (0.2 + 0.9 * excitation);
+    finalColor += uCoreGlow * (uBandEnergies.x * excitation * 0.8);
+    finalColor += uAccent * (shockDisp * 1.5);
 
-    vColor = vec4(finalColor, 0.90 + 0.10 * intensity);
+    // Particle alpha: subtle ambient dust, glowing on acoustic wave passage
+    float pAlpha = clamp(0.04 + excitation * 0.65, 0.0, 0.9);
+    vColor = vec4(finalColor, pAlpha);
 
     vec4 mvPosition = modelViewMatrix * vec4(displacedPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
 
-    // Soft camera near-plane depth fade to prevent harsh clipping
-    float zDist = max(0.1, -mvPosition.z);
-    vDepthFade = smoothstep(0.3, 1.2, zDist);
-
-    // Point size with calibrated distance attenuation (fine acoustic nebula points)
-    gl_PointSize = clamp((0.9 + 1.1 * intensity + shockDisp * 1.5) * uParticleScale * (75.0 / max(zDist, 0.15)), 1.0, 12.0);
+    // Point size with distance attenuation & clamping
+    float pSize = (1.0 + 2.5 * excitation + shockDisp * 4.0) * uParticleScale * (100.0 / -mvPosition.z);
+    gl_PointSize = clamp(pSize, 1.0, 28.0);
 }
 `;
 
 export const PARTICLE_FRAGMENT_SHADER = `
 precision highp float;
 
-uniform vec3 uAccent;
-
 varying vec4 vColor;
 varying float vIntensity;
-varying float vDepthFade;
 
 void main() {
-    vec2 pCoord = gl_PointCoord * 2.0 - 1.0;
-    float r2 = dot(pCoord, pCoord);
-    if (r2 > 1.0) discard;
+    // Render smooth anti-aliased Gaussian circular particle
+    vec2 coord = gl_PointCoord - vec2(0.5);
+    float distSq = dot(coord, coord);
+    if (distSq > 0.25) discard;
 
-    // Soft Gaussian Core with subtle Airy edge falloff
-    float coreGaussian = exp(-r2 * 4.5);
-    float edgeSoft = 1.0 - smoothstep(0.6, 1.0, clamp(sqrt(max(0.0, r2)), 0.0, 1.0));
+    float alpha = exp(-distSq * 18.0) * vColor.a;
+    float core = smoothstep(0.03, 0.0, distSq) * vIntensity;
 
-    vec3 finalRgb = vColor.rgb * (1.0 + vIntensity * 0.4);
-    float finalAlpha = clamp(vColor.a * coreGaussian * edgeSoft * vDepthFade, 0.0, 1.0);
-
-    if (isnan(finalRgb.r) || isnan(finalRgb.g) || isnan(finalRgb.b) || isnan(finalAlpha) ||
-        isinf(finalRgb.r) || isinf(finalRgb.g) || isinf(finalRgb.b) || isinf(finalAlpha)) {
-        discard;
-    }
-
-    gl_FragColor = vec4(clamp(finalRgb, 0.0, 10.0), clamp(finalAlpha, 0.0, 1.0));
+    vec3 finalRgb = vColor.rgb + vec3(1.0) * (core * 0.5);
+    gl_FragColor = vec4(finalRgb, alpha);
 }
 `;
-

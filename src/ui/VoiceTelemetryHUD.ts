@@ -4,12 +4,12 @@
  *
  * Implements:
  * 1. 3D Stage Focus Mode Switcher:
- *    - 🗣 Airway: Centers the 3D Volumetric Head & Vocal Tract.
- *    - 🎯 Vowels: Centers the 3D Vowel Target Bullseye.
- *    - 👁 Dual: Side-by-side comparative layout.
+ *    - Airway: Centers the 3D Volumetric Head & Vocal Tract.
+ *    - Vowels: Centers the 3D Vowel Target Bullseye.
+ *    - Dual: Side-by-side comparative layout.
  * 2. Dual-View Mode Switcher:
- *    - 👤 Patient View (Default): Plain-language health cards, vocal seal rating, voice smoothness.
- *    - 🩺 Clinician View: Full multi-parametric clinical telemetry (Jitter, Shimmer, HNR, CPP, DSI, AVQI v03.01).
+ *    - Patient View (Default): Plain-language health cards, vocal seal rating, voice smoothness.
+ *    - Clinician View: Full multi-parametric clinical telemetry (Jitter, Shimmer, HNR, CPP, DSI, AVQI v03.01).
  * 3. Customer-Facing Plain-Language Health Status Hero Banner.
  */
 
@@ -258,11 +258,11 @@ export class VoiceTelemetryHUD {
 
     if (this.patientAdviceEl) {
       if (report.healthStatus === 'pathological-dysphonia' || report.f0Hz < 100) {
-        this.patientAdviceEl.textContent = '💡 Your vocal cords are heavy with fluid buildup, causing air leakage and deep raspy pitch. Play the 110 Hz Balancing Tone to assist smooth vibration.';
+        this.patientAdviceEl.textContent = 'Your vocal cords are heavy with fluid buildup, causing air leakage and deep raspy pitch. Play the 110 Hz Balancing Tone to assist smooth vibration.';
       } else if (report.healthStatus === 'mild-strain') {
-        this.patientAdviceEl.textContent = '💡 Mild tension detected in the throat. Relax shoulders and take a slow diaphragmatic breath before speaking.';
+        this.patientAdviceEl.textContent = 'Mild tension detected in the throat. Relax shoulders and take a slow diaphragmatic breath before speaking.';
       } else {
-        this.patientAdviceEl.textContent = '✨ Your vocal cords are oscillating smoothly with optimal acoustic projection and balanced resonance.';
+        this.patientAdviceEl.textContent = 'Your vocal cords are oscillating smoothly with optimal acoustic projection and balanced resonance.';
       }
     }
 
@@ -296,15 +296,15 @@ export class VoiceTelemetryHUD {
 
     // 4. Formant Bars
     if (this.f1Bar) {
-      const pct = Math.min(100, ((report.formantsHz[0] - 200) / 700) * 100);
+      const pct = Math.max(0, Math.min(100, ((report.formantsHz[0] - 200) / 700) * 100));
       this.f1Bar.style.width = `${pct}%`;
     }
     if (this.f2Bar) {
-      const pct = Math.min(100, ((report.formantsHz[1] - 800) / 1600) * 100);
+      const pct = Math.max(0, Math.min(100, ((report.formantsHz[1] - 800) / 1600) * 100));
       this.f2Bar.style.width = `${pct}%`;
     }
     if (this.f3Bar) {
-      const pct = Math.min(100, ((report.formantsHz[2] - 2000) / 1400) * 100);
+      const pct = Math.max(0, Math.min(100, ((report.formantsHz[2] - 2000) / 1400) * 100));
       this.f3Bar.style.width = `${pct}%`;
     }
 
@@ -350,13 +350,13 @@ export class VoiceTelemetryHUD {
           <!-- Stage View Focus Mode Selector -->
           <div class="flex items-center bg-slate-950/80 p-0.5 rounded-full border border-white/10 text-[10px] font-semibold">
             <button id="btn-stage-airway" class="px-2 py-1 rounded-full text-gray-400 border border-transparent hover:text-white transition-all">
-              🗣 Airway
+              Airway
             </button>
             <button id="btn-stage-vowels" class="px-2 py-1 rounded-full text-gray-400 border border-transparent hover:text-white transition-all">
-              🎯 Vowels
+              Vowels
             </button>
             <button id="btn-stage-dual" class="px-2 py-1 rounded-full bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 transition-all">
-              👁 Dual
+              Dual
             </button>
           </div>
         </div>
@@ -370,10 +370,10 @@ export class VoiceTelemetryHUD {
           <!-- Simple vs Pro HUD Selector -->
           <div class="flex items-center bg-slate-950/80 p-0.5 rounded-full border border-white/10 text-[10px] font-semibold">
             <button id="btn-mode-patient" class="px-2.5 py-1 rounded-full bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 transition-all">
-              👤 Simple
+              Simple
             </button>
             <button id="btn-mode-clinician" class="px-2.5 py-1 rounded-full text-gray-400 border border-transparent hover:text-white transition-all">
-              🩺 Pro
+              Pro
             </button>
           </div>
         </div>
@@ -383,7 +383,7 @@ export class VoiceTelemetryHUD {
           <div class="grid grid-cols-3 gap-2">
             <!-- Vocal Seal -->
             <div class="bg-slate-900/70 p-2.5 rounded-2xl border border-white/5 flex flex-col gap-0.5">
-              <span class="text-[10px] text-gray-400 font-semibold">🫁 Vocal Seal</span>
+              <span class="text-[10px] text-gray-400 font-semibold">Vocal Seal</span>
               <div id="hud-patient-seal" class="flex flex-col text-sm font-bold text-emerald-400">
                 95% <span class="text-[10px] text-gray-400">(Clean Seal)</span>
               </div>
@@ -391,7 +391,7 @@ export class VoiceTelemetryHUD {
 
             <!-- Voice Smoothness -->
             <div class="bg-slate-900/70 p-2.5 rounded-2xl border border-white/5 flex flex-col gap-0.5">
-              <span class="text-[10px] text-gray-400 font-semibold">🗣 Smoothness</span>
+              <span class="text-[10px] text-gray-400 font-semibold">Smoothness</span>
               <div id="hud-patient-smoothness" class="flex flex-col text-sm font-bold text-emerald-400">
                 92% <span class="text-[10px] text-gray-400">(Smooth)</span>
               </div>
@@ -399,7 +399,7 @@ export class VoiceTelemetryHUD {
 
             <!-- Voice Pitch -->
             <div class="bg-slate-900/70 p-2.5 rounded-2xl border border-white/5 flex flex-col gap-0.5">
-              <span class="text-[10px] text-gray-400 font-semibold">🎵 Voice Pitch</span>
+              <span class="text-[10px] text-gray-400 font-semibold">Voice Pitch</span>
               <div id="hud-patient-pitch" class="flex flex-col text-sm font-bold text-cyan-400">
                 220 Hz <span class="text-[10px] text-gray-400">(Healthy)</span>
               </div>
@@ -408,14 +408,14 @@ export class VoiceTelemetryHUD {
 
           <!-- Plain Advice Box -->
           <div class="bg-slate-950/60 p-3 rounded-2xl border border-cyan-500/20 text-[11px] text-gray-300 leading-relaxed">
-            <p id="hud-patient-advice">✨ Your vocal cords are oscillating smoothly with optimal acoustic projection and balanced resonance.</p>
+            <p id="hud-patient-advice">Your vocal cords are oscillating smoothly with optimal acoustic projection and balanced resonance.</p>
           </div>
         </div>
 
         <!-- ================= CLINICIAN PRO VIEW ================= -->
-        <div id="hud-clinician-panel" class="flex flex-col gap-3" style="display: none;">
+        <div id="hud-clinician-panel" class="hidden flex-col gap-3">
           <!-- 4 Primary Clinical Metric Cards -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div class="grid grid-cols-2 gap-2">
             <!-- Pitch Card -->
             <div class="bg-slate-900/70 p-2.5 rounded-2xl border border-white/5 flex flex-col gap-0.5">
               <span class="text-[10px] text-gray-400 font-semibold">Fundamental f₀</span>
@@ -496,5 +496,9 @@ export class VoiceTelemetryHUD {
 
       </div>
     `;
+  }
+
+  public destroy(): void {
+    // Teardown any pending HUD animations
   }
 }

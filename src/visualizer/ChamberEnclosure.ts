@@ -514,6 +514,10 @@ export class ChamberEnclosure {
     return this.group.visible;
   }
 
+  public setChamberGeometry(type: ChamberType): void {
+    this.setChamberType(type);
+  }
+
   public dispose(): void {
     this.glassMaterial.dispose();
     this.strutMaterial.dispose();
@@ -521,5 +525,11 @@ export class ChamberEnclosure {
     this.cubeGlassMesh.geometry.dispose();
     this.cylinderGlassMesh.geometry.dispose();
     this.sphereGlassMesh.geometry.dispose();
+
+    this.frameGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.geometry) {
+        child.geometry.dispose();
+      }
+    });
   }
 }

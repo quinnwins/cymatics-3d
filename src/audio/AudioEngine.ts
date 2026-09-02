@@ -10,8 +10,18 @@ import { DemoAudioGenerator } from './DemoAudioGenerator';
 import { VoiceBiometricAnalyzer } from './VoiceBiometricAnalyzer';
 import { SoundMedicineSynthesizer } from './SoundMedicineSynthesizer';
 import { VocalBiomarkerReport } from '../math/VoiceBiometricsPhysics';
+import { AppleMusicConnector } from './connectors/AppleMusicConnector';
+import { SpotifyConnector } from './connectors/SpotifyConnector';
+import { StreamingTrack } from './connectors/types';
 
-export type AudioInputMode = 'frequency-lab' | 'demo-track' | 'file-upload' | 'microphone' | 'sound-medicine';
+export type AudioInputMode =
+  | 'frequency-lab'
+  | 'demo-track'
+  | 'file-upload'
+  | 'microphone'
+  | 'sound-medicine'
+  | 'apple-music'
+  | 'spotify';
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -23,6 +33,11 @@ export class AudioEngine {
   public demoGenerator: DemoAudioGenerator | null = null;
   public voiceBiometrics: VoiceBiometricAnalyzer | null = null;
   public soundMedicine: SoundMedicineSynthesizer | null = null;
+  public appleMusicConnector: AppleMusicConnector = new AppleMusicConnector();
+  public spotifyConnector: SpotifyConnector = new SpotifyConnector();
+
+  // Streaming track metadata
+  private activeStreamingTrack: StreamingTrack | null = null;
 
   // File audio element
   private audioElement: HTMLAudioElement;
@@ -39,11 +54,11 @@ export class AudioEngine {
   private activeBlobUrl: string | null = null;
   private loadedFileName: string | null = null;
   private listeners: Set<() => void> = new Set();
+  private initPromise: Promise<void> | null = null;
 
   constructor() {
     if (typeof Audio !== 'undefined') {
       this.audioElement = new Audio();
-      this.audioElement.crossOrigin = 'anonymous';
       this.audioElement.loop = true;
 
       // Reactively notify listeners on playback timeline and state changes
@@ -81,43 +96,50 @@ export class AudioEngine {
     });
   }
 
-  public async initialize(): Promise<void> {
-    if (this.isInitialized && this.ctx) {
+  public ensureInitializedSync(): void {
+    if (this.isInitialized && this.ctx && this.ctx.state !== 'closed') {
       if (this.ctx.state === 'suspended') {
-        await this.ctx.resume();
+        this.ctx.resume().catch(e => console.warn('AudioContext resume deferred', e));
       }
       return;
     }
 
     try {
       const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.ctx = new AudioContextClass();
+      if (!this.ctx || this.ctx.state === 'closed') {
+        this.ctx = new AudioContextClass();
+      }
       if (this.ctx.state === 'suspended') {
-        await this.ctx.resume();
+        this.ctx.resume().catch(() => {});
       }
 
-      this.analyserNode = this.ctx.createAnalyser();
-      this.analyserNode.fftSize = 4096;
-      this.analyserNode.smoothingTimeConstant = 0.2;
+      if (!this.analyserNode) {
+        this.analyserNode = this.ctx.createAnalyser();
+        this.analyserNode.fftSize = 4096;
+        this.analyserNode.smoothingTimeConstant = 0.2;
 
-      this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
 
-      // Audio Graph: Sources -> MasterGain -> Destination (Speakers)
-      // MasterGain and MicSource -> AnalyserNode (Isolated Visualization Tap)
-      this.masterGain.connect(this.ctx.destination);
-      this.masterGain.connect(this.analyserNode);
+        this.masterGain.connect(this.ctx.destination);
+        this.masterGain.connect(this.analyserNode);
 
-      this.synthesizer = new FrequencySynthesizer(this.ctx, this.masterGain);
-      this.analyzer = new SpectralAnalyzer(this.analyserNode, this.ctx.sampleRate);
-      this.demoGenerator = new DemoAudioGenerator(this.ctx, this.masterGain);
-      this.voiceBiometrics = new VoiceBiometricAnalyzer(this.ctx);
-      this.soundMedicine = new SoundMedicineSynthesizer(this.ctx, this.masterGain);
+        this.synthesizer = new FrequencySynthesizer(this.ctx, this.masterGain);
+        this.analyzer = new SpectralAnalyzer(this.analyserNode, this.ctx.sampleRate);
+        this.demoGenerator = new DemoAudioGenerator(this.ctx, this.masterGain);
+        this.voiceBiometrics = new VoiceBiometricAnalyzer(this.ctx);
+        this.soundMedicine = new SoundMedicineSynthesizer(this.ctx, this.masterGain);
+      }
 
       this.isInitialized = true;
     } catch (err) {
-      console.warn('AudioContext initialization failed or pending user interaction', err);
+      console.warn('AudioContext initialization deferred until direct user activation', err);
     }
+  }
+
+  public async initialize(): Promise<void> {
+    this.ensureInitializedSync();
+    return Promise.resolve();
   }
 
   public setMode(mode: AudioInputMode): void {
@@ -131,6 +153,12 @@ export class AudioEngine {
     this.stopMicrophoneInternal();
     this.voiceBiometrics?.stopMicrophone();
 
+    // Clear external synthetic analysis override when leaving streaming mode
+    if (mode !== 'spotify' && mode !== 'apple-music') {
+      this.activeStreamingTrack = null;
+      this.analyzer?.setExternalBands(null);
+    }
+
     this.currentMode = mode;
     this.notifyChange();
   }
@@ -143,6 +171,22 @@ export class AudioEngine {
     return this.currentMode === 'file-upload' ? this.loadedFileName : null;
   }
 
+  public getActiveStreamingTrack(): StreamingTrack | null {
+    return (this.currentMode === 'apple-music' || this.currentMode === 'spotify') ? this.activeStreamingTrack : null;
+  }
+
+  public getStreamingTrackTitle(): string | null {
+    return this.getActiveStreamingTrack()?.title || null;
+  }
+
+  public getStreamingTrackArtist(): string | null {
+    return this.getActiveStreamingTrack()?.artist || null;
+  }
+
+  public getStreamingTrackArtwork(): string | null {
+    return this.getActiveStreamingTrack()?.artworkUrl || null;
+  }
+
   public isMicrophoneActive(): boolean {
     return this.currentMode === 'microphone' && this.micStream !== null;
   }
@@ -152,8 +196,11 @@ export class AudioEngine {
   }
 
   // --- Demo Track Playback ---
-  public async playDemoTrack(trackId?: string): Promise<void> {
-    await this.initialize();
+  public playDemoTrack(trackId?: string): void {
+    this.ensureInitializedSync();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(e => console.warn('AudioContext resume deferred', e));
+    }
     this.setMode('demo-track');
     this.loadedFileName = null;
     this.demoGenerator?.play(trackId);
@@ -166,8 +213,11 @@ export class AudioEngine {
   }
 
   // --- Frequency Synthesizer Control ---
-  public async startFrequencyTone(freqHz: number): Promise<void> {
-    await this.initialize();
+  public startFrequencyTone(freqHz: number): void {
+    this.ensureInitializedSync();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(e => console.warn('AudioContext resume deferred', e));
+    }
     this.setMode('frequency-lab');
     this.loadedFileName = null;
     this.synthesizer?.setFrequency(freqHz);
@@ -175,8 +225,8 @@ export class AudioEngine {
     this.notifyChange();
   }
 
-  public async playFrequency(freqHz: number): Promise<void> {
-    await this.startFrequencyTone(freqHz);
+  public playFrequency(freqHz: number): void {
+    this.startFrequencyTone(freqHz);
   }
 
   public setTherapyAudioState(
@@ -186,6 +236,10 @@ export class AudioEngine {
     isAntiPhase: boolean,
     isHeterodyne: boolean
   ): void {
+    this.ensureInitializedSync();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(e => console.warn('AudioContext resume deferred', e));
+    }
     if (this.currentMode !== 'frequency-lab') {
       this.setMode('frequency-lab');
     }
@@ -225,6 +279,13 @@ export class AudioEngine {
   // --- Custom Audio File Upload ---
   public async loadAudioFile(file: File): Promise<string> {
     await this.initialize();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      try {
+        await this.ctx.resume();
+      } catch (e) {
+        console.warn('AudioContext resume deferred', e);
+      }
+    }
     this.setMode('file-upload');
 
     if (this.activeBlobUrl) {
@@ -233,37 +294,138 @@ export class AudioEngine {
 
     this.activeBlobUrl = URL.createObjectURL(file);
     this.loadedFileName = file.name;
+
+    // Ensure no crossOrigin attribute taints local blob playback
+    if (typeof this.audioElement.removeAttribute === 'function') {
+      this.audioElement.removeAttribute('crossOrigin');
+    }
+    (this.audioElement as any).crossOrigin = null;
     this.audioElement.src = this.activeBlobUrl;
 
     if (this.ctx && !this.audioSourceNode) {
-      this.audioSourceNode = this.ctx.createMediaElementSource(this.audioElement);
-      if (this.masterGain) {
-        this.audioSourceNode.connect(this.masterGain);
+      try {
+        this.audioSourceNode = this.ctx.createMediaElementSource(this.audioElement);
+        if (this.masterGain) {
+          this.audioSourceNode.connect(this.masterGain);
+        }
+      } catch (e) {
+        console.warn('MediaElementSource already created or pending', e);
       }
     }
 
-    await this.audioElement.play();
+    try {
+      await this.audioElement.play();
+    } catch (e) {
+      console.warn('Playback waiting on user gesture', e);
+    }
     this.notifyChange();
     return file.name;
   }
 
+  // --- External Streaming Track (Apple Music & Spotify) ---
+  public async loadStreamTrack(track: StreamingTrack): Promise<void> {
+    this.ensureInitializedSync();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(e => console.warn('AudioContext resume deferred', e));
+    }
+
+    this.setMode(track.source);
+    this.activeStreamingTrack = track;
+    this.loadedFileName = null;
+
+    if (this.activeBlobUrl) {
+      URL.revokeObjectURL(this.activeBlobUrl);
+      this.activeBlobUrl = null;
+    }
+
+    // Set crossOrigin BEFORE setting src to guarantee no CORS tainting on Web Audio AnalyserNode
+    if (typeof this.audioElement.setAttribute === 'function') {
+      this.audioElement.setAttribute('crossOrigin', 'anonymous');
+    }
+    (this.audioElement as any).crossOrigin = 'anonymous';
+
+    // Hook Web Audio MediaElementSourceNode if not already connected
+    if (this.ctx && !this.audioSourceNode) {
+      try {
+        this.audioSourceNode = this.ctx.createMediaElementSource(this.audioElement);
+        if (this.masterGain) {
+          this.audioSourceNode.connect(this.masterGain);
+        }
+      } catch (e) {
+        console.warn('MediaElementSource already created or pending', e);
+      }
+    }
+
+    // If Spotify track, fetch structural audio analysis for real-time chroma synthesis
+    if (track.source === 'spotify') {
+      this.spotifyConnector.fetchAudioAnalysis(track.id).catch(() => {});
+    } else {
+      this.analyzer?.setExternalBands(null);
+    }
+
+    let urlToPlay = track.previewUrl;
+    if (!urlToPlay && track.source === 'apple-music') {
+      urlToPlay = await this.appleMusicConnector.resolveFreshPreviewUrl(track);
+      if (urlToPlay) {
+        track.previewUrl = urlToPlay;
+      }
+    }
+
+    if (urlToPlay) {
+      this.audioElement.src = urlToPlay;
+      if (typeof this.audioElement.load === 'function') {
+        this.audioElement.load();
+      }
+
+      // Auto-recovery error listener for rotated CDN tokens
+      this.audioElement.onerror = async () => {
+        if (track.source === 'apple-music' && !(track as any)._hasRetried) {
+          (track as any)._hasRetried = true;
+          const freshUrl = await this.appleMusicConnector.resolveFreshPreviewUrl(track);
+          if (freshUrl && freshUrl !== urlToPlay) {
+            track.previewUrl = freshUrl;
+            this.audioElement.src = freshUrl;
+            if (typeof this.audioElement.load === 'function') {
+              this.audioElement.load();
+            }
+            this.audioElement.play().catch(e => console.warn('Retry playback waiting for gesture', e));
+          }
+        }
+      };
+
+      try {
+        await this.audioElement.play();
+      } catch (e) {
+        console.warn('Playback waiting on user gesture', e);
+      }
+    }
+
+    this.setMasterVolume(this.masterVolume);
+    this.notifyChange();
+  }
+
   public getCurrentTime(): number {
-    if (this.currentMode === 'file-upload') {
+    if (this.currentMode === 'file-upload' || this.currentMode === 'apple-music' || this.currentMode === 'spotify') {
       return this.audioElement.currentTime || 0;
     }
     return 0;
   }
 
   public getDuration(): number {
-    if (this.currentMode === 'file-upload') {
+    if (this.currentMode === 'file-upload' || this.currentMode === 'apple-music' || this.currentMode === 'spotify') {
       const d = this.audioElement.duration;
-      return (isNaN(d) || !isFinite(d)) ? 0 : d;
+      return (isNaN(d) || !isFinite(d))
+        ? (this.activeStreamingTrack?.durationMs ? this.activeStreamingTrack.durationMs / 1000 : 0)
+        : d;
     }
     return 0;
   }
 
   public seek(seconds: number): void {
-    if (this.currentMode === 'file-upload') {
+    if (this.currentMode === 'file-upload' || this.currentMode === 'apple-music' || this.currentMode === 'spotify') {
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
       const dur = this.getDuration();
       const targetTime = Math.max(0, dur > 0 ? Math.min(dur, seconds) : Math.max(0, seconds));
       this.audioElement.currentTime = targetTime;
@@ -277,10 +439,18 @@ export class AudioEngine {
   }
 
   public isSeekable(): boolean {
-    return this.currentMode === 'file-upload' && this.getDuration() > 0;
+    return (
+      (this.currentMode === 'file-upload' || this.currentMode === 'apple-music' || this.currentMode === 'spotify') &&
+      this.getDuration() > 0
+    );
   }
 
   public togglePlayPause(): boolean {
+    this.ensureInitializedSync();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(e => console.warn('AudioContext resume deferred', e));
+    }
+
     if (this.currentMode === 'demo-track') {
       if (this.demoGenerator?.getIsPlaying()) {
         this.demoGenerator.stop();
@@ -293,9 +463,9 @@ export class AudioEngine {
       }
     }
 
-    if (this.currentMode === 'file-upload') {
+    if (this.currentMode === 'file-upload' || this.currentMode === 'apple-music' || this.currentMode === 'spotify') {
       if (this.audioElement.paused) {
-        this.audioElement.play();
+        this.audioElement.play().catch(e => console.warn('Play interrupted', e));
         this.notifyChange();
         return true;
       } else {
@@ -336,6 +506,9 @@ export class AudioEngine {
   public async startMicrophone(): Promise<boolean> {
     await this.initialize();
     if (!this.ctx || !this.analyserNode) return false;
+
+    // Cleanly stop any existing mic stream / node before acquiring new stream
+    this.stopMicrophoneInternal();
 
     try {
       this.setMode('microphone');
@@ -397,8 +570,14 @@ export class AudioEngine {
   public setMasterVolume(vol: number): void {
     this.masterVolume = Math.max(0, Math.min(1, vol));
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
-      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.masterVolume, this.ctx.currentTime);
+      const now = this.ctx.currentTime;
+      const target = this.isMuted ? 0 : this.masterVolume;
+      this.masterGain.gain.cancelScheduledValues(now);
+      if (typeof this.masterGain.gain.setTargetAtTime === 'function') {
+        this.masterGain.gain.setTargetAtTime(target, now, 0.02);
+      } else {
+        this.masterGain.gain.setValueAtTime(target, now);
+      }
     }
   }
 
@@ -421,7 +600,7 @@ export class AudioEngine {
     if (this.currentMode === 'demo-track') {
       return this.demoGenerator?.getIsPlaying() ?? false;
     }
-    if (this.currentMode === 'file-upload') {
+    if (this.currentMode === 'file-upload' || this.currentMode === 'apple-music' || this.currentMode === 'spotify') {
       return !this.audioElement.paused;
     }
     if (this.currentMode === 'frequency-lab') {
@@ -439,6 +618,16 @@ export class AudioEngine {
   // --- Per-Frame Update Hook ---
   public update(currentTimeSeconds: number): void {
     if (!this.isInitialized || !this.analyzer) return;
+
+    if (this.currentMode === 'spotify' && this.spotifyConnector.analysisSynthesizer.getAnalysis()) {
+      const posSec = this.audioElement.currentTime || 0;
+      const res = this.spotifyConnector.analysisSynthesizer.evaluateBands(posSec);
+      this.analyzer.setExternalBands(res.bands);
+      if (res.shockwave) {
+        this.analyzer.triggerShockwave(2.5, 8.0);
+      }
+    }
+
     this.analyzer.update(currentTimeSeconds);
   }
 

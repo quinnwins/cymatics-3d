@@ -79,8 +79,10 @@ export class AcousticTherapyLab {
   private debrisCount = 6000;
   private debrisVelocities: Float32Array;
   private isLysisActive = false;
+  private isLysisResetting = false;
   private lysisProgress = 0.0;
   private lysisDuration = 1.8;
+  private lysisResetTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   // Lab State
   private state: OncotripsyState = {
@@ -291,7 +293,12 @@ export class AcousticTherapyLab {
   }
 
   public resetSimulation(): void {
+    if (this.lysisResetTimeoutId !== null) {
+      clearTimeout(this.lysisResetTimeoutId);
+      this.lysisResetTimeoutId = null;
+    }
     this.isLysisActive = false;
+    this.isLysisResetting = false;
     this.lysisProgress = 0.0;
     this.cancerCell.setRuptureProgress(0.0);
     if (this.shockwaveMesh && this.shockwaveMesh.material) {
@@ -317,6 +324,7 @@ export class AcousticTherapyLab {
 
   public setViewMode(mode: 'co-culture-pair' | 'spheroid-cluster'): void {
     this.state.viewMode = mode;
+    const originX = mode === 'co-culture-pair' ? -1.8 : 0.0;
     if (mode === 'co-culture-pair') {
       this.singlePairGroup.visible = true;
       this.spheroidGroup.visible = false;
@@ -328,6 +336,9 @@ export class AcousticTherapyLab {
       this.shockwaveMesh.position.set(0, 0.4, 0);
       this.tCellSwarm.setDampSources([new THREE.Vector3(0, 0.4, 0)]);
     }
+    this.vortexBeam.group.position.set(originX, 0.4, 0);
+    this.calciumFlux.group.position.set(originX, 0.4, 0);
+    this.debrisPoints.position.set(originX, 0.4, 0);
   }
 
   public setExperiment(exp: TherapyExperiment): void {
@@ -370,7 +381,12 @@ export class AcousticTherapyLab {
   }
 
   public triggerHistotripsyBurst(): void {
+    if (this.lysisResetTimeoutId !== null) {
+      clearTimeout(this.lysisResetTimeoutId);
+      this.lysisResetTimeoutId = null;
+    }
     this.isLysisActive = true;
+    this.isLysisResetting = false;
     this.lysisProgress = 0.0;
 
     const isSpheroid = this.state.viewMode === 'spheroid-cluster';
@@ -444,7 +460,12 @@ export class AcousticTherapyLab {
   }
 
   public triggerOncotripsyBurst(): void {
+    if (this.lysisResetTimeoutId !== null) {
+      clearTimeout(this.lysisResetTimeoutId);
+      this.lysisResetTimeoutId = null;
+    }
     this.isLysisActive = true;
+    this.isLysisResetting = false;
     this.lysisProgress = 0.0;
 
     const isSpheroid = this.state.viewMode === 'spheroid-cluster';
@@ -492,6 +513,8 @@ export class AcousticTherapyLab {
   }
 
   public update(time: number, dt: number, camera: THREE.Camera, audioBands: THREE.Vector4): void {
+    if (!this.group.visible) return;
+
     // 1. Update Wave Shaders
     this.waveMaterial.uniforms.uTime.value = time;
     this.waveMaterial.uniforms.uCameraPosition.value.copy(camera.position);
@@ -565,13 +588,20 @@ export class AcousticTherapyLab {
       posAttr.needsUpdate = true;
       (this.debrisPoints.material as THREE.PointsMaterial).opacity = shockEnergy * 0.9;
 
-      if (this.lysisProgress >= 1.0) {
-        setTimeout(() => {
+      if (this.lysisProgress >= 1.0 && !this.isLysisResetting) {
+        this.isLysisResetting = true;
+        this.lysisResetTimeoutId = setTimeout(() => {
           this.isLysisActive = false;
+          this.isLysisResetting = false;
+          this.lysisResetTimeoutId = null;
           this.lysisProgress = 0.0;
           this.cancerCell.setRuptureProgress(0.0);
-          (this.shockwaveMesh.material as THREE.MeshBasicMaterial).opacity = 0.0;
-          (this.debrisPoints.material as THREE.PointsMaterial).opacity = 0.0;
+          if (this.shockwaveMesh && this.shockwaveMesh.material) {
+            (this.shockwaveMesh.material as THREE.MeshBasicMaterial).opacity = 0.0;
+          }
+          if (this.debrisPoints && this.debrisPoints.material) {
+            (this.debrisPoints.material as THREE.PointsMaterial).opacity = 0.0;
+          }
         }, 1600);
       }
     }
@@ -588,6 +618,10 @@ export class AcousticTherapyLab {
   }
 
   public dispose(): void {
+    if (this.lysisResetTimeoutId !== null) {
+      clearTimeout(this.lysisResetTimeoutId);
+      this.lysisResetTimeoutId = null;
+    }
     this.cancerCell.dispose();
     this.healthyCell.dispose();
     this.tumorCoreInstanced.geometry.dispose();

@@ -41,7 +41,7 @@ export class ParticleNebula {
       },
       transparent: true,
       depthWrite: false,
-      blending: THREE.NormalBlending,
+      blending: THREE.AdditiveBlending,
     });
 
     this.points = new THREE.Points(geometry, this.material);
@@ -61,21 +61,20 @@ export class ParticleNebula {
     const particlesPerShell = Math.floor(this.particleCount / numShells);
 
     let idx = 0;
-    for (let p = 0; p < particlesPerShell; p++) {
-      const inclination = Math.acos(1 - 2 * ((p + 0.5) / particlesPerShell));
-      const azimuth = angleIncrement * p;
+    for (let s = 0; s < numShells; s++) {
+      const baseR = 1.0 + s * 0.32;
+      const freqNorm = Math.pow(s / (numShells - 1), 1.2); // Logarithmic frequency assignment
 
-      for (let s = 0; s < numShells && idx < this.particleCount; s++) {
-        const baseR = 1.0 + s * 0.32;
-        const freqNorm = Math.pow(s / (numShells - 1), 1.2); // Logarithmic frequency assignment
+      for (let p = 0; p < particlesPerShell && idx < this.particleCount; p++) {
+        const inclination = Math.acos(1 - 2 * ((p + 0.5) / particlesPerShell));
+        const azimuth = angleIncrement * p;
 
         const jitter = (Math.random() - 0.5) * 0.08;
         const r = baseR + jitter;
 
-        const shellAzimuth = azimuth + s * 0.25;
-        const x = r * Math.sin(inclination) * Math.cos(shellAzimuth);
+        const x = r * Math.sin(inclination) * Math.cos(azimuth);
         const y = r * Math.cos(inclination);
-        const z = r * Math.sin(inclination) * Math.sin(shellAzimuth);
+        const z = r * Math.sin(inclination) * Math.sin(azimuth);
 
         positions[idx * 3 + 0] = x;
         positions[idx * 3 + 1] = y;

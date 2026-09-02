@@ -3,13 +3,13 @@ import type { CameraMode, VisualizerEngine, VisualStyle } from '../visualizer/Vi
 import { PhysicsDrawer } from './PhysicsDrawer';
 
 function createMockVisualizer(): VisualizerEngine {
-  return {
+  const vis = {
     getStyle: () => 'hybrid' as VisualStyle,
     setStyle: (_s: VisualStyle) => {},
     getCameraMode: () => 'orbit' as CameraMode,
     setCameraMode: (_m: CameraMode) => {},
     setPalette: (_p: string) => {},
-    getCurrentPaletteId: () => 'solfeggio-gold',
+    getCurrentPaletteId: () => 'cosmic-nebula',
     waveSpeed: 5.0,
     waveDamping: 0.12,
     bloomStrength: 0.8,
@@ -19,10 +19,18 @@ function createMockVisualizer(): VisualizerEngine {
     groundGridVisible: false,
     getGroundGridVisible: () => false,
     setGroundGridVisible: (_v: boolean) => {},
-    setBloomStrength: (_b: number) => {},
-    setParticleDensity: (_d: number) => {},
-    setParticleScale: (_s: number) => {},
+    setBloomStrength: (b: number) => {
+      vis.bloomStrength = b;
+    },
+    setParticleDensity: (d: number) => {
+      vis.particleDensity = d;
+    },
+    setParticleScale: (s: number) => {
+      vis.particleScale = s;
+    },
     setCymaticsVisibilityMode: (_m: 'both' | 'particles' | 'droplet') => {},
+    getCymaticsLayers: () => ({ plate: false, droplet: true, trap: true }),
+    setCymaticsLayers: (_l: any) => {},
     wavefrontShells: {
       setPropagationSpeed: (_v: number) => {},
       setWaveDamping: (_v: number) => {},
@@ -41,57 +49,49 @@ function createMockVisualizer(): VisualizerEngine {
       getParticleCount: () => 131072,
     },
   } as unknown as VisualizerEngine;
+  return vis;
 }
 
-describe('Camera & Physics Interaction Architecture', () => {
-  it('supports all 4 standard 3D camera modes', () => {
-    const validModes: CameraMode[] = ['orbit', 'autocam', 'emitter-lock', 'top-down'];
-    expect(validModes).toContain('orbit');
-    expect(validModes).toContain('autocam');
-    expect(validModes).toContain('emitter-lock');
-    expect(validModes).toContain('top-down');
-  });
-
-  it('correctly handles camera mode events across event targets', () => {
-    const target = new EventTarget();
-    let receivedMode: string | null = null;
-    const handler = (e: Event) => {
-      const customEvent = e as CustomEvent<{ mode: CameraMode }>;
-      receivedMode = customEvent.detail?.mode || null;
-    };
-
-    target.addEventListener('camera-mode-changed', handler);
-    target.dispatchEvent(new CustomEvent('camera-mode-changed', { detail: { mode: 'orbit' } }));
-
-    expect(receivedMode).toBe('orbit');
-    target.removeEventListener('camera-mode-changed', handler);
-  });
-
-  it('renders 6 render style buttons in music mode including Cymatics 2D', () => {
-    let selectedStyle: VisualStyle | null = null;
+describe('Scene Optics & Physics Drawer Inspector', () => {
+  it('renders streamlined direct optics, Cymatics Medium, and simulation controls in cymatics/music mode', () => {
     const visualizer = createMockVisualizer();
-    visualizer.setStyle = (s: VisualStyle) => {
-      selectedStyle = s;
-    };
     const drawer = new PhysicsDrawer(visualizer);
     drawer.setMode('music');
 
     const el = drawer.getElement();
-    const styleButtons = el.querySelectorAll('.btn-style');
-    expect(styleButtons.length).toBe(6);
     expect(el.querySelector('#slider-wave-speed')).not.toBeNull();
     expect(el.querySelector('#slider-wave-damping')).not.toBeNull();
+    expect(el.querySelector('#slider-bloom')).not.toBeNull();
     expect(el.querySelector('#slider-particle-density')).not.toBeNull();
+    expect(el.querySelector('#slider-particle-scale')).not.toBeNull();
+    expect(el.querySelector('#btn-toggle-ground-grid')).not.toBeNull();
+    expect(el.querySelector('#btn-reset-physics-drawer')).not.toBeNull();
 
-    const cymatics2dBtn = el.querySelector('[data-style="cymatics-2d"]') as HTMLElement;
-    expect(cymatics2dBtn).not.toBeNull();
-    expect(cymatics2dBtn.textContent?.trim()).toBe('Cymatics 2D');
-
-    cymatics2dBtn.click();
-    expect(selectedStyle).toBe('cymatics-2d');
+    // Medium layer buttons
+    const layerBtns = el.querySelectorAll('.btn-physics-layer');
+    expect(layerBtns.length).toBe(3);
   });
 
-  it('hides render style buttons in specialized lab modes (voice, therapy, nobel, bio)', () => {
+  it('allows toggling cymatics apparatus medium layers in music mode', () => {
+    let activeLayers = { plate: false, droplet: true, trap: true };
+    const visualizer = createMockVisualizer();
+    visualizer.getCymaticsLayers = () => ({ ...activeLayers });
+    visualizer.setCymaticsLayers = (l: any) => {
+      activeLayers = { ...activeLayers, ...l };
+    };
+
+    const drawer = new PhysicsDrawer(visualizer);
+    drawer.setMode('music');
+
+    const el = drawer.getElement();
+    const plateBtn = el.querySelector('button[data-layer="plate"]') as HTMLButtonElement;
+    expect(plateBtn).not.toBeNull();
+
+    plateBtn.click();
+    expect(activeLayers.plate).toBe(true);
+  });
+
+  it('hides wave simulation controls in specialized lab modes (voice, therapy, nobel, bio) while keeping glow active', () => {
     const visualizer = createMockVisualizer();
     const drawer = new PhysicsDrawer(visualizer);
 
@@ -99,45 +99,24 @@ describe('Camera & Physics Interaction Architecture', () => {
     for (const mode of specializedModes) {
       drawer.setMode(mode);
       const el = drawer.getElement();
-      const styleButtons = el.querySelectorAll('.btn-style');
-      expect(styleButtons.length).toBe(0);
-      expect(el.querySelector('#btn-toggle-nested-visuals')).toBeNull();
       expect(el.querySelector('#slider-wave-speed')).toBeNull();
-      // Camera modes and glow remain accessible
-      expect(el.querySelectorAll('.btn-cam-mode').length).toBe(4);
+      expect(el.querySelector('#slider-wave-damping')).toBeNull();
+      // Glow and floor grid remain universally accessible
       expect(el.querySelector('#slider-bloom')).not.toBeNull();
+      expect(el.querySelector('#btn-toggle-ground-grid')).not.toBeNull();
     }
   });
 
-  it('hides render style buttons but preserves theme, particle density, and apparatus toggle in modal (Cymatics) mode', () => {
-    const visualizer = createMockVisualizer();
-    const drawer = new PhysicsDrawer(visualizer);
-    drawer.setMode('modal');
-
-    const el = drawer.getElement();
-    expect(el.querySelectorAll('.btn-style').length).toBe(0);
-    expect(el.querySelector('#theme-selector')).not.toBeNull();
-    expect(el.querySelector('#slider-particle-density')).not.toBeNull();
-    expect(el.querySelector('#slider-particle-scale')).not.toBeNull();
-    expect(el.querySelectorAll('.btn-cymatics-app').length).toBe(3);
-    expect(el.querySelector('#slider-wave-speed')).toBeNull();
-    expect(el.querySelectorAll('.btn-cam-mode').length).toBe(4);
-  });
-
-  it('provides full option parity in frequency (Tone Lab) mode matching Cymatics', () => {
+  it('preserves particle density and scale controls in tone/frequency mode', () => {
     const visualizer = createMockVisualizer();
     const drawer = new PhysicsDrawer(visualizer);
     drawer.setMode('frequency');
 
     const el = drawer.getElement();
-    expect(el.querySelectorAll('.btn-style').length).toBe(0);
-    expect(el.querySelector('#theme-selector')).not.toBeNull();
     expect(el.querySelector('#slider-particle-density')).not.toBeNull();
     expect(el.querySelector('#slider-particle-scale')).not.toBeNull();
-    expect(el.querySelectorAll('.btn-cymatics-app').length).toBe(3);
-    expect(el.querySelector('#slider-wave-speed')).toBeNull();
-    expect(el.querySelectorAll('.btn-cam-mode').length).toBe(4);
     expect(el.querySelector('#slider-bloom')).not.toBeNull();
+    expect(el.querySelector('#slider-wave-speed')).toBeNull();
   });
 
   it('allows toggling the floor reference grid seamlessly', () => {
@@ -160,5 +139,58 @@ describe('Camera & Physics Interaction Architecture', () => {
     const updatedEl = drawer.getElement();
     const updatedGridBtn = updatedEl.querySelector('#btn-toggle-ground-grid') as HTMLElement;
     expect(updatedGridBtn.textContent?.trim()).toBe('✓ On');
+  });
+
+  it('resets visualizer parameters and UI state to factory defaults on resetDefaults()', () => {
+    const visualizer = createMockVisualizer();
+    visualizer.waveSpeed = 11.5;
+    visualizer.waveDamping = 0.32;
+    visualizer.bloomStrength = 0.95;
+    visualizer.particleDensity = 262144;
+    visualizer.particleScale = 1.8;
+
+    let emittedCamMode: string | null = null;
+    let emittedPaletteId: string | null = null;
+
+    const camHandler = (e: Event) => {
+      emittedCamMode = (e as CustomEvent<{ mode: string }>).detail?.mode || null;
+    };
+    const palHandler = (e: Event) => {
+      emittedPaletteId = (e as CustomEvent<{ paletteId: string }>).detail?.paletteId || null;
+    };
+
+    window.addEventListener('camera-mode-changed', camHandler);
+    window.addEventListener('palette-changed', palHandler);
+
+    const drawer = new PhysicsDrawer(visualizer);
+    drawer.resetDefaults();
+
+    expect(visualizer.waveSpeed).toBe(6.0);
+    expect(visualizer.waveDamping).toBe(0.12);
+    expect(visualizer.bloomStrength).toBe(0.22);
+    expect(visualizer.particleDensity).toBe(131072);
+    expect(visualizer.particleScale).toBe(1.0);
+    expect(emittedCamMode).toBe('autocam');
+    expect(emittedPaletteId).toBe('cosmic-nebula');
+
+    window.removeEventListener('camera-mode-changed', camHandler);
+    window.removeEventListener('palette-changed', palHandler);
+  });
+
+  it('allows collapsing and expanding the accordion', () => {
+    const visualizer = createMockVisualizer();
+    const drawer = new PhysicsDrawer(visualizer);
+
+    expect(drawer.getIsOpen()).toBe(true);
+    const toggleBtn = drawer.getElement().querySelector('#btn-toggle-accordion-physics') as HTMLElement;
+    expect(toggleBtn).not.toBeNull();
+
+    toggleBtn.click();
+    expect(drawer.getIsOpen()).toBe(false);
+    expect(drawer.getElement().querySelector('#physics-body')?.classList.contains('hidden')).toBe(true);
+
+    toggleBtn.click();
+    expect(drawer.getIsOpen()).toBe(true);
+    expect(drawer.getElement().querySelector('#physics-body')?.classList.contains('flex')).toBe(true);
   });
 });
