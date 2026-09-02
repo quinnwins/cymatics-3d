@@ -3,6 +3,7 @@ import type {
   TemporalMediumId,
   TemporalMemoryController,
 } from './TemporalMemory';
+import { mountAnamnesisExperience } from './AnamnesisExperience';
 
 let mounted = false;
 
@@ -28,6 +29,7 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
         <button data-action="enabled"></button><button data-action="freeze"></button>
         <button data-action="immersive">Immersive view</button><button data-action="capture">Capture frame</button>
       </div>
+      <button class="sm-anamnesis" data-action="anamnesis" type="button"><span><b>THE SONG REMEMBERS</b><small>Whole-performance memory</small></span><em data-anamnesis-status>ENTER</em></button>
       <label>Memory <output data-value="memory"></output><input data-control="memory" aria-label="Memory duration" type="range" min="1" max="10" step="0.25"></label>
       <label>Time lens <output data-value="lookback"></output><input data-control="lookback" aria-label="Look backward through stored sound" type="range" min="0" max="10" step="0.1"></label>
       <label>Propagation <output data-value="propagation"></output><input data-control="propagation" aria-label="Propagation speed" type="range" min="0.35" max="2.5" step="0.05"></label>
@@ -57,6 +59,8 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
     #sonic-memory-control .sm-actions button,#sonic-memory-control .sm-row button{height:33px;border:1px solid #94a3b829;border-radius:10px;background:#0f172acc;color:#cbd5e1;font-weight:650;cursor:pointer}
     #sonic-memory-control .sm-actions button:hover,#sonic-memory-control .sm-row button:hover{border-color:#67e8f966;color:#fff}
     #sonic-memory-control .sm-actions button[aria-pressed=true],#sonic-memory-control .sm-row button[aria-pressed=true]{border-color:#67e8f966;background:linear-gradient(135deg,#06b6d433,#6366f133);color:#cffafe}
+    #sonic-memory-control .sm-anamnesis{width:100%;display:flex;align-items:center;gap:9px;margin:3px 0 8px;padding:10px 11px;border:1px solid #a78bfa44;border-radius:13px;background:radial-gradient(circle at 12% 50%,#22d3ee17,transparent 34%),linear-gradient(135deg,#111827dd,#090e1bdd);color:#e2e8f0;cursor:pointer;text-align:left}
+    #sonic-memory-control .sm-anamnesis:hover{border-color:#67e8f988;background:radial-gradient(circle at 12% 50%,#22d3ee25,transparent 38%),linear-gradient(135deg,#15213add,#0b1020ee)}#sonic-memory-control .sm-anamnesis span{display:flex;flex-direction:column;gap:3px}#sonic-memory-control .sm-anamnesis b{font-size:9px;letter-spacing:.12em}#sonic-memory-control .sm-anamnesis small{font-size:8px;color:#64748b}#sonic-memory-control .sm-anamnesis em{margin-left:auto;font:700 8px ui-monospace;color:#a5f3fc;font-style:normal;letter-spacing:.08em}#sonic-memory-control .sm-anamnesis[aria-pressed=true]{border-color:#67e8f999;box-shadow:inset 0 0 28px #22d3ee12}
     #sonic-memory-control .sm-panel label{display:grid;grid-template-columns:1fr auto;gap:6px;padding:7px 0;color:#cbd5e1}#sonic-memory-control .sm-panel output{color:#67e8f9;font:9px ui-monospace}#sonic-memory-control .sm-panel input{grid-column:1/3;width:100%;accent-color:#22d3ee}
     #sonic-memory-control .sm-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}#sonic-memory-control .sm-row select{height:40px;border:1px solid #94a3b829;border-radius:10px;padding:0 9px;background:#0f172acc;color:#e2e8f0}#sonic-memory-control .sm-row button{height:40px}
     #sonic-memory-control .sm-panel footer{display:flex;justify-content:space-between;gap:8px;margin-top:11px;padding-top:10px;border-top:1px solid #94a3b81f;color:#64748b;font-size:8px}#sonic-memory-control .sm-panel footer button{border:0;background:none;color:#94a3b8;cursor:pointer}
@@ -79,6 +83,8 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
 
   let immersive = false;
   let contextVisible = true;
+  let anamnesisExpanded = false;
+  let anamnesisEchoes = 0;
   const setImmersive = (enabled: boolean): void => {
     immersive = enabled;
     document.body.classList.toggle('soundform-immersive', immersive);
@@ -104,6 +110,13 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
     button('age').setAttribute('aria-pressed', String(settings.colorByAge));
     button('immersive').textContent = immersive ? 'Exit immersive' : 'Immersive view';
     button('immersive').setAttribute('aria-pressed', String(immersive));
+    const anamnesisButton = button('anamnesis');
+    anamnesisButton.setAttribute('aria-pressed', String(anamnesisExpanded));
+    anamnesisButton.querySelector<HTMLElement>('[data-anamnesis-status]')!.textContent = anamnesisExpanded
+      ? 'OPEN'
+      : anamnesisEchoes > 0
+        ? `${anamnesisEchoes} RETURN${anamnesisEchoes === 1 ? '' : 'S'}`
+        : 'ENTER';
 
     const values: Record<string, number> = {
       memory: settings.memorySeconds,
@@ -133,6 +146,9 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
   root.querySelector<HTMLButtonElement>('[data-action="enabled"]')!.onclick = () => memory.toggleEnabled();
   root.querySelector<HTMLButtonElement>('[data-action="freeze"]')!.onclick = () => memory.toggleFrozen();
   root.querySelector<HTMLButtonElement>('[data-action="age"]')!.onclick = () => memory.setColorByAge(!memory.getSettings().colorByAge);
+  root.querySelector<HTMLButtonElement>('[data-action="anamnesis"]')!.onclick = () => {
+    window.dispatchEvent(new CustomEvent('soundform-anamnesis-toggle'));
+  };
   root.querySelector<HTMLButtonElement>('[data-action="reset"]')!.onclick = () => memory.reset();
   mediumSelect.onchange = () => memory.setMedium(mediumSelect.value as TemporalMediumId);
 
@@ -163,6 +179,12 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
   };
 
   window.addEventListener(TEMPORAL_MEMORY_EVENT, update);
+  window.addEventListener('soundform-anamnesis-state', event => {
+    const state = (event as CustomEvent<{ expanded?: boolean; stats?: { echoes?: number } }>).detail;
+    anamnesisExpanded = Boolean(state?.expanded);
+    anamnesisEchoes = Math.max(0, Number(state?.stats?.echoes) || 0);
+    update();
+  });
   window.addEventListener('visual-style-changed', event => {
     const mode = (event as CustomEvent<{ style?: string }>).detail?.style;
     contextVisible = mode === 'cymatics' || mode === 'cymatics-2d';
@@ -184,4 +206,5 @@ export function mountSonicMemoryControls(memory: TemporalMemoryController): void
     }
   });
   update();
+  mountAnamnesisExperience();
 }
