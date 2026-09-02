@@ -24,6 +24,7 @@ export interface TemporalMemoryUniformState {
   texture: THREE.DataTexture | null;
   historyHead: number;
   historyRows: number;
+  historyRate: number;
   memoryFrames: number;
   enabled: number;
   gain: number;
@@ -134,12 +135,14 @@ export class TemporalMemoryController {
     const mediumInfluence = Math.pow(TEMPORAL_MEDIA.air.speedMs / medium.speedMs, 0.42);
     const requestedFrames =
       this.settings.memorySeconds * this.framesPerSecond * mediumInfluence / this.settings.propagation;
-    const lookbackFrames = this.settings.lookbackSeconds * this.framesPerSecond;
 
     return {
       texture: this.texture,
-      historyHead: wrap01(this.historyHead - lookbackFrames / this.historyRows),
+      // Keep this raw. TemporalSculpture applies the user-facing Time Lens from
+      // the cross-chunk settings event, avoiding any dynamic-import state split.
+      historyHead: wrap01(this.historyHead),
       historyRows: this.historyRows,
+      historyRate: this.framesPerSecond,
       memoryFrames: clamp(requestedFrames, 2, this.historyRows - 2),
       enabled: this.settings.enabled ? 1 : 0,
       gain: this.settings.gain,
