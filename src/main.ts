@@ -89,7 +89,7 @@ class App {
       () => this.captureScreenshot(),
       () => this.exportClinicalDossier()
     );
-    this.musicLibraryCard = new MusicLibraryCard(this.audioEngine, () => {
+    this.musicLibraryCard = new MusicLibraryCard(this.audioEngine, this.visualizer, () => {
       this.audioControlsBar.render();
     });
     this.frequencyLabControls = new FrequencyLabControls(this.audioEngine, this.visualizer, mode => this.switchMode(mode));
@@ -97,6 +97,15 @@ class App {
       this.audioEngine,
       this.visualizer,
       state => {
+        if (state.apparatus === '2d-plate') {
+          this.visualizer.setStyle('cymatics-2d');
+        } else {
+          this.visualizer.setStyle('cymatics');
+        }
+        this.visualizer.cymaticsPlateMesh.setModes(state.n, state.m, state.l);
+        this.visualizer.cymaticsPlateMesh.setChamberType(state.geometry === 'cube' ? 'square' : 'circle');
+        this.visualizer.cymaticsPlateMesh.setAutoModal(state.audioCoupled);
+
         this.visualizer.volumetricChladni.setModes(state.n, state.m, state.l);
         this.visualizer.volumetricChladni.setChamberType(state.geometry === 'cube' ? 0 : state.geometry === 'cylinder' ? 1 : 2);
         this.visualizer.cymaticsMesh.setModes(state.n, state.m, state.l);
@@ -107,6 +116,8 @@ class App {
         this.visualizer.gpuAcousticParticles.setChamberGeometry(state.geometry);
         this.visualizer.gpuAcousticParticles.setChladniMode(state.trappingMode === 'nodes' ? 'normal' : 'inverse');
         this.visualizer.chamberEnclosure.setChamberType(state.geometry);
+        this.visualizer.chamberEnclosure.setVisible(state.showEnclosure !== false);
+
         if (this.currentMode === 'modal' && this.audioEngine.synthesizer?.getIsPlaying()) {
           this.audioEngine.synthesizer.setFrequency(state.calculatedEigenfrequency);
         }
@@ -285,10 +296,34 @@ class App {
       this.audioEngine.playDemoTrack('cosmic-odyssey');
     } else if (mode === 'frequency') {
       this.visualizer.setStyle('cymatics');
-      this.audioEngine.playFrequency(432);
+      const chamberGeom = this.frequencyLabControls.getGeometry();
+      const showEnc = this.frequencyLabControls.getShowEnclosure();
+      const trap = this.frequencyLabControls.getTrappingMode();
+      const visMode = this.frequencyLabControls.getCymaticsVisibilityMode();
+      this.visualizer.setCymaticsVisibilityMode(visMode);
+      this.visualizer.cymaticsMesh.setChamberType(chamberGeom);
+      this.visualizer.gpuAcousticParticles.setChamberGeometry(chamberGeom);
+      this.visualizer.chamberEnclosure.setChamberType(chamberGeom);
+      this.visualizer.chamberEnclosure.setVisible(showEnc);
+      this.visualizer.gpuAcousticParticles.setChladniMode(trap === 'nodes' ? 'normal' : 'inverse');
+      this.audioEngine.playFrequency(this.frequencyLabControls.getFrequency());
     } else if (mode === 'modal') {
-      this.visualizer.setStyle('cymatics');
-      this.audioEngine.playFrequency(this.modalSweeperControls.getState().calculatedEigenfrequency);
+      const state = this.modalSweeperControls.getState();
+      if (state.apparatus === '2d-plate') {
+        this.visualizer.setStyle('cymatics-2d');
+        this.visualizer.cymaticsPlateMesh.setModes(state.n, state.m, state.l);
+        this.visualizer.cymaticsPlateMesh.setChamberType(state.geometry === 'cube' ? 'square' : 'circle');
+      } else {
+        this.visualizer.setStyle('cymatics');
+        const visMode = state.apparatus === '3d-droplet' ? 'droplet' : state.apparatus === '3d-particles' ? 'particles' : 'both';
+        this.visualizer.setCymaticsVisibilityMode(visMode);
+        this.visualizer.cymaticsMesh.setChamberType(state.geometry);
+        this.visualizer.gpuAcousticParticles.setChamberGeometry(state.geometry);
+        this.visualizer.chamberEnclosure.setChamberType(state.geometry);
+        this.visualizer.chamberEnclosure.setVisible(state.showEnclosure !== false);
+        this.visualizer.gpuAcousticParticles.setChladniMode(state.trappingMode === 'nodes' ? 'normal' : 'inverse');
+      }
+      this.audioEngine.playFrequency(state.calculatedEigenfrequency);
     } else if (mode === 'bio') {
       this.visualizer.setStyle('bio-acoustics');
       const spec = this.visualizer.bioAcousticResonator.getSpecimen();

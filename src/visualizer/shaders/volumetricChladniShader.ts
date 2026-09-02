@@ -199,11 +199,11 @@ float evalRectangularCavity(vec3 p, vec3 modes, vec3 weights) {
     return weights.x * p1 + weights.y * p2 + weights.z * p3;
 }
 
-// 2. Cylindrical Chamber Resonator Mode
+// 2. Cylindrical Chamber Resonator Mode (Vertical Standing Cylinder along Y)
 float evalCylindricalChamber(vec3 p, vec3 modes) {
-    float r = length(p.xy);
-    float theta = (abs(p.x) < 1e-6 && abs(p.y) < 1e-6) ? 0.0 : atan(p.y, p.x);
-    float zMapped = (p.z + 1.0) * 0.5 * PI;
+    float r = length(p.xz);
+    float theta = (abs(p.x) < 1e-6 && abs(p.z) < 1e-6) ? 0.0 : atan(p.z, p.x);
+    float yMapped = (p.y + 1.0) * 0.5 * PI;
 
     float n = max(0.5, modes.x);
     float m = max(0.0, modes.y);
@@ -213,7 +213,7 @@ float evalCylindricalChamber(vec3 p, vec3 modes) {
     float k = PI * (n + 0.5 * m + 0.25);
     float besselRadial = evalBesselJ(m, k * r);
     float angularPetals = cos(m * theta);
-    float axialDisks = cos(l * zMapped);
+    float axialDisks = cos(l * yMapped);
 
     return besselRadial * angularPetals * axialDisks;
 }
@@ -284,9 +284,9 @@ float getChamberConfinement(vec3 p) {
         float maxD = max(max(d.x, d.y), d.z);
         return 1.0 - smoothstep(0.98, 1.02, maxD);
     } else if (uChamberType == 1) {
-        float r = length(p.xy);
-        float z = abs(p.z);
-        return (1.0 - smoothstep(0.98, 1.02, r)) * (1.0 - smoothstep(0.98, 1.02, z));
+        float r = length(p.xz);
+        float y = abs(p.y);
+        return (1.0 - smoothstep(0.98, 1.02, r)) * (1.0 - smoothstep(0.98, 1.02, y));
     } else {
         float r = length(p);
         return 1.0 - smoothstep(0.98, 1.02, r);
@@ -312,9 +312,9 @@ bool intersectBoundingBox(vec3 ro, vec3 rd, vec3 boxMin, vec3 boxMax, out float 
 }
 
 bool intersectBoundingCylinder(vec3 ro, vec3 rd, out float tNear, out float tFar) {
-    float a = rd.x * rd.x + rd.y * rd.y;
-    float b = 2.0 * (ro.x * rd.x + ro.y * rd.y);
-    float c = ro.x * ro.x + ro.y * ro.y - 1.0;
+    float a = rd.x * rd.x + rd.z * rd.z;
+    float b = 2.0 * (ro.x * rd.x + ro.z * rd.z);
+    float c = ro.x * ro.x + ro.z * ro.z - 1.0;
 
     float tCylNear = -1e9;
     float tCylFar = 1e9;
@@ -329,15 +329,15 @@ bool intersectBoundingCylinder(vec3 ro, vec3 rd, out float tNear, out float tFar
         return false;
     }
 
-    // Intersect with z-caps [-1, 1]
-    float invRz = 1.0 / (abs(rd.z) > 1e-6 ? rd.z : 1e-6);
-    float tz0 = (-1.0 - ro.z) * invRz;
-    float tz1 = (1.0 - ro.z) * invRz;
-    float tzNear = min(tz0, tz1);
-    float tzFar = max(tz0, tz1);
+    // Intersect with y-caps [-1, 1]
+    float invRy = 1.0 / (abs(rd.y) > 1e-6 ? rd.y : 1e-6);
+    float ty0 = (-1.0 - ro.y) * invRy;
+    float ty1 = (1.0 - ro.y) * invRy;
+    float tyNear = min(ty0, ty1);
+    float tyFar = max(ty0, ty1);
 
-    tNear = max(tCylNear, tzNear);
-    tFar = min(tCylFar, tzFar);
+    tNear = max(tCylNear, tyNear);
+    tFar = min(tCylFar, tyFar);
 
     return tFar > max(tNear, 0.0);
 }

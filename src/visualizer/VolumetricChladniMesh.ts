@@ -40,6 +40,7 @@ export class VolumetricChladniMesh {
 
   constructor(initialPalette?: PalettePreset, options?: VolumetricChladniOptions) {
     this.group = new THREE.Group();
+    this.group.position.y = 0.45;
     this.inverseModelMatrix = new THREE.Matrix4();
     this.resolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
 
