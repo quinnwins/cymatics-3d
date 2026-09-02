@@ -51,6 +51,9 @@ describe('AnamnesisField', () => {
     field.update(2, 0.25, 900);
     expect(field.group.visible).toBe(true);
     expect(field.beacon.position.toArray()).toEqual(points[2].position);
+    const aura = field.aura.material as THREE.ShaderMaterial;
+    expect(aura.uniforms.uLayer.value).toBe(1);
+    expect(aura.uniforms.uOpacity.value).toBeGreaterThan(0);
 
     field.dispose();
   });
@@ -106,6 +109,7 @@ describe('AnamnesisField', () => {
     field.update(1, 1, 720);
 
     expect(field.points.geometry).toBe(geometry);
+    expect(field.aura.geometry).toBe(geometry);
     expect(field.getRenderedPointCount()).toBe(0);
     expect(field.chronology).toBeInstanceOf(THREE.Line);
 
