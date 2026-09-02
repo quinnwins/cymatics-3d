@@ -218,10 +218,27 @@ export class FormantSpaceManifold {
     this.floorProjectionMesh.position.y = -2.1;
     this.group.add(this.floorProjectionMesh);
 
-    // 6. Extruded Velocity Ribbon
+    // 6. Extruded Velocity Ribbon (Continuous Quad-Strip)
     this.trajectoryGeom = new THREE.BufferGeometry();
     this.trajectoryGeom.setAttribute('position', new THREE.BufferAttribute(this.ribbonPositions, 3));
     this.trajectoryGeom.setAttribute('color', new THREE.BufferAttribute(this.ribbonColors, 3));
+
+    const slices = this.ribbonVertexCount / 2;
+    const indices = new Uint16Array((slices - 1) * 6);
+    let idxOffset = 0;
+    for (let i = 0; i < slices - 1; i++) {
+      const i0 = i * 2;
+      const i1 = i * 2 + 1;
+      const i2 = (i + 1) * 2;
+      const i3 = (i + 1) * 2 + 1;
+      indices[idxOffset++] = i0;
+      indices[idxOffset++] = i1;
+      indices[idxOffset++] = i2;
+      indices[idxOffset++] = i1;
+      indices[idxOffset++] = i3;
+      indices[idxOffset++] = i2;
+    }
+    this.trajectoryGeom.setIndex(new THREE.BufferAttribute(indices, 1));
 
     const ribbonMat = new THREE.MeshBasicMaterial({
       vertexColors: true,
@@ -396,6 +413,7 @@ export class FormantSpaceManifold {
     (this.trajectoryMesh.material as THREE.Material).dispose();
     this.liveCursorMesh.geometry.dispose();
     (this.liveCursorMesh.material as THREE.Material).dispose();
+    (this.liveCursorGlow.material as THREE.SpriteMaterial).map?.dispose();
     (this.liveCursorGlow.material as THREE.Material).dispose();
 
     this.vowelDiscsGroup.traverse((child) => {

@@ -123,10 +123,11 @@ describe('VoiceBiometricsPhysics - Complete Verification Suite', () => {
       expect(metrics.jitterLoc).toBeGreaterThan(3.0);
       expect(metrics.jitterRap).toBeGreaterThan(0.5);
       expect(metrics.jitterPpq5).toBeGreaterThan(0.5);
+      expect(metrics.jitterDdp).toBeCloseTo(metrics.jitterRap * 3.0, 2);
       expect(metrics.shimmerLoc).toBe(0);
     });
 
-    it('calculates expected Shimmer (Local, dB, APQ11) for controlled amplitude modulation', () => {
+    it('calculates expected Shimmer (Local, dB, APQ3, APQ5, APQ11, DDA) for controlled amplitude modulation', () => {
       const N = 24;
       const periods = new Array(N).fill(75.0);
       const amps: number[] = [];
@@ -139,7 +140,10 @@ describe('VoiceBiometricsPhysics - Complete Verification Suite', () => {
       expect(metrics.jitterLoc).toBe(0);
       expect(metrics.shimmerLoc).toBeGreaterThan(15.0);
       expect(metrics.shimmerDb).toBeGreaterThan(1.0);
+      expect(metrics.shimmerApq3).toBeGreaterThan(10.0);
+      expect(metrics.shimmerApq5).toBeGreaterThan(6.0);
       expect(metrics.shimmerApq11).toBeGreaterThan(5.0);
+      expect(metrics.shimmerDda).toBeCloseTo(metrics.shimmerApq3 * 3.0, 2);
     });
 
     it('gracefully handles insufficient history buffer length (N < 6)', () => {
@@ -334,10 +338,14 @@ describe('VoiceBiometricsPhysics - Complete Verification Suite', () => {
       'resonant-baritone',
       'grounded-chest',
       'hyperfunctional-strain',
+      'puberphonia',
       'vocal-nodules',
       'vocal-polyp',
       'parkinsonian-tremor',
       'essential-tremor',
+      'adductor-spasmodic',
+      'unilateral-paralysis',
+      'presbylaryngis',
       'pulmonary-congestion',
       'cardiovascular-edema',
     ];
@@ -513,7 +521,78 @@ describe('VoiceBiometricsPhysics - Complete Verification Suite', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 9. Performance & Execution Speed Benchmarks
+  // 9. Clinical Indices & Neurological Dysarthria Assessment
+  // --------------------------------------------------------------------------
+  describe('Clinical Indices (DSI & AVQI) and Vowel Space Metrics', () => {
+    it('calculates Dysphonia Severity Index (DSI) within physiological boundaries [-10, 10]', () => {
+      // Pristine vocal parameters
+      const healthyDsi = VoiceBiometricsPhysics.calculateDSI({
+        mptSec: 22.0,
+        f0HighHz: 750.0,
+        iLowDba: 48.0,
+        jitterPercent: 0.25,
+      });
+      expect(healthyDsi).toBeGreaterThan(4.0); // Normal healthy voice DSI > +3.1
+
+      // Severely pathological parameters
+      const severeDsi = VoiceBiometricsPhysics.calculateDSI({
+        mptSec: 5.0,
+        f0HighHz: 250.0,
+        iLowDba: 68.0,
+        jitterPercent: 4.5,
+      });
+      expect(severeDsi).toBeLessThan(0.0); // Severe dysphonia DSI < -1.5
+    });
+
+    it('calculates Acoustic Voice Quality Index (AVQI v03.01) with clinical cutoff accuracy', () => {
+      // Healthy vocal quality (CPP high, HNR high, Shimmer low)
+      const healthyAvqi = VoiceBiometricsPhysics.calculateAVQI({
+        cppDb: 17.5,
+        hnrDb: 27.0,
+        shimmerPercent: 1.5,
+        shimmerDb: 0.12,
+      });
+      expect(healthyAvqi).toBeLessThan(3.0); // Normal AVQI < 3.01
+
+      // Pathological vocal quality (CPP low, HNR low, Shimmer high)
+      const dysphonicAvqi = VoiceBiometricsPhysics.calculateAVQI({
+        cppDb: 4.5,
+        hnrDb: 6.8,
+        shimmerPercent: 8.5,
+        shimmerDb: 0.85,
+      });
+      expect(dysphonicAvqi).toBeGreaterThan(5.0); // Severe dysphonia > 4.5
+    });
+
+    it('calculates Vowel Space Area (VSA) and detects dysarthric formant centralization (FCR > 1.2)', () => {
+      // Normative open vowel space
+      const healthyFormants = {
+        i: [280, 2250] as [number, number],
+        u: [320, 800] as [number, number],
+        a: [750, 1250] as [number, number],
+      };
+      const healthyRes = VoiceBiometricsPhysics.calculateVowelSpaceMetrics(healthyFormants);
+      expect(healthyRes.fcr).toBeLessThan(1.05);
+      expect(healthyRes.vai).toBeGreaterThan(0.95);
+      expect(healthyRes.vsaHz2).toBeGreaterThan(200000);
+      expect(healthyRes.isDysarthric).toBe(false);
+
+      // Centralized / contracted vowel space (Articulatory undershoot)
+      const centralizedFormants = {
+        i: [450, 1650] as [number, number],
+        u: [480, 1350] as [number, number],
+        a: [580, 1400] as [number, number],
+      };
+      const centralizedRes = VoiceBiometricsPhysics.calculateVowelSpaceMetrics(centralizedFormants);
+      expect(centralizedRes.fcr).toBeGreaterThan(1.20);
+      expect(centralizedRes.vai).toBeLessThan(0.85);
+      expect(centralizedRes.vsaHz2).toBeLessThan(180000);
+      expect(centralizedRes.isDysarthric).toBe(true);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 10. Performance & Execution Speed Benchmarks
   // --------------------------------------------------------------------------
   describe('Performance Benchmarks & Execution Time Bounds', () => {
     it('executes full YIN + LPC-16 + CPP + HNR pipeline in under 1.5 ms per frame', () => {

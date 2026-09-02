@@ -127,6 +127,10 @@ export class VoiceBiometricsControls {
   }
 
   public render(): void {
+    // Synchronize local UI state with actual audio engine status
+    this.isMicActive = this.audioEngine.voiceBiometrics?.getIsLiveMic() ?? false;
+    this.isMedicinePlaying = this.audioEngine.isPersonalizedSoundMedicinePlaying();
+
     const profiles = Object.values(VoiceBiometricsPhysics.PROFILES);
     const report = this.audioEngine.voiceBiometrics
       ? this.audioEngine.voiceBiometrics.update()
@@ -340,17 +344,15 @@ export class VoiceBiometricsControls {
     });
 
     // Sound medicine toggle
-    this.container.querySelector('#btn-play-medicine')?.addEventListener('click', () => {
-      if (!this.audioEngine.soundMedicine) return;
-
+    this.container.querySelector('#btn-play-medicine')?.addEventListener('click', async () => {
       if (this.isMedicinePlaying) {
-        this.audioEngine.soundMedicine.stop();
+        this.audioEngine.stopPersonalizedSoundMedicine();
         this.isMedicinePlaying = false;
         this.visualizer.vocalBiometricsLab.setTherapyActive(false);
       } else {
         const report = this.audioEngine.voiceBiometrics?.update();
         if (report?.soundMedicinePrescription) {
-          this.audioEngine.soundMedicine.playPrescription(report.soundMedicinePrescription, 0.65);
+          await this.audioEngine.playPersonalizedSoundMedicine(report.soundMedicinePrescription);
           this.isMedicinePlaying = true;
           this.visualizer.vocalBiometricsLab.setTherapyActive(true);
         }

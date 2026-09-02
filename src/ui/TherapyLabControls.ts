@@ -72,17 +72,17 @@ export class TherapyLabControls {
     this.container.innerHTML = `
       <!-- Top Title & Controls Header -->
       <div class="flex flex-col gap-2.5 border-b border-white/10 pb-2.5">
-        <div class="flex items-center justify-between gap-2">
-          <div class="flex items-center gap-2 min-w-0">
+        <div class="flex items-center justify-between gap-2 min-w-0">
+          <div class="flex items-center gap-2 min-w-0 flex-1">
             <div class="w-8 h-8 rounded-xl bg-slate-900 border border-white/15 flex items-center justify-center text-rose-400 font-mono text-xs font-bold shrink-0 shadow-sm">
               Rx
             </div>
-            <div class="min-w-0">
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <h3 class="text-xs sm:text-sm font-bold text-white whitespace-nowrap">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <h3 class="text-xs sm:text-sm font-bold text-white truncate">
                   Sound Therapy
                 </h3>
-                <span class="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-rose-500/10 text-rose-300 border border-rose-500/30 whitespace-nowrap">
+                <span class="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-rose-500/10 text-rose-300 border border-rose-500/30 shrink-0">
                   Ultrasound
                 </span>
               </div>
@@ -92,20 +92,15 @@ export class TherapyLabControls {
             </div>
           </div>
 
-          <!-- Top Export SOP & Dynamic Hero Action Button -->
-          <div class="flex items-center gap-1.5 shrink-0">
-            <button
-              id="btn-export-clinical-sop"
-              title="Export IEC 61102 Clinical Protocol & SOP"
-              class="glass-btn px-2.5 py-1.5 rounded-xl text-xs font-semibold text-cyan-300 hover:text-white border border-cyan-500/30 hover:bg-cyan-500/20 active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
-            >
-              <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              <span class="hidden sm:inline">Protocol</span>
-            </button>
-            <div id="hero-action-container">
-              ${this.getHeroButtonHtml()}
-            </div>
-          </div>
+          <!-- Top Export SOP Action Button -->
+          <button
+            id="btn-export-clinical-sop"
+            title="Export IEC 61102 Clinical Protocol & SOP"
+            class="glass-btn px-2.5 py-1.5 rounded-xl text-xs font-semibold text-cyan-300 hover:text-white border border-cyan-500/30 hover:bg-cyan-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <svg class="w-3.5 h-3.5 text-cyan-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <span class="text-[11px] font-medium">Protocol</span>
+          </button>
         </div>
 
         <!-- View Toggle -->
@@ -304,6 +299,11 @@ export class TherapyLabControls {
         </div>
       </div>
 
+      <!-- Hero Trigger Action Button -->
+      <div id="hero-action-container" class="w-full">
+        ${this.getHeroButtonHtml()}
+      </div>
+
       <!-- Real-Time Clinical Safety & Lysis Telemetry HUD -->
       <div class="grid grid-cols-2 gap-2 p-2.5 rounded-2xl bg-slate-950/80 border border-white/10 text-xs font-mono shadow-inner">
         <div class="flex flex-col gap-0.5">
@@ -334,36 +334,40 @@ export class TherapyLabControls {
     switch (this.currentExperiment) {
       case 'phase-cancel':
         return `
-          <button id="btn-hero-phase-cancel" class="px-2.5 py-1.5 rounded-xl text-xs font-bold ${
+          <button id="btn-hero-phase-cancel" class="w-full py-2 px-3 rounded-xl text-xs font-bold ${
             this.isAntiPhaseActive
-              ? 'bg-rose-500 text-slate-950 shadow-md shadow-rose-500/40'
-              : 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/40 hover:bg-cyan-400'
-          } transition-all active:scale-95 cursor-pointer">
-            ${this.isAntiPhaseActive ? 'Cancel Wave' : 'Silence Sound'}
+              ? 'bg-rose-500 text-slate-950 shadow-lg shadow-rose-500/40 ring-1 ring-rose-400/50'
+              : 'bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/30 hover:bg-cyan-400'
+          } transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2">
+            <span class="w-2 h-2 rounded-full ${this.isAntiPhaseActive ? 'bg-slate-950 animate-ping' : 'bg-slate-950'}"></span>
+            <span>${this.isAntiPhaseActive ? 'Cancel Wave Active (180°)' : 'Silence Sound (Anti-Phase)'}</span>
           </button>
         `;
       case 'oncotripsy':
         return `
-          <button id="btn-hero-oncotripsy" class="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-rose-500 text-slate-950 shadow-md shadow-rose-500/40 hover:bg-rose-400 transition-all active:scale-95 cursor-pointer">
-            Trigger Ablation
+          <button id="btn-hero-oncotripsy" class="w-full py-2 px-3 rounded-xl text-xs font-bold bg-rose-500 text-slate-950 shadow-lg shadow-rose-500/30 hover:bg-rose-400 transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2">
+            <svg class="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <span>Trigger Oncotripsy Burst</span>
           </button>
         `;
       case 'histotripsy':
         return `
-          <button id="btn-hero-histotripsy" class="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 shadow-md shadow-amber-500/40 hover:bg-amber-400 transition-all active:scale-95 cursor-pointer">
-            Trigger Shockwave
+          <button id="btn-hero-histotripsy" class="w-full py-2 px-3 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/30 hover:bg-amber-400 transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2">
+            <svg class="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+            <span>Trigger Shockwave Cavitation</span>
           </button>
         `;
       case 'time-reversal':
         return `
-          <button id="btn-hero-time-reversal" class="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-purple-500 text-slate-950 shadow-md shadow-purple-500/40 hover:bg-purple-400 transition-all active:scale-95 cursor-pointer">
-            Focus Wave
+          <button id="btn-hero-time-reversal" class="w-full py-2 px-3 rounded-xl text-xs font-bold bg-purple-500 text-slate-950 shadow-lg shadow-purple-500/30 hover:bg-purple-400 transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2">
+            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <span>Focus Wave Conjugation</span>
           </button>
         `;
       default:
         return `
-          <button id="btn-hero-pulse" class="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/40 hover:bg-cyan-400 transition-all active:scale-95 cursor-pointer">
-            Execute Pulse
+          <button id="btn-hero-pulse" class="w-full py-2 px-3 rounded-xl text-xs font-bold bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/30 hover:bg-cyan-400 transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2">
+            <span>Execute Acoustic Pulse</span>
           </button>
         `;
     }
