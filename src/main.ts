@@ -18,9 +18,6 @@ import { PresentationTourEngine } from './visualizer/PresentationTourEngine';
 import { AcousticDataExporter } from './ui/AcousticDataExporter';
 import { SpectrumHUD } from './ui/SpectrumHUD';
 import { PhysicsDrawer } from './ui/PhysicsDrawer';
-import { AnamnesisExperience, ANAMNESIS_TOGGLE_EVENT } from './visualizer/AnamnesisExperience';
-import { ColorPalettes } from './visualizer/ColorPalettes';
-import { temporalMemory } from './visualizer/TemporalMemory';
 
 class App {
   private audioEngine: AudioEngine;
@@ -41,7 +38,6 @@ class App {
   private presentationTourEngine: PresentationTourEngine;
   private spectrumHUD: SpectrumHUD;
   private physicsDrawer: PhysicsDrawer;
-  private anamnesisExperience: AnamnesisExperience;
 
   private currentMode: EngineMode = 'music';
   private leftSidebarRoot: HTMLElement;
@@ -72,11 +68,7 @@ class App {
     this.audioEngine = new AudioEngine();
     this.visualizer = new VisualizerEngine(canvasContainer, this.audioEngine);
 
-    // 2. Initialize Anamnesis Experience (Deterministic lifecycle, zero polling)
-    const initialPalette = ColorPalettes.getPalette(this.visualizer.getCurrentPaletteId?.() || 'cosmic-nebula');
-    this.anamnesisExperience = new AnamnesisExperience(this.audioEngine, this.visualizer, initialPalette);
-
-    // 3. Initialize Presentation Tour HUD & Engine
+    // 2. Initialize Presentation Tour HUD & Engine
     this.presentationTourHUD = new PresentationTourHUD(document.body, {
       onNext: () => this.presentationTourEngine.nextStep(),
       onPrev: () => this.presentationTourEngine.prevStep(),
@@ -94,12 +86,11 @@ class App {
       }
     );
 
-    // 4. Initialize UI Components
+    // 3. Initialize UI Components
     this.audioControlsBar = new AudioControlsBar(
       this.audioEngine,
       () => this.captureScreenshot(),
-      () => this.exportClinicalDossier(),
-      () => this.toggleMemoryControls()
+      () => this.exportClinicalDossier()
     );
 
     this.modalSweeperControls = new ModalSweeperControls(
@@ -329,10 +320,6 @@ class App {
     if (typeof window !== 'undefined') {
       setTimeout(() => this.visualizer?.updateViewportOffset?.(), 360);
     }
-  }
-
-  private toggleMemoryControls(): void {
-    window.dispatchEvent(new CustomEvent(ANAMNESIS_TOGGLE_EVENT));
   }
 
   private exportClinicalDossier(): void {

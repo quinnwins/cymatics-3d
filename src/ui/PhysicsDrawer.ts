@@ -1,12 +1,6 @@
 import { VisualizerEngine, CameraMode } from '../visualizer/VisualizerEngine';
 import { ColorPalettes } from '../visualizer/ColorPalettes';
 import { EngineMode } from './Header';
-import {
-  temporalMemory,
-  TEMPORAL_MEDIA,
-  TEMPORAL_MEMORY_EVENT,
-  type TemporalMediumId,
-} from '../visualizer/TemporalMemory';
 
 export class PhysicsDrawer {
   private element: HTMLElement;
@@ -258,10 +252,6 @@ export class PhysicsDrawer {
     const densityPct = Math.round(((this.visualizer.particleDensity - 16384) / (262144 - 16384)) * 100);
     const scalePct = Math.round(((this.visualizer.particleScale - 0.4) / 1.6) * 100);
 
-    const memSettings = temporalMemory.getSettings();
-    const lookbackPct = Math.round((memSettings.lookbackSeconds / 10.0) * 100);
-    const memoryPct = Math.round(((memSettings.memorySeconds - 1.0) / 9.0) * 100);
-
     this.element.innerHTML = `
       <!-- Main Accordion Header -->
       <button id="btn-toggle-accordion-physics" class="w-full flex items-center justify-between cursor-pointer group text-left">
@@ -402,27 +392,6 @@ export class PhysicsDrawer {
               <option value="equilibrium" ${this.visualizer.gpuAcousticParticles?.getSimulationMode?.() === 'equilibrium' ? 'selected' : ''}>Instant Preview (Nodal Surface)</option>
               <option value="dynamic" ${this.visualizer.gpuAcousticParticles?.getSimulationMode?.() === 'dynamic' ? 'selected' : ''}>Physical Migration (Acoustophoresis)</option>
             </select>
-          </div>
-        </div>
-
-        <!-- Song Memory ("The Song Remembers") Group -->
-        <div id="drawer-temporal-acoustics" class="flex flex-col gap-2.5 bg-slate-950/40 p-2.5 rounded-2xl border border-white/5">
-          <div class="flex items-center justify-between">
-            <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <span>Song Memory</span>
-            </div>
-          </div>
-
-          <!-- Enter The Song Remembers Action Button -->
-          <div>
-            <button
-              id="btn-drawer-theater"
-              type="button"
-              class="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 hover:from-cyan-500/30 hover:to-indigo-500/30 text-cyan-200 border border-cyan-400/40 text-[11px] font-semibold cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
-              aria-label="Enter The Song Remembers"
-            >
-              <span>The Song Remembers (A or M)</span>
-            </button>
           </div>
         </div>
         `
@@ -698,22 +667,9 @@ export class PhysicsDrawer {
       this.resetDefaults();
     });
 
-    // The Song Remembers Button
-    this.element.querySelector('#btn-drawer-theater')?.addEventListener('click', () => {
-      window.dispatchEvent(new CustomEvent('soundform-anamnesis-toggle'));
-    });
   }
 
   private attachGlobalListeners(): void {
-
-    window.addEventListener('soundform-memory-drawer-toggle', () => {
-      this.isOpen = true;
-      this.render();
-      const card = this.element.querySelector('#drawer-temporal-acoustics');
-      if (card) {
-        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    });
 
     window.addEventListener('camera-mode-changed', () => {
       this.syncValuesFromVisualizer(true);

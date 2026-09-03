@@ -719,31 +719,15 @@ body.soundform-immersive #header-root,
 body.soundform-immersive #left-sidebar-root,
 body.soundform-immersive #right-sidebar-root,
 body.soundform-immersive #bottom-transport-root,
-body.soundform-immersive #center-prompt-root,
-body.soundform-anamnesis #header-root,
-body.soundform-anamnesis #left-sidebar-root,
-body.soundform-anamnesis #right-sidebar-root,
-body.soundform-anamnesis #center-prompt-root {
+body.soundform-immersive #center-prompt-root {
   opacity: 0 !important;
   pointer-events: none !important;
-  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-
-body.soundform-anamnesis #bottom-transport-root {
-  opacity: 1 !important;
-  pointer-events: auto !important;
-  position: relative !important;
-  z-index: 95 !important;
   transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 body.soundform-theater #app,
 body.soundform-immersive #app {
   padding: 0 !important;
-}
-
-body.soundform-anamnesis #app {
-  padding: 0 1rem max(1rem, env(safe-area-inset-bottom)) 1rem !important;
 }
 
 /* --- Floating Exit Immersive HUD --- */

@@ -7,14 +7,12 @@ describe('AudioControlsBar UI - Universal Master Transport & Telemetry Dock', ()
   let controlsBar: AudioControlsBar;
   let screenshotSpy: any;
   let exportSpy: any;
-  let memorySpy: any;
 
   beforeEach(() => {
     audioEngine = new AudioEngine();
     screenshotSpy = vi.fn();
     exportSpy = vi.fn();
-    memorySpy = vi.fn();
-    controlsBar = new AudioControlsBar(audioEngine, screenshotSpy, exportSpy, memorySpy);
+    controlsBar = new AudioControlsBar(audioEngine, screenshotSpy, exportSpy);
   });
 
   it('should instantiate and provide element', () => {

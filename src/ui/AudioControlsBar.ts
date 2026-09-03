@@ -18,7 +18,6 @@ import { DemoAudioGenerator } from '../audio/DemoAudioGenerator';
 import { WavePhysics, NoteInfo } from '../math/WavePhysics';
 import { WaveformType } from '../audio/FrequencySynthesizer';
 import { EngineMode } from './Header';
-import { temporalMemory, TEMPORAL_MEMORY_EVENT } from '../visualizer/TemporalMemory';
 
 export class AudioControlsBar {
   public static readonly SPEED_PRESETS = [0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
@@ -51,8 +50,7 @@ export class AudioControlsBar {
   constructor(
     private audioEngine: AudioEngine,
     private onScreenshot?: () => void,
-    private onExport?: () => void,
-    private onToggleMemory?: () => void
+    private onExport?: () => void
   ) {
     this.element = typeof document !== 'undefined' ? document.createElement('div') : ({} as HTMLElement);
     this.element.className = 'w-full flex justify-center items-center select-none';

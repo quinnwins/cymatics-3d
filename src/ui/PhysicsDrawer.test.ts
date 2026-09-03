@@ -38,18 +38,6 @@ function createMockVisualizer(): VisualizerEngine {
     setCymaticsVisibilityMode: (_m: 'both' | 'particles' | 'droplet') => {},
     getCymaticsLayers: () => ({ plate: false, droplet: true, trap: true }),
     setCymaticsLayers: (_l: any) => {},
-    wavefrontShells: {
-      setPropagationSpeed: (_v: number) => {},
-      setWaveDamping: (_v: number) => {},
-    },
-    particleNebula: {
-      setPropagationSpeed: (_v: number) => {},
-      setParticleScale: (_v: number) => {},
-      setParticleDensity: (_v: number) => {},
-    },
-    sonicRibbon: {
-      setPropagationSpeed: (_v: number) => {},
-    },
     gpuAcousticParticles: {
       setParticleScale: (_v: number) => {},
       setParticleDensity: (_v: number) => {},
@@ -73,8 +61,8 @@ describe('Scene Optics & Physics Drawer Inspector', () => {
     expect(el.querySelector('#slider-particle-scale')).not.toBeNull();
     expect(el.querySelector('#btn-toggle-ground-grid')).not.toBeNull();
     expect(el.querySelector('#btn-reset-physics-drawer')).not.toBeNull();
-    expect(el.querySelector('#drawer-temporal-acoustics')).not.toBeNull();
-    expect(el.querySelector('#btn-drawer-theater')).not.toBeNull();
+    expect(el.querySelector('#drawer-temporal-acoustics')).toBeNull();
+    expect(el.querySelector('#btn-drawer-theater')).toBeNull();
     expect(el.querySelector('#btn-drawer-memory-toggle')).toBeNull();
     expect(el.querySelector('#btn-drawer-memory-freeze')).toBeNull();
     expect(el.querySelector('#slider-drawer-lookback')).toBeNull();

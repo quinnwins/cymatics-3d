@@ -41,16 +41,16 @@ jobs:
       - name: Build production bundle
         run: npm run build
 
-      - name: Verify Anamnesis recurrence in headless Chrome
-        run: node scripts/verify-anamnesis.mjs
+      - name: Verify Cymatics & Music visualizer in headless Chrome
+        run: node scripts/verify-cymatics.mjs
 
       - name: Upload deployable build and visual proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: soundform-dist-and-memory-qa
+          name: soundform-dist-and-cymatics-qa
           path: |
             dist
-            qa_screenshots/anamnesis-song-remembers.png
+            qa_screenshots/cymatics-live-verified.png
           if-no-files-found: ignore
           retention-days: 7

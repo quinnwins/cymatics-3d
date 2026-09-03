@@ -6,7 +6,6 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
 import { AudioEngine } from '../audio/AudioEngine';
-import { HistoryTexture } from './HistoryTexture';
 import { CymaticsMesh } from './CymaticsMesh';
 import { VolumetricChladniMesh } from './VolumetricChladniMesh';
 import { GpuAcousticParticles } from './GpuAcousticParticles';
@@ -43,7 +42,6 @@ export class VisualizerEngine {
   private bloomPass!: UnrealBloomPass;
 
   // Components
-  public historyTexture: HistoryTexture;
   public cymaticsMesh: CymaticsMesh;
   public cymaticsPlateMesh: CymaticsPlateMesh;
   public volumetricChladni: VolumetricChladniMesh;
@@ -208,9 +206,6 @@ export class VisualizerEngine {
     this.controls.addEventListener('end', () => {
       this.container.classList.remove('is-grabbing');
     });
-
-    // 5. History Ring-Buffer Texture
-    this.historyTexture = new HistoryTexture();
 
     // Modal Oscillator Bank & Provenance HUD
     this.modalOscillatorBank = new ModalOscillatorBank(32);
@@ -793,8 +788,6 @@ export class VisualizerEngine {
     const bands = this.audioEngine.getAudioBands();
     const shockwaves = this.audioEngine.getActiveShockwaves();
     const fundamentalHz = this.audioEngine.getFundamentalFrequency();
-    const rawFft = this.audioEngine.getRawFrequencyData();
-    this.historyTexture.pushSpectralFrame(rawFft, bands.subBass, fundamentalHz);
 
     // Sync provenance badge to active visualizer style & physics mode
     if (this.currentStyle === 'cymatics' || this.currentStyle === 'cymatics-2d') {
@@ -965,7 +958,6 @@ export class VisualizerEngine {
       this.acousticTherapyLab?.dispose();
       this.vocalBiometricsLab?.dispose();
       this.nobelDiscoveryLab?.dispose();
-      this.historyTexture?.dispose();
       this.renderer?.dispose();
       this.composer?.dispose();
     } catch (e) {

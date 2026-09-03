@@ -1,224 +1,139 @@
 # SoundForm 3D
-### See sound as matter, space, and memory.
+### See sound as matter, space, and resonance.
 
 [![Validate SoundForm](https://github.com/quinnwins/cymatics-3d/actions/workflows/validate.yml/badge.svg)](https://github.com/quinnwins/cymatics-3d/actions/workflows/validate.yml)
-[![WebGL2](https://img.shields.io/badge/WebGL2-GPU_Visuals-purple.svg)](./src/visualizer/)
+[![WebGL2](https://img.shields.io/badge/WebGL2-GPU_Cymatics-purple.svg)](./src/visualizer/)
 [![Web Audio](https://img.shields.io/badge/Web_Audio-Live_DSP-cyan.svg)](./src/audio/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue.svg)](./src/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-SoundForm is a browser-based acoustic imagination engine built with TypeScript, WebGL2/GLSL, Three.js, and the Web Audio API.
+<p align="center">
+  <img src="./assets/soundform-music-studio.png" alt="SoundForm 3D — Streaming M83's Midnight City through a 3D acoustic resonance chamber with 128k GPU particles" width="100%" />
+</p>
 
-It is deliberately allowed to be more than one thing:
+Play any song. Speak into your mic. Dial in a pure frequency.
 
-- a music visualizer;
-- a cymatics and standing-wave playground;
-- a live vocal-DSP instrument;
-- a collection of modeled bio-acoustic worlds;
-- a home for serious mathematics and unapologetic “what if?” experiments.
-
-The project does not ask every mode to carry the same scientific burden. Some views are measured, some are mathematical interpretations, and some are speculative. They share one question:
-
-> **What becomes visible when sound is treated as a material force?**
+SoundForm turns the audio into three physical simulations running simultaneously — a vibrating metal plate where sand clusters into Chladni patterns, a levitating fluid droplet that breathes and deforms to the bass, and over 130,000 glowing particles trapped inside acoustic standing waves. All of it real-time, all of it reactive, all of it running in your browser.
 
 ---
 
-## The signature experience: a song with memory
+## What Happens When You Hit Play
 
-Most visualizers react to the newest audio frame and immediately forget it. SoundForm remembers on two timescales.
+**Three things appear at once:**
 
-### Sonic Memory — the recent past has a location
+- 🪨 **A vibrating sand plate** — Sound shakes a metal surface and thousands of sand grains migrate into the exact geometric patterns that Ernst Chladni discovered in 1787. Change the frequency and the mandala reshapes itself.
 
-Sonic Memory maps the newest seconds of a performance onto a living radial sculpture:
+- 💧 **A levitating fluid droplet** — A 10,000-vertex liquid sphere floats at the center of the chamber, its surface rippling with spherical harmonics. Sub-bass makes it breathe. Mids sculpt quadrupole lobes. Highs carve star shapes into its skin.
 
-- the center is the sound happening **now**;
-- increasing radius contains progressively older spectral moments;
-- transients become outward-moving shells;
-- sustained harmony leaves volumetric architecture behind it;
-- pitch and spectral motion reshape the field;
-- the **Time Lens** moves the visual present backward through stored sound;
-- freezing preserves a rotatable sound sculpture while playback can continue.
+- ✨ **A particle cloud trapped by sound** — Up to 262k particles respond to acoustic radiation forces, clustering at the quiet nodes (or the loud antinodes — you pick). Watch them physically migrate through Stokes drag or snap instantly into the standing wave pattern.
 
-### Anamnesis — the song recognizes itself
+All three react together inside a resonator chamber that you can switch between Cube, Cylinder, and Sphere geometries.
 
-Sonic Memory asks where the recent past is. **Anamnesis** asks when the music has been here before.
-
-A second, long-horizon field grows around the radial center. It preserves a sparse trajectory of the whole performance and compares multi-second harmonic, timbral, energetic, and structural motion. When a phrase returns, its new moment reconnects to its earlier form through a luminous chord.
-
-- chronology becomes an orbiting life-line;
-- structural changes become visible thresholds;
-- repeated phrases become spatial reunions;
-- transposed returns remain related while preserving their interval;
-- related moments breathe together as one memory family;
-- seekable points can be clicked to return to that instant;
-- a performance can be kept locally as a derived **Memory Relic** without storing its audio.
-
-Open Sonic Memory and choose **THE SONG REMEMBERS**, or press `A`.
-
-See [`docs/SONIC_MEMORY.md`](./docs/SONIC_MEMORY.md) and [`docs/ANAMNESIS.md`](./docs/ANAMNESIS.md).
+<p align="center">
+  <img src="./assets/soundform-immersive-cymatics.png" alt="Immersive Mode — the levitating droplet and particle shells in deep space" width="100%" />
+</p>
+<p align="center"><em>Press <code>I</code> for Zen Immersive Mode — everything disappears except the physics and the music.</em></p>
 
 ---
 
-## One acoustic object, several ways of seeing it
+## Five Ways to Feed It Sound
 
-```
-                                    SOUND
-                                      │
-                ┌─────────────────────┼─────────────────────┐
-                │                     │                     │
-             MATTER                 SPACE                 MEMORY
-                │                     │                     │
-       plate · droplet ·       nodal fields ·       recent radial time ·
-          particles            wave geometry        whole-song recurrence
-                │                     │                     │
-                └─────────────────────┴─────────────────────┘
-                                      │
-                              IMAGINED CONSEQUENCE
-                                      │
-                   voice · cells · microfluidics · therapy · moonshots
-```
+| Source | What You Get |
+| :--- | :--- |
+| 🎵 **Built-in Tracks** | 15 curated electronic, ambient, and sacred frequency compositions — hit play and go. |
+| 🍎 **Apple Music** | Search and stream 30-second catalog previews directly. |
+| 🟢 **Spotify** | Same deal — search, preview, visualize. |
+| 📁 **Your Own Files** | Drag in any MP3, WAV, FLAC, OGG, or AAC. Full playback with a seekable scrubber. |
+| 🎤 **Live Microphone** | Sing, play guitar, clap — the cymatics react to your voice in real time. |
 
-The interfaces are not separate product demos. They are different lenses on the same underlying fascination.
-
-### Music Space
-
-- 4096-point FFT analysis across six perceptual bands
-- pitch estimation and transient detection
-- Sonic Memory radial history
-- Anamnesis whole-performance self-memory
-- streaming previews, generated tracks, uploaded audio, and microphone input
-- orbit, cinematic camera, frozen inspection, immersive capture
-
-### Cymatics and resonators
-
-- square, cylindrical, and spherical resonator interpretations
-- 2D plate, deformable fluid droplet, volumetric nodal field, and dense GPU particles
-- node and antinode trapping modes
-- adjustable modal orders, wave speed, damping, optics, and palettes
-- up to 262,144 rendered particles in supported modes
-
-### Vocal Holography
-
-- live microphone analysis
-- YIN-style pitch extraction
-- jitter, shimmer, HNR, CPP, and related exploratory voice metrics
-- LPC-16 Levinson–Durbin analysis
-- Kelly–Lochbaum-inspired tube-area reconstruction
-- deformable vocal-tract and airflow views
-
-### Bio-acoustic and moonshot worlds
-
-- modeled cell resonance and contrast-factor experiments
-- microfluidic sorting and surface-acoustic-wave concepts
-- oncotripsy-, histotripsy-, sonodynamic-, and immunotherapy-inspired visual systems
-- mechanogenomics, blood-brain-barrier, viral-capsid, and senolytic thought experiments
-
-These are exploratory simulations and visual hypotheses, not clinical tools or medical claims.
+Every source feeds the same 4096-point FFT engine that decomposes audio across six perceptual frequency bands with live pitch tracking and transient detection.
 
 ---
 
-## How Anamnesis works
+## The Frequency Lab
 
-Every 400 ms, the engine derives a compact musical state from the live analysis stream:
+<p align="center">
+  <img src="./assets/soundform-frequency-lab.png" alt="Frequency Lab — 432 Hz Solfeggio matrix with 3D standing wave presets" width="100%" />
+</p>
 
-- 12-bin pitch-class chroma;
-- six-band timbral shape;
-- logarithmic spectral centroid;
-- absolute and relative energy;
-- transient strength;
-- local novelty.
+Forget music for a second — dial in a single pure frequency and watch what the standing wave looks like.
 
-It compares **sequences** rather than individual chords. The default window spans roughly 3.2 seconds, and candidate returns must be separated by at least ten seconds. Circular chroma alignment makes the harmonic comparison transposition-tolerant, while timbre, energy, centroid, novelty, and motion still have to agree.
-
-This is intentionally conservative. A few meaningful connections are more valuable than a decorative web of coincidences.
-
-The analysis borrows established ideas from music-information retrieval—chroma, self-similarity, novelty, and multi-feature recurrence—but the resulting spatial grammar is authored for SoundForm. It does not claim to know the composer’s intent or produce canonical verse/chorus labels.
-
-> **The geometry is authored. The relationships are measured.**
+- **20 Hz to 20 kHz** with precision Hz control and ±1 Hz nudge buttons
+- **Solfeggio & Sacred tunings** — one-tap 174, 285, 396, 417, 432, 528, 639, 741, 852, 963 Hz
+- **Additive harmonic drawbars** — stack overtones on top of the fundamental
+- **Stereo binaural beat engine** — detune left and right channels for brainwave entrainment
+- **3D standing wave presets** — dial the modal numbers (n, m, l) to explore Crossing Planes, Honeycomb Traps, Harmonic Cages, Crystal Resonators, and more
 
 ---
 
-## Interaction
+## Sound as Medicine
 
-### Sonic Memory
+<p align="center">
+  <img src="./assets/soundform-sound-therapy.png" alt="Targeted Acoustic Therapy — 180° wave cancellation and oncotripsy beam visualization" width="100%" />
+</p>
 
-| Key | Action |
-| --- | --- |
-| `M` | Toggle recent radial memory |
-| `F` | Freeze or resume the temporal sculpture |
-| `I` | Enter or exit Sonic Memory immersive view |
-| `A` | Enter or exit Anamnesis |
-| `Escape` | Return to the workstation |
+SoundForm includes speculative therapy visualizations modeling how focused ultrasound might interact with biological tissue:
 
-### Anamnesis focused view
+- **Wave Cancellation** — See what happens when two beams arrive 180° out of phase, cancelling pressure at a target point
+- **Oncotripsy** — Visualize resonant mechanical disruption at a cell's natural frequency
+- **Histotripsy, Sonodynamic SDT, Vortex OAM, PIEZO1 Ion Flux** — Eight therapeutic modalities with adjustable frequency, phase angle, and acoustic power
+- **Target cell lines** with calibrated AFM elasticity values (Glioblastoma, Pancreatic, Triple-Negative Breast, and more)
 
-- **Pause / Resume** the current source
-- **Keep This Relic** in local browser storage
-- **Capture** the current canvas as an image
-- **Relics** to revisit derived performance constellations
-- Hover a memory moment for time and meaning
-- Click a moment to seek there when the source is seekable
-
-Relics contain visual points, recurrence threads, metadata, and summary statistics. They do not contain FFT frames, waveforms, microphone recordings, or playable audio.
+> These are educational and speculative visualizations — not medical devices. But they're built on real published biophysics.
 
 ---
 
-## Architectural principles
+## Keyboard Shortcuts
 
-| Choice | Reason |
-| --- | --- |
-| GPU temporal fields | Time, spectrum, and dense geometry remain interactive without rebuilding meshes every frame. |
-| Byte-packed short-term history | A 512×512 full-spectrum memory uses substantially less upload bandwidth than a float history texture. |
-| Sparse long-term memory | Whole performances remain explorable without storing audio or retaining every analysis frame. |
-| Phrase-level recurrence | Multi-frame agreement rejects the false meaning created by single-chord matches. |
-| Local derived relics | The viewer can keep a performance’s shape without copying the performance itself. |
-| Deterministic geometry | The same derived memory produces the same spatial object, making QA and comparison possible. |
-| Scientific boundaries in the UI and docs | Mathematical and speculative modes can coexist without presenting imagination as clinical fact. |
+| Key | What It Does |
+| :--- | :--- |
+| `Space` | Play / Pause |
+| `I` | Toggle Immersive Mode (hide all UI) |
+| `Esc` | Exit Immersive Mode |
+| `→` / `←` | Step through the guided Keynote Tour |
 
 ---
 
-## Run locally
+## Run It Yourself
 
 ```bash
-npm ci
-npm run dev
+npm ci          # install dependencies
+npm run dev     # start dev server → http://localhost:3000
 ```
-
-Production build:
 
 ```bash
-npm run build
+npm run build   # production bundle
+npm test        # 316 tests across 47 suites
 ```
-
-Full automated suite:
-
-```bash
-npm test
-```
-
-The validation workflow also runs real Chromium/WebGL checks for Sonic Memory and Anamnesis, including recurrence, freezing, immersive focus, relic persistence, and visual occupancy outside the central emitter.
 
 ---
 
-## Project stance
+## System Requirements
 
-SoundForm is not trying to prove that every frequency has one universal sacred shape. Cymatic form depends on geometry, boundary conditions, medium, damping, forcing, and the material being observed.
+> **🖥️ Desktop only for now.** This runs heavy real-time GPU physics — not built for phones yet.
 
-The project is interested in something richer:
+| | Minimum | Recommended |
+| :--- | :--- | :--- |
+| **GPU** | Any WebGL 2.0 GPU (Intel Iris, GTX 1050) | Apple Silicon, RTX 2060+, or RX 5600+ |
+| **VRAM** | 2 GB | 4 GB+ |
+| **Display** | 1280 × 800 | 1080p or 4K |
+| **Browser** | Chrome 115+, Edge, Brave, Arc | Chromium-based or Safari 16.4+ |
+| **Audio** | Speakers | Headphones (for binaural beats and wave cancellation) |
 
-- what sound actually measures;
-- what mathematics lets us model;
-- what visualization lets us perceive;
-- what imagination lets us ask next.
+---
 
-That is why a plate, a voice, a cell, a particle cloud, and the remembered life of a song can belong in the same place.
+## Under the Hood
+
+For contributors and the curious:
+
+- **Pure forward pipeline** — FFT frames drive GPU shaders directly. No intermediate textures, no lag.
+- **Zero-GC render loop** — Pre-allocated uniform buffers, no garbage collection pauses at 120 FPS.
+- **Real math** — NIST Bessel functions, Legendre spherical harmonics, and Gor'kov acoustic potentials. Not approximations.
+- **Auto-centering viewport** — The 3D scene rebalances optically when sidebars open or close so the resonator always stays visually centered.
+- **316 passing tests** + headless Chrome E2E verification on every push.
 
 ---
 
 ## License
 
-MIT. See [`LICENSE`](./LICENSE).
-
----
-
-*SoundForm 3D — the present becomes form; the past remains visible; the song learns its own shape.*
+MIT — do whatever you want with it. See [`LICENSE`](./LICENSE).
