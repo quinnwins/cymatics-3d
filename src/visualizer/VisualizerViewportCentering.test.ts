@@ -68,8 +68,8 @@ describe('VisualizerEngine Viewport Centering & Optical Alignment', () => {
     expect(view?.fullHeight).toBe(610);
     // offX should balance the sidebars: (1024/2) - (210 + 603/2) = 512 - 511.5 = 0.5
     expect(view?.offsetX).toBeCloseTo(0.5, 1);
-    // offY should compensate for top/bottom UI asymmetry: (610/2) - (56 + 476/2) + 8 = 305 - 294 + 8 = 19
-    expect(view?.offsetY).toBeCloseTo(19, 1);
+    // offY should compensate for top/bottom UI asymmetry and perspective pitch: (610/2) - (56 + 476/2) + 48 = 305 - 294 + 48 = 59
+    expect(view?.offsetY).toBeCloseTo(59, 1);
   });
 
   it('clears view offset when switching to immersive mode and restores on exit', () => {
@@ -78,7 +78,7 @@ describe('VisualizerEngine Viewport Centering & Optical Alignment', () => {
 
     engine.setImmersive(false);
     expect(engine.camera.view?.enabled).toBe(true);
-    expect(engine.camera.view?.offsetY).toBeGreaterThan(15);
+    expect(engine.camera.view?.offsetY).toBeGreaterThan(45);
   });
 
   it('handles window resize and updates view offset accordingly', () => {

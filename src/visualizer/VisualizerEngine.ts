@@ -725,7 +725,7 @@ export class VisualizerEngine {
 
     let offX = 0;
     // Calibrated optical vertical elevation compensation (accounts for UI asymmetry and 3D perspective pitch)
-    let offY = 18;
+    let offY = 56;
 
     if (typeof document !== 'undefined') {
       const overlay = document.getElementById('center-viewport-overlay');
@@ -735,8 +735,8 @@ export class VisualizerEngine {
           const apertureCenterX = rect.left + rect.width / 2;
           const apertureCenterY = rect.top + rect.height / 2;
           offX = (w / 2) - apertureCenterX;
-          // Compensate for asymmetrical top/bottom UI bars and perspective pitch foreshortening
-          offY = (h / 2) - apertureCenterY + 8;
+          // Compensate for asymmetrical top/bottom UI bars and perspective pitch foreshortening to raise shape into space
+          offY = (h / 2) - apertureCenterY + 48;
         }
       }
     }
