@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 <p align="center">
-  <img src="./assets/soundform-music-studio.png" alt="SoundForm 3D — Streaming M83's Midnight City through a 3D acoustic resonance chamber with 128k GPU particles" width="100%" />
+  <img src="./assets/soundform-showcase.gif" alt="SoundForm 3D — Real-time 3D cymatics and acoustic resonance streaming M83's Midnight City" width="100%" />
 </p>
 
 Play any song. Speak into your mic. Dial in a pure frequency.

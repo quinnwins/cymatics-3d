@@ -5,7 +5,7 @@ import path from 'path';
 import http from 'http';
 
 const SCREENSHOT_DIR = path.resolve(process.cwd(), 'qa_screenshots');
-const ARTIFACT_DIR = '/Users/quinnwins/.gemini/antigravity/brain/78ae3161-f0c3-4d52-a5c7-de2843b46649/qa_screenshots';
+const ARTIFACT_DIR = process.env.ARTIFACT_DIR || path.resolve(process.cwd(), 'qa_screenshots/artifacts');
 
 if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 if (!fs.existsSync(ARTIFACT_DIR)) fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
