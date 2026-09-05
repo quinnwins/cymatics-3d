@@ -52,6 +52,20 @@ describe('VisualizerEngine Viewport Centering & Optical Alignment', () => {
     vi.restoreAllMocks();
   });
 
+  it('keeps display and audio-analysis clocks aligned in the default energy view', () => {
+    const runtime = engine as any;
+    vi.spyOn(runtime.clock, 'getElapsedTime').mockReturnValue(100.02);
+    vi.spyOn(audioEngine, 'getPlaybackSpeed').mockReturnValue(0.5);
+    const audioUpdate = vi.spyOn(audioEngine, 'update');
+    runtime.lastAnimTime = 100;
+    runtime.audioTime = 5;
+    engine.simTime = 5;
+    runtime.animate();
+    expect(engine.simTime).toBeCloseTo(5.02, 8);
+    expect(audioUpdate.mock.calls.at(-1)?.[0]).toBeCloseTo(5.02, 8);
+    expect(audioEngine.getPlaybackSpeed()).toBe(0.5);
+  });
+
   it('calibrates initial camera position for balanced 3D isometric pitch', () => {
     expect(engine.camera.position.x).toBeCloseTo(0, 1);
     expect(engine.camera.position.y).toBeCloseTo(2.4, 0.5);

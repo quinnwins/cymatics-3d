@@ -758,3 +758,45 @@ body.soundform-theater #immersive-exit-hud {
 
 
 
+
+/* Spatial averaging controls retain normal simulation time. */
+.energy-view-control { display: flex; align-items: center; gap: 10px; color: #bce8ef; font-size: 11px; white-space: nowrap; }
+.energy-view-control input {
+  --slider-track-h: 4px;
+  --slider-thumb-size: 14px;
+  --slider-thumb-offset: -5px;
+  width: clamp(64px, 8vw, 108px);
+  height: 32px;
+  min-height: 32px;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.energy-view-control input:focus-visible { outline: none; box-shadow: none; }
+.energy-view-control input::-webkit-slider-thumb { box-sizing: border-box; background: #67e8f9; border: 2px solid #d9faff; box-shadow: 0 1px 3px #0006; transition: none; }
+.energy-view-control input::-moz-range-thumb { box-sizing: border-box; background: #67e8f9; border: 2px solid #d9faff; box-shadow: 0 1px 3px #0006; transition: none; }
+.energy-view-control input::-webkit-slider-thumb:hover,
+.energy-view-control input::-webkit-slider-thumb:active { transform: none; box-shadow: 0 1px 3px #0006; }
+.energy-view-control input::-moz-range-thumb:hover,
+.energy-view-control input::-moz-range-thumb:active { transform: none; box-shadow: 0 1px 3px #0006; }
+.energy-view-control input:focus-visible::-webkit-slider-thumb { outline: 2px solid #67e8f9; outline-offset: 3px; }
+.energy-view-control input:focus-visible::-moz-range-thumb { outline: 2px solid #67e8f9; outline-offset: 3px; }
+.energy-view-control output { min-width: 7ch; text-align: right; font-variant-numeric: tabular-nums; }
+
+.mobile-scene-panels { display: none; }
+@media (max-width: 1023px) {
+  .mobile-scene-panels { display: flex; position: fixed; top: 104px; left: 12px; right: 12px; justify-content: center; gap: 8px; pointer-events: auto; }
+  .mobile-scene-panels button { min-height: 40px; padding: 8px 14px; border: 1px solid #334155; border-radius: 10px; background: #0b1320; color: #d9faff; font-size: 12px; }
+  .mobile-scene-panels button:focus-visible { outline: 2px solid #67e8f9; }
+  .sidebar-panel { top: 154px; max-height: calc(100dvh - 252px); }
+}
+@media (max-width: 600px) {
+  #bottom-transport-root > div > div { padding: 8px; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  #bottom-transport-root #dock-timeline-container { display: none; }
+  #bottom-transport-root #btn-export-dossier, #bottom-transport-root #btn-screenshot { display: none; }
+}
+
+.field-average-note { position: absolute; top: 82px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px); width: max-content; padding: 6px 10px; border-radius: 6px; background: #07111be6; color: #bce8ef; font-size: 11px; line-height: 1.5; text-align: center; pointer-events: none; }
+.field-average-note[hidden] { display: none; }
+@media (max-width: 1023px) { .field-average-note { top: 156px; font-size: 10px; } }
+body.soundform-immersive .field-average-note { top: 18px; }

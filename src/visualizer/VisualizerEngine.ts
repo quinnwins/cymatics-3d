@@ -1,3 +1,4 @@
+import { SpatialPressureVolume } from './SpatialPressureVolume';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -45,6 +46,9 @@ export class VisualizerEngine {
   public cymaticsMesh: CymaticsMesh;
   public cymaticsPlateMesh: CymaticsPlateMesh;
   public volumetricChladni: VolumetricChladniMesh;
+  public spatialPressureVolume: SpatialPressureVolume;
+  private fieldAverageNote: HTMLDivElement;
+  private fieldAverageWindow = 200;
   public gpuAcousticParticles: GpuAcousticParticles;
   public chamberEnclosure: ChamberEnclosure;
   public bioAcousticResonator: BioAcousticResonator;
@@ -81,6 +85,19 @@ export class VisualizerEngine {
   private lastShockwaveBirth = 0;
   private lastAnimTime = 0;
   public simTime = 0;
+  public energyViewEnabled = true;
+  private audioTime = 0;
+
+  public setEnergyWindowMs(milliseconds: number): void {
+    if (!Number.isFinite(milliseconds)) return;
+    const value = Math.max(0, Math.min(1000, Math.round(milliseconds / 50) * 50));
+    this.energyViewEnabled = value > 0;
+    if (value > 0) this.fieldAverageWindow = value;
+  }
+
+  public getEnergyWindowMs(): number {
+    return this.energyViewEnabled ? this.fieldAverageWindow : 0;
+  }
 
   // Physics & Visual Tuning
   public waveSpeed = 6.0;
@@ -223,6 +240,12 @@ export class VisualizerEngine {
     this.cymaticsPlateMesh = new CymaticsPlateMesh(this.currentPalette);
     this.volumetricChladni = new VolumetricChladniMesh(this.currentPalette);
     this.gpuAcousticParticles = new GpuAcousticParticles(this.renderer, this.currentPalette);
+    this.spatialPressureVolume = new SpatialPressureVolume(this.currentPalette);
+    this.scene.add(this.spatialPressureVolume.group);
+    this.fieldAverageNote = document.createElement('div');
+    this.fieldAverageNote.id = 'spatial-field-note';
+    this.fieldAverageNote.className = 'field-average-note';
+    this.container.appendChild(this.fieldAverageNote);
     this.chamberEnclosure = new ChamberEnclosure(this.currentPalette);
     this.bioAcousticResonator = new BioAcousticResonator('healthy-somatic');
     this.acousticTherapyLab = new AcousticTherapyLab();
@@ -304,6 +327,7 @@ export class VisualizerEngine {
 
   public setStyle(style: VisualStyle): void {
     this.currentStyle = style;
+    this.spatialPressureVolume.group.visible = false;
 
     // Reset volumetric components visibility
     this.cymaticsMesh.setVisible(false);
@@ -450,6 +474,7 @@ export class VisualizerEngine {
   }
 
   public setChamberGeometry(geometry: 'cube' | 'cylinder' | 'sphere'): void {
+    this.spatialPressureVolume.reset();
     this.cymaticsMesh.setChamberType(geometry);
     this.cymaticsPlateMesh.setChamberType(geometry === 'cylinder' || geometry === 'sphere' ? 'circle' : 'square');
     this.volumetricChladni.setChamberType(geometry === 'cube' ? 0 : geometry === 'cylinder' ? 1 : 2);
@@ -458,6 +483,7 @@ export class VisualizerEngine {
   }
 
   public setFieldMode(enabled: boolean, shape?: FieldShapeType, params?: Partial<SuperquadricParams>): void {
+    this.spatialPressureVolume.reset();
     this.gpuAcousticParticles.setFieldMode(enabled);
     this.volumetricChladni.setFieldMode(enabled);
     this.chamberEnclosure.setFieldMode(enabled);
@@ -604,6 +630,7 @@ export class VisualizerEngine {
     this.cymaticsPlateMesh.setPalette(pal);
     this.volumetricChladni.setPalette(pal);
     this.gpuAcousticParticles.setPalette(pal);
+    this.spatialPressureVolume.setPalette(pal);
     this.chamberEnclosure.setPalette(pal);
   }
 
@@ -767,15 +794,18 @@ export class VisualizerEngine {
     const dt = rawDt;
     this.lastAnimTime = time;
 
-    const playbackSpeed = this.audioEngine ? this.audioEngine.getPlaybackSpeed() : 1.0;
-    const simDt = rawDt * playbackSpeed;
+    const isCymaticsView = this.currentStyle === 'cymatics' || this.currentStyle === 'cymatics-2d';
+    // Playback rate changes the source content, not elapsed physical time.
+    const sourceDt = rawDt;
+    const simDt = sourceDt;
+    this.audioTime += sourceDt;
     this.simTime += simDt;
 
-    this.audioEngine?.update(this.simTime);
+    this.audioEngine?.update(this.audioTime);
 
     // Physical modal oscillator bank driven by live time-domain PCM signal
     const pcmData = this.audioEngine ? this.audioEngine.getTimeDomainData() : new Float32Array(1024);
-    this.modalOscillatorBank.update(simDt, pcmData);
+    this.modalOscillatorBank.update(sourceDt, pcmData);
 
     // Telemetry FPS calculation
     this.frameCount++;
@@ -785,6 +815,8 @@ export class VisualizerEngine {
       this.lastFpsTime = time;
     }
 
+    // Preserve the live field. Spatial averaging happens after pressure is
+    // evaluated at fixed grid points; do not average the forcing first.
     const bands = this.audioEngine.getAudioBands();
     const shockwaves = this.audioEngine.getActiveShockwaves();
     const fundamentalHz = this.audioEngine.getFundamentalFrequency();
@@ -822,9 +854,23 @@ export class VisualizerEngine {
     this.cymaticsMesh.update(this.simTime, this.tempVBands03, this.tempVBands45, fundamentalHz, simDt, this.camera);
     this.cymaticsPlateMesh.update(this.simTime, this.tempVBands03, this.tempVBands45, fundamentalHz, simDt, this.camera);
     this.volumetricChladni.update(this.simTime, this.tempVBands03, this.tempVBands45, fundamentalHz, this.camera);
+    const spatialActive = isCymaticsView && this.energyViewEnabled && this.cymaticsLayers.trap
+      && this.gpuAcousticParticles.getChamberGeometry() === 'cube' && !this.getFieldMode()
+      && this.gpuAcousticParticles.getChladniMode() === 'normal';
+    this.spatialPressureVolume.group.visible = spatialActive;
+    if (isCymaticsView) this.gpuAcousticParticles.setVisible(this.cymaticsLayers.trap && !spatialActive);
+    this.fieldAverageNote.hidden = !isCymaticsView || !this.energyViewEnabled;
+    const note = spatialActive
+      ? `Cube field · mean p² over ${this.getEnergyWindowMs()} ms · quiet regions glow${this.cymaticsLayers.plate || this.cymaticsLayers.droplet ? ' · other layers live' : ''}`
+      : 'Average: enclosed cube 3D Trap, Nodes only. This selection remains live.';
+    if (this.fieldAverageNote.textContent !== note) this.fieldAverageNote.textContent = note;
+    const activeModes = this.cymaticsMesh.getModes();
+    this.gpuAcousticParticles.setModalNumbers(activeModes.x, activeModes.y, activeModes.z);
+    if (spatialActive) {
+      this.spatialPressureVolume.update(this.simTime, activeModes, this.tempVBands03,
+        this.gpuAcousticParticles.getChamberSize(), this.fieldAverageWindow / 1000, this.camera);
+    }
     if (this.gpuAcousticParticles.isVisible()) {
-      const activeModes = this.cymaticsMesh.getModes();
-      this.gpuAcousticParticles.setModalNumbers(activeModes.x, activeModes.y, activeModes.z);
       this.gpuAcousticParticles.update(this.simTime, simDt, this.tempVBands03, this.tempVBands45, this.tempShockwaves, fundamentalHz);
     }
     if (this.chamberEnclosure.isVisible()) {
@@ -840,7 +886,7 @@ export class VisualizerEngine {
     }
 
     // 6-DOF Harmonic Recoil Spring Dynamics (Triggered on Audio Shockwaves)
-    if (shockwaves.length > 0 && shockwaves[0].birthTime > this.lastShockwaveBirth) {
+    if (!isCymaticsView && shockwaves.length > 0 && shockwaves[0].birthTime > this.lastShockwaveBirth) {
       this.lastShockwaveBirth = shockwaves[0].birthTime;
       const kickMag = Math.min(0.35, shockwaves[0].strength * 0.08);
       // Push camera outward along viewing ray
@@ -910,11 +956,11 @@ export class VisualizerEngine {
         this.controls.target.set(0, targetY, 0);
       } else {
         // 6-DOF Harmonic Lissajous Path Choreography for Central Single-Stage Systems
-        const baseAngle = time * 0.10 * this.autoRotateSpeed;
-        const lissX = Math.sin(baseAngle) * radius + Math.sin(time * 0.23) * 0.25;
-        const lissZ = Math.cos(baseAngle) * radius + Math.cos(time * 0.19) * 0.25;
-        const baseHeight = isCymatics ? 2.2 : isPlate ? 3.4 : isTherapy ? 2.2 : isBio ? 1.6 : isNobel ? 2.2 : 3.2;
-        const lissY = baseHeight + Math.sin(time * 0.15) * 0.30 + Math.cos(time * 0.31) * 0.15;
+        const baseAngle = time * (isCymaticsView ? 0.035 : 0.10) * this.autoRotateSpeed;
+        const lissX = Math.sin(baseAngle) * radius + Math.sin(time * 0.23) * (isCymaticsView ? 0 : 0.25);
+        const lissZ = Math.cos(baseAngle) * radius + Math.cos(time * 0.19) * (isCymaticsView ? 0 : 0.25);
+        const baseHeight = isCymatics ? 2.4 : isPlate ? 3.4 : isTherapy ? 2.2 : isBio ? 1.6 : isNobel ? 2.2 : 3.2;
+        const lissY = baseHeight + (isCymaticsView ? 0 : Math.sin(time * 0.15) * 0.30 + Math.cos(time * 0.31) * 0.15);
 
         this.camera.position.set(
           lissX + this.recoilOffset.x,
@@ -927,6 +973,8 @@ export class VisualizerEngine {
     } else {
       this.controls.update();
     }
+
+    if (spatialActive) this.spatialPressureVolume.syncCamera(this.camera);
 
     // Calibrated post-processed rendering (120 FPS tuned bloom + ACES Filmic tonemapping)
     if (this.composer) {
@@ -953,6 +1001,8 @@ export class VisualizerEngine {
       this.cymaticsPlateMesh?.dispose();
       this.volumetricChladni?.dispose();
       this.gpuAcousticParticles?.dispose();
+      this.spatialPressureVolume?.dispose();
+      this.fieldAverageNote?.remove();
       this.chamberEnclosure?.dispose();
       this.bioAcousticResonator?.dispose();
       this.acousticTherapyLab?.dispose();

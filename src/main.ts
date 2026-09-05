@@ -57,9 +57,11 @@ class App {
 
     if (!this.isLeftSidebarOpen) {
       this.leftSidebarRoot.classList.add('sidebar-collapsed');
+      this.leftSidebarRoot.inert = true;
     }
     if (!this.isRightSidebarOpen) {
       this.rightSidebarRoot.classList.add('sidebar-collapsed');
+      this.rightSidebarRoot.inert = true;
     }
 
     const canvasContainer = document.getElementById('canvas-container') as HTMLElement;
@@ -90,7 +92,8 @@ class App {
     this.audioControlsBar = new AudioControlsBar(
       this.audioEngine,
       () => this.captureScreenshot(),
-      () => this.exportClinicalDossier()
+      () => this.exportClinicalDossier(),
+      this.visualizer
     );
 
     this.modalSweeperControls = new ModalSweeperControls(
@@ -202,9 +205,30 @@ class App {
     this.bottomTransportRoot.appendChild(this.audioControlsBar.getElement());
     this.header.setSidebarStates(this.isLeftSidebarOpen, this.isRightSidebarOpen);
 
+    // Collapse desktop panels when crossing into the narrow overlay layout.
+    const narrowViewport = window.matchMedia('(max-width: 1023px)');
+    narrowViewport.addEventListener('change', event => {
+      if (event.matches) {
+        if (this.isLeftSidebarOpen) this.toggleLeftSidebar();
+        if (this.isRightSidebarOpen) this.toggleRightSidebar();
+      } else {
+        if (!this.isLeftSidebarOpen) this.toggleLeftSidebar();
+        if (!this.isRightSidebarOpen) this.toggleRightSidebar();
+      }
+    });
+
     // 5. Initial Mount of Active Mode (Music Studio)
     this.switchMode('music');
     this.header.setMode('music');
+
+    // Focused observation entry point: make the experimental comparison visible
+    // without mixing live plate/droplet motion into the averaged cube field.
+    if (new URLSearchParams(window.location.search).get('view') === 'field-average') {
+      this.visualizer.setCymaticsLayers({ plate: false, droplet: false, trap: true });
+      this.visualizer.setEnergyWindowMs(1000);
+      this.visualizer.setCameraMode('orbit');
+      this.audioControlsBar.render();
+    }
 
     // 6. Seamless Audio Unlock on First User Interaction (Zero UI Overlay)
     this.setupAudioUnlock();
@@ -290,12 +314,15 @@ class App {
     this.isLeftSidebarOpen = !this.isLeftSidebarOpen;
     if (this.isLeftSidebarOpen) {
       this.leftSidebarRoot.classList.remove('sidebar-collapsed');
+      this.leftSidebarRoot.inert = false;
       if (typeof window !== 'undefined' && window.innerWidth < 1024 && this.isRightSidebarOpen) {
         this.isRightSidebarOpen = false;
         this.rightSidebarRoot.classList.add('sidebar-collapsed');
+        this.rightSidebarRoot.inert = true;
       }
     } else {
       this.leftSidebarRoot.classList.add('sidebar-collapsed');
+      this.leftSidebarRoot.inert = true;
     }
     this.header.setSidebarStates(this.isLeftSidebarOpen, this.isRightSidebarOpen);
     this.visualizer?.updateViewportOffset?.();
@@ -308,12 +335,15 @@ class App {
     this.isRightSidebarOpen = !this.isRightSidebarOpen;
     if (this.isRightSidebarOpen) {
       this.rightSidebarRoot.classList.remove('sidebar-collapsed');
+      this.rightSidebarRoot.inert = false;
       if (typeof window !== 'undefined' && window.innerWidth < 1024 && this.isLeftSidebarOpen) {
         this.isLeftSidebarOpen = false;
         this.leftSidebarRoot.classList.add('sidebar-collapsed');
+        this.leftSidebarRoot.inert = true;
       }
     } else {
       this.rightSidebarRoot.classList.add('sidebar-collapsed');
+      this.rightSidebarRoot.inert = true;
     }
     this.header.setSidebarStates(this.isLeftSidebarOpen, this.isRightSidebarOpen);
     this.visualizer?.updateViewportOffset?.();
@@ -535,7 +565,8 @@ class App {
       this.hasInteracted = true;
 
       await this.audioEngine.initialize();
-      this.audioControlsBar.render();
+      // Preserve the active control during its first pointer/key interaction.
+      // Playback changes already refresh the transport through its subscription.
       window.removeEventListener('pointerdown', unlockAudio, true);
       window.removeEventListener('keydown', unlockAudio, true);
       window.removeEventListener('click', unlockAudio, true);

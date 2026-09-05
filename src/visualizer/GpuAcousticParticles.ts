@@ -1,3 +1,4 @@
+import { CARTESIAN_PRESSURE_GLSL } from '../math/CartesianPressureField';
 import * as THREE from 'three';
 import { PalettePreset } from './ColorPalettes';
 import { CYMATICS_CORE_GLSL } from './shaders/cymaticsCore';
@@ -83,33 +84,7 @@ varying float vIntensity;
 varying float vSpeed;
 varying float vDepthFade;
 
-// Single-Pass Analytical 3D Cartesian Acoustic Cavity Pressure & Gradient
-vec3 evalCartesianGradAndPressure(vec3 p, vec3 nml, float L, out float pressure) {
-    vec3 k = (nml * PI) / (2.0 * L);
-    float cX = cos(k.x * p.x); float sX = sin(k.x * p.x);
-    float cY = cos(k.y * p.y); float sY = sin(k.y * p.y);
-    float cZ = cos(k.z * p.z); float sZ = sin(k.z * p.z);
-
-    float cX2 = cos(k.y * p.x); float sX2 = sin(k.y * p.x);
-    float cY2 = cos(k.z * p.y); float sY2 = sin(k.z * p.y);
-    float cZ2 = cos(k.x * p.z); float sZ2 = sin(k.x * p.z);
-
-    float cX3 = cos(k.z * p.x); float sX3 = sin(k.z * p.x);
-    float cY3 = cos(k.x * p.y); float sY3 = sin(k.x * p.y);
-    float cZ3 = cos(k.y * p.z); float sZ3 = sin(k.y * p.z);
-
-    float w1 = 1.0;
-    float w2 = 0.55 + 0.35 * uBandEnergies.y;
-    float w3 = 0.35 + 0.45 * uBandEnergies.z;
-
-    pressure = w1 * (cX * cY * cZ) - w2 * (cX2 * cY2 * cZ2) + w3 * (cX3 * cY3 * cZ3);
-
-    vec3 g1 = vec3(-k.x * sX * cY * cZ, -k.y * cX * sY * cZ, -k.z * cX * cY * sZ);
-    vec3 g2 = vec3(-k.y * sX2 * cY2 * cZ2, -k.z * cX2 * sY2 * cZ2, -k.x * cX2 * cY2 * sZ2);
-    vec3 g3 = vec3(-k.z * sX3 * cY3 * cZ3, -k.x * cX3 * sY3 * cZ3, -k.y * cX3 * cY3 * sZ3);
-
-    return w1 * g1 - w2 * g2 + w3 * g3;
-}
+${CARTESIAN_PRESSURE_GLSL}
 
 // 3D Cylindrical Cavity Pressure (Vertical Standing Cylinder along Y) with exact NIST DLMF 10.75 root
 float evalCylindricalPressure(vec3 p, vec3 nml, float L) {
@@ -377,7 +352,7 @@ void main() {
     finalColor += uAccent * (clamp(speed * 0.25, 0.0, 0.6));
 
     // Refined translucent opacity for ultra-dense 262k particle planar sheets
-    float alpha = clamp(0.14 + excitation * 0.14, 0.06, 0.35);
+    float alpha = clamp(0.045 + excitation * 0.055, 0.025, 0.12);
     vColor = vec4(finalColor, alpha);
 
     // Camera Transform
@@ -582,6 +557,8 @@ export class GpuAcousticParticles {
   public setChamberType(type: ChamberGeometryType): void {
     this.setChamberGeometry(type);
   }
+
+  public getChamberSize(): number { return this.chamberSize; }
 
   public getChamberGeometry(): ChamberGeometryType {
     return this.chamberType;

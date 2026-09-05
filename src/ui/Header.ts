@@ -45,6 +45,12 @@ export class Header {
   public setSidebarStates(leftOpen: boolean, rightOpen: boolean): void {
     this.isLeftSidebarOpen = leftOpen;
     this.isRightSidebarOpen = rightOpen;
+    const left = this.element.querySelector('#btn-toggle-left-sidebar');
+    const right = this.element.querySelector('#btn-toggle-right-sidebar-mobile');
+    left?.setAttribute('aria-expanded', String(leftOpen));
+    right?.setAttribute('aria-expanded', String(rightOpen));
+    if (left) left.textContent = leftOpen ? 'Close controls' : 'Audio controls';
+    if (right) right.textContent = rightOpen ? 'Close scene' : 'Scene controls';
   }
 
   public setImmersive(active: boolean): void {
@@ -297,6 +303,10 @@ export class Header {
           </div>
         </nav>
 
+        <div class="mobile-scene-panels">
+          <button id="btn-toggle-left-sidebar" aria-controls="left-sidebar-root" aria-expanded="${this.isLeftSidebarOpen}">${this.isLeftSidebarOpen ? 'Close controls' : 'Audio controls'}</button>
+          <button id="btn-toggle-right-sidebar-mobile" aria-controls="right-sidebar-root" aria-expanded="${this.isRightSidebarOpen}">${this.isRightSidebarOpen ? 'Close scene' : 'Scene controls'}</button>
+        </div>
         <!-- Right: Reset, Guided Tour & Optics/Telemetry Sidebar Toggle -->
         <div class="hidden md:flex items-center gap-2 shrink-0 ml-auto z-10 min-h-[44px]">
           <!-- Reset Action -->

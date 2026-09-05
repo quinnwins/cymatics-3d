@@ -233,7 +233,7 @@ describe('AudioControlsBar UI - Universal Master Transport & Telemetry Dock', ()
       const speedBtn = el.querySelector('#btn-speed') as HTMLButtonElement;
       expect(speedBtn).not.toBeNull();
       expect(speedBtn.textContent).toContain('1×');
-      expect(speedBtn.getAttribute('data-tooltip')).toBe('Sound Speed: 1×');
+      expect(speedBtn.getAttribute('data-tooltip')).toBe('Audio speed: 1×');
 
       // Popover should initially be closed
       expect(el.querySelector('#dock-speed-menu')).toBeNull();

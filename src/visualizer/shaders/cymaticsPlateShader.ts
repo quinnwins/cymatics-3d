@@ -184,11 +184,11 @@ void main() {
     // ========================================================================
     // 3. OKLab Palette Theming & Vibrant Sand Color
     // ========================================================================
-    float tPal = clamp(r * 0.35 + nodalDist * 0.4 + uTime * 0.02, 0.0, 1.0);
+    float tPal = clamp(r * 0.35 + nodalDist * 0.4, 0.0, 1.0);
     vec3 paletteColor = oklabCosinePalette(tPal, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
     // High-contrast luminous quartz sand grains
-    vec3 sandGrainColor = mix(vec3(0.95, 0.97, 1.0), uAccent * 1.4, 0.35);
+    vec3 sandGrainColor = mix(vec3(0.95, 0.97, 1.0), uAccent * 0.85, 0.35);
     
     // Radiant neon core strictly along the nodal line center
     float bassAgitation = uBandEnergies.x * 1.8 + uBandEnergies.y * 1.2;
@@ -223,7 +223,7 @@ void main() {
     vec3 finalColor = metalPlate;
     
     // Add nodal line core light
-    finalColor += nodalLight * (nodalCore * 1.2 + nodalGlowZone * 0.3);
+    finalColor += nodalLight * (nodalCore * 0.65 + nodalGlowZone * 0.10);
     
     // Overlay crisp sand mandalas
     finalColor = mix(finalColor, sandGrainColor, sandCoverage * 0.92);
@@ -364,23 +364,23 @@ void main() {
     vec3 localPos = vec3(finalP.x * (uPlateSize * 0.5), yPos, finalP.y * (uPlateSize * 0.5));
 
     // Color palette evaluation
-    float tPal = clamp(r * 0.35 + abs(modalVal) * 0.4 + uTime * 0.02, 0.0, 1.0);
+    float tPal = clamp(r * 0.35 + abs(modalVal) * 0.4, 0.0, 1.0);
     vec3 palColor = oklabCosinePalette(tPal, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
     
     // Nodal sand particles glow with crisp quartz white / golden accent tint
     float isNodal = smoothstep(0.28, 0.0, abs(modalVal));
-    vec3 dustColor = mix(palColor, uAccent * 1.4, 0.35 + isNodal * 0.45);
-    dustColor += vec3(isNodal * 0.45 * (1.0 + bassKick * 0.8));
+    vec3 dustColor = mix(palColor, uAccent * 0.85, 0.35 + isNodal * 0.45);
+    dustColor += vec3(isNodal * 0.12);
     
-    vColor = vec4(dustColor, 0.9 + isNodal * 0.1);
-    vIntensity = 1.0 + bassKick * 0.8 + isNodal * 0.8;
+    vColor = vec4(dustColor, 0.36 + isNodal * 0.12);
+    vIntensity = 0.65 + isNodal * 0.25;
 
     vec4 mvPosition = modelViewMatrix * vec4(localPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
 
     // Crisp fine quartz sand grain point scale
-    float pSize = (uParticleScale * 18.0) / (-mvPosition.z);
-    gl_PointSize = clamp(pSize * (0.7 + aParticleSeed * 0.4 + isNodal * 0.3), 1.5, 24.0);
+    float pSize = (uParticleScale * 10.0) / (-mvPosition.z);
+    gl_PointSize = clamp(pSize * (0.7 + aParticleSeed * 0.4 + isNodal * 0.3), 1.0, 12.0);
 }
 `;
 

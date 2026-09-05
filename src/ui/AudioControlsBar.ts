@@ -50,7 +50,8 @@ export class AudioControlsBar {
   constructor(
     private audioEngine: AudioEngine,
     private onScreenshot?: () => void,
-    private onExport?: () => void
+    private onExport?: () => void,
+    private energyView?: { getEnergyWindowMs(): number; setEnergyWindowMs(milliseconds: number): void }
   ) {
     this.element = typeof document !== 'undefined' ? document.createElement('div') : ({} as HTMLElement);
     this.element.className = 'w-full flex justify-center items-center select-none';
@@ -483,6 +484,14 @@ export class AudioControlsBar {
 
         <!-- Right: Global Utilities (Speed, Snapshot, Export) & Master Volume -->
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          ${this.energyView && (this.currentEngineMode === 'music' || this.currentEngineMode === 'frequency') ? `
+          <label class="energy-view-control" title="Mean squared model pressure at fixed spatial positions in the enclosed cube 3D Trap, Nodes only. Longer windows can blur or erase moving nodes. Other layers and geometries remain live.">
+            <span>Trap average</span>
+            <input id="slider-energy-window" type="range" min="0" max="1000" step="50"
+              value="${this.energyView.getEnergyWindowMs()}" aria-label="Spatial field averaging window"
+              aria-valuetext="${this.energyView.getEnergyWindowMs() === 0 ? 'Live' : this.energyView.getEnergyWindowMs() + ' milliseconds'}">
+            <output for="slider-energy-window" id="energy-window-value">${this.energyView.getEnergyWindowMs() === 0 ? 'Live' : this.energyView.getEnergyWindowMs() + ' ms'}</output>
+          </label>` : ''}
           <!-- Sound Playback Speed Selector -->
           <div class="relative shrink-0" id="dock-speed-wrapper">
             <button
@@ -491,7 +500,7 @@ export class AudioControlsBar {
               aria-haspopup="true"
               aria-expanded="${this.isSpeedMenuOpen}"
               aria-label="Sound Playback Speed: ${speed}x"
-              data-tooltip="Sound Speed: ${speed}×"
+              data-tooltip="Audio speed: ${speed}×"
               class="p-1.5 sm:p-2 rounded-xl ${
                 speed !== 1.0
                   ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/50 shadow-sm shadow-cyan-500/20 ring-1 ring-cyan-400/30'
@@ -512,10 +521,10 @@ export class AudioControlsBar {
                 id="dock-speed-menu"
                 class="absolute bottom-full mb-2 right-0 glass-panel border border-white/15 rounded-xl p-1.5 shadow-2xl backdrop-blur-2xl flex flex-col gap-1 z-50 min-w-[125px] bg-slate-900/95 text-xs animate-in fade-in zoom-in-95 duration-150"
                 role="menu"
-                aria-label="Select Sound Speed"
+                aria-label="Select audio playback speed"
               >
                 <div class="px-2 py-1 text-[10px] font-mono text-slate-400 border-b border-white/10 uppercase tracking-wider">
-                  Sound Speed
+                  Audio playback
                 </div>
                 ${AudioControlsBar.SPEED_PRESETS.map(
                   preset => `
@@ -551,7 +560,6 @@ export class AudioControlsBar {
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
               <circle cx="12" cy="13" r="4"/>
             </svg>
-            <span class="hidden 2xl:inline text-[11px]">Snapshot</span>
           </button>
 
           <!-- Export Dossier Button -->
@@ -566,7 +574,6 @@ export class AudioControlsBar {
               <polyline points="7 10 12 15 17 10"/>
               <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
-            <span class="hidden 2xl:inline text-[11px]">Export</span>
           </button>
 
 
@@ -635,6 +642,16 @@ export class AudioControlsBar {
         this.audioEngine.togglePlayPause();
       }
       this.render();
+    });
+
+    this.element.querySelector<HTMLInputElement>('#slider-energy-window')?.addEventListener('input', e => {
+      const slider = e.target as HTMLInputElement;
+      this.energyView?.setEnergyWindowMs(Number(slider.value));
+      const value = this.energyView?.getEnergyWindowMs() ?? 0;
+      const label = value === 0 ? 'Live' : `${value} ms`;
+      slider.setAttribute('aria-valuetext', value === 0 ? 'Live' : `${value} milliseconds`);
+      const output = this.element.querySelector('#energy-window-value');
+      if (output) output.textContent = label;
     });
 
     // Sound Speed Button & Popover Selection Handlers

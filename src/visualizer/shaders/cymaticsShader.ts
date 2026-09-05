@@ -5,6 +5,7 @@ ${CYMATICS_CORE_GLSL}
 
 // Simulation & Modal Wave Uniforms
 uniform float uTime;
+uniform vec4 uDrivePhases;
 uniform vec3 uModes;                    // (n, m, l) modal wave numbers
 uniform int uChamberType;              // 0 = Cube, 1 = Cylinder, 2 = Sphere
 uniform float uFundamentalFreq;        // Resonant driving frequency (Hz)
@@ -58,7 +59,7 @@ float evalDropletModalDisplacement(vec3 p) {
     float Y00 = 0.28209479;
     float breathFreq = uFundamentalFreq * 0.02 + subBass * 6.0;
     float amp0 = (0.16 / (1.0 + 0.08 * nMode)) * (0.8 + subBass * 2.2);
-    float dispL0 = amp0 * Y00 * sin(breathFreq * uTime * 2.0);
+    float dispL0 = amp0 * Y00 * sin(uDrivePhases.x);
 
     // 2. L1 Dipole Mode (Acoustic Radiation Levitation Axis Wobble)
     float Y10 = 0.48860251 * z;
@@ -71,7 +72,7 @@ float evalDropletModalDisplacement(vec3 p) {
     float Y22 = 0.54627422 * (x2 - y2);
     float quadFreq = uFundamentalFreq * 0.04 + bass * 8.0;
     float amp2 = 0.24 * clamp(mMode / 1.8, 0.6, 2.5) * (0.7 + bass * 2.4 + subBass * 1.8);
-    float dispL2 = amp2 * (Y20 * cos(quadFreq * uTime * 1.5) + Y22 * sin(quadFreq * uTime * 1.8));
+    float dispL2 = amp2 * (Y20 * cos(uDrivePhases.y) + Y22 * sin(uDrivePhases.z));
 
     // 4. L3 Octupole Multi-Lobed Resonance (Tetrahedral & Clover Lobes)
     float Y30 = 0.37317633 * z * (5.0 * z2 - 3.0);
@@ -90,7 +91,7 @@ float evalDropletModalDisplacement(vec3 p) {
     float k = PI * sqrt(nMode * nMode + mMode * mMode + lMode * lMode) * 0.75;
     float j0 = sphericalBessel_j0(k * r);
     float j2 = sphericalBessel_j2(k * r * 1.5);
-    float dispBessel = (j0 * 0.12 + j2 * 0.09) * sin(uFundamentalFreq * 0.06 * uTime + phi * (mMode + 1.0)) * (0.7 + highMid * 2.2 + high * 2.5);
+    float dispBessel = (j0 * 0.12 + j2 * 0.09) * sin(uDrivePhases.w + phi * (mMode + 1.0)) * (0.7 + highMid * 2.2 + high * 2.5);
 
     // 7. Chamber Boundary & Multi-Frequency Harmonic Eigenstates
     float dispGeom = 0.0;
@@ -225,12 +226,12 @@ void main() {
     vec3 totalSSS = (sss1 * keyColor + sss3 * rimLightColor) * (1.0 + uBandEnergies.x * 1.4);
 
     // 4. Inigo Quilez Cosine Color Palette in OKLab Space
-    float paletteCoord = rLocal * 0.28 + vDisplacement * 1.6 + uTime * 0.04 + uBandEnergies.z * 0.25;
+    float paletteCoord = rLocal * 0.28 + vDisplacement * 1.6;
     vec3 baseFluidColor = oklabCosinePalette(paletteCoord, uPaletteA, uPaletteB, uPaletteC, uPaletteD);
 
     // 5. Standing Wave Nodal Line Luminescence (Glows along acoustic equilibrium zones)
     float nodalLine = 1.0 - smoothstep(0.0, 0.09, vNodalValue);
-    vec3 nodalGlow = uAccent * (nodalLine * 1.2) * (1.0 + uBandEnergies.z * 0.8);
+    vec3 nodalGlow = uAccent * (nodalLine * 0.22) * (1.0 + uBandEnergies.z * 0.8);
 
     // 6. Internal Dense Resonant Core (Balanced acoustic pressure hotspot, calibrated for radius)
     float coreDist = rLocal;
@@ -251,8 +252,8 @@ void main() {
     vec3 specular = (spec1 * keyColor + spec3 * rimLightColor) * (1.0 + chromaticFresnel * 1.2);
 
     // 9. Composite Fluid Shading with Energy-Conserving Tone Curve
-    vec3 finalColor = diffuse + totalSSS * 0.70 + internalCore + nodalGlow + specular + chromaticFresnel * uAccent * 0.85;
-    finalColor = appleRadiantGlow(finalColor, nodalLine * 0.35 + uBandEnergies.x * 0.2, 0.15);
+    vec3 finalColor = diffuse + totalSSS * 0.30 + internalCore + nodalGlow + specular + chromaticFresnel * uAccent * 0.35;
+
 
     // Dynamic Organic Fluid Translucency (Permits back particles and internal core to shine through)
     float alpha = clamp(0.52 + chromaticFresnel.g * 0.35 + coreMask * 0.18, 0.22, 0.86);

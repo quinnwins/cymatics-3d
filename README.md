@@ -50,6 +50,20 @@ Every source feeds the same 4096-point FFT engine that decomposes audio across s
 
 ---
 
+## Watching the patterns
+
+**Spatial-average trial:** open `/?view=field-average` to isolate the cube 3D Trap with a one-second averaging window and a stationary camera. The **Trap average** slider selects Live or a 50–1,000 ms trailing window. Live restores the original particle rendering. General startup still keeps the existing layer selection and a 200 ms window.
+
+The trial evaluates the existing cube pressure-envelope formula on a fixed **32×32×32 grid**, samples it at **up to 30 Hz**, squares each grid value, then takes a time-weighted average at each position. It does not average input bands, signed pressure, particle coordinates, or screenshots. Opposite pressure signs cannot cancel into a false quiet node. One second of actual history is retained for changing the window; startup uses available observations, and gaps over 200 ms restart the estimate. Audio, the live modal bank, and simulation time are not slowed.
+
+Only **enclosed cube / 3D Trap / Nodes** is supported by the trial. Other geometries, field mode, antinodes, and the plate/droplet stay live, with a visible notice. Longer averages can blur or eliminate moving nodes. The 3D texture uses half-float values and trilinear interpolation; finite grid detail and discrete temporal sampling limit resolution. The fixed opacity mapping makes low mean-square values luminous (`exp(-meanSquare / 0.020)`), with no forced normalization to keep a disappearing node visible. Color and opacity are display choices, not calibrated units.
+
+This is mean-square amplitude of the **existing normalized model envelope**, not laboratory pressure in pascals, full acoustic energy density, or an audio-rate carrier simulation. It retains that model's continuous mode mapping, spectrum-dependent weights, and boundary limitations. The normalized basis can persist during silence. It does not establish that every displayed mode is an exact rigid-cavity eigenmode. No particle streaming, beat jitter, or phase-driven surface motion is added to the averaged volume; a camera can still be moved independently.
+
+The prior audio-band averaging experiment has been removed; averaging its inputs did not average the spatial pattern. The earlier exported slow-view video depicts an obsolete implementation and does not demonstrate this trial.
+
+On narrow screens, **Audio controls** and **Scene controls** open one panel at a time. Desktop remains the supported performance target; phone-sized browser checks are not physical-device validation.
+
 ## The Frequency Lab
 
 <p align="center">

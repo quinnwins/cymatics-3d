@@ -45,6 +45,7 @@ export class CymaticsMesh {
       fragmentShader: CYMATICS_FRAGMENT_SHADER,
       uniforms: {
         uTime: { value: 0 },
+        uDrivePhases: { value: new THREE.Vector4() },
         uModes: { value: this.modes.clone() },
         uChamberType: { value: this.chamberTypeInt },
         uFundamentalFreq: { value: this.fundamentalHz },
@@ -231,6 +232,15 @@ export class CymaticsMesh {
     camera?: THREE.Camera
   ): void {
     const u = this.material.uniforms;
+    // Integrate the existing illustrative angular rates. Frequency changes
+    // affect future phase only; they must not rewrite the entire time history.
+    const phases = u.uDrivePhases.value as THREE.Vector4;
+    const step = Math.max(0, dt);
+    const tau = Math.PI * 2;
+    phases.x = (phases.x + (fundamentalHz * 0.02 + bands.x * 6) * 2 * step) % tau;
+    phases.y = (phases.y + (fundamentalHz * 0.04 + bands.y * 8) * 1.5 * step) % tau;
+    phases.z = (phases.z + (fundamentalHz * 0.04 + bands.y * 8) * 1.8 * step) % tau;
+    phases.w = (phases.w + fundamentalHz * 0.06 * step) % tau;
     u.uTime.value = time;
     u.uBandEnergies.value.copy(bands);
     u.uHighEnergies.value.copy(highs);

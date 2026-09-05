@@ -67,7 +67,7 @@ describe('Header & Navigation Architecture', () => {
     document.body.removeChild(headerRoot);
   });
 
-  it('removes redundant column hide buttons and renders dedicated immersive buttons', () => {
+  it('keeps immersive controls and exposes narrow-screen panel controls', () => {
     const headerRoot = document.createElement('header');
     headerRoot.id = 'header-root';
     document.body.appendChild(headerRoot);
@@ -78,10 +78,10 @@ describe('Header & Navigation Architecture', () => {
 
     const header = new Header(audioEngine, visualizer, onModeChange);
 
-    // Verify old column hide buttons are completely removed
-    expect(document.getElementById('btn-toggle-left-sidebar')).toBeNull();
+    // Narrow screens need access to collapsed panels; desktop keeps its layout.
+    expect(document.getElementById('btn-toggle-left-sidebar')?.closest('.mobile-scene-panels')).not.toBeNull();
     expect(document.getElementById('btn-toggle-right-sidebar')).toBeNull();
-    expect(document.getElementById('btn-toggle-right-sidebar-mobile')).toBeNull();
+    expect(document.getElementById('btn-toggle-right-sidebar-mobile')?.closest('.mobile-scene-panels')).not.toBeNull();
 
     // Verify new desktop and mobile immersive buttons exist
     const desktopImmersive = document.getElementById('btn-header-immersive');

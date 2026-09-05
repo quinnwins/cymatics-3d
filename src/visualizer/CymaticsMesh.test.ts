@@ -60,3 +60,25 @@ describe('CymaticsMesh - 3D Levitating Acoustic Fluid Droplet', () => {
     expect(mesh.innerCore.visible).toBe(true);
   });
 });
+
+// Read the phase that the vertex shader actually consumes; the fallback is the
+// original time-times-frequency implementation, retained here to prove the bug.
+function breathingPhase(mesh: CymaticsMesh): number {
+  const u = (mesh.mesh.material as THREE.ShaderMaterial).uniforms;
+  return u.uDrivePhases ? u.uDrivePhases.value.x :
+    (u.uFundamentalFreq.value * 0.02 + u.uBandEnergies.value.x * 6) * u.uTime.value * 2;
+}
+
+describe('driven phase continuity', () => {
+  it('does not rewrite elapsed phase when detected pitch changes', () => {
+    const mesh = new CymaticsMesh(ColorPalettes.getPalette('cosmic-nebula'));
+    const bands = new THREE.Vector4(0.2, 0.1, 0, 0);
+    mesh.update(80, bands, new THREE.Vector2(), 220, 0.01);
+    const before = breathingPhase(mesh);
+    mesh.update(80, bands, new THREE.Vector2(), 440, 0);
+    expect(breathingPhase(mesh)).toBeCloseTo(before, 10);
+    mesh.update(80.01, bands, new THREE.Vector2(), 440, 0.01);
+    expect(breathingPhase(mesh) - before).toBeCloseTo((440 * 0.02 + 0.2 * 6) * 2 * 0.01, 8);
+    mesh.dispose();
+  });
+});
