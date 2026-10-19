@@ -1,11 +1,28 @@
-name: Validate SoundForm
+name: Build SoundForm
 
 on:
   pull_request:
+    paths:
+      - .github/workflows/**
+      - index.html
+      - package.json
+      - package-lock.json
+      - src/**
+      - tailwind.config.js
+      - tsconfig.json
+      - vite.config.ts
   push:
     branches:
       - main
-  workflow_dispatch:
+    paths:
+      - .github/workflows/**
+      - index.html
+      - package.json
+      - package-lock.json
+      - src/**
+      - tailwind.config.js
+      - tsconfig.json
+      - vite.config.ts
 
 permissions:
   contents: read
@@ -15,9 +32,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test-build-browser:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 5
 
     steps:
       - name: Check out repository
@@ -32,25 +49,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run functional tests
-        run: npm test -- --reporter=verbose --maxWorkers=1 --minWorkers=1 --exclude src/math/VoiceBiometricsPhysics.test.ts
-
-      - name: Run voice DSP suite and benchmark in isolation
-        run: npx vitest run src/math/VoiceBiometricsPhysics.test.ts --reporter=verbose --maxWorkers=1 --minWorkers=1
-
       - name: Build production bundle
         run: npm run build
-
-      - name: Verify Cymatics & Music visualizer in headless Chrome
-        run: node scripts/verify-cymatics.mjs
-
-      - name: Upload deployable build and visual proof
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: soundform-dist-and-cymatics-qa
-          path: |
-            dist
-            qa_screenshots/cymatics-live-verified.png
-          if-no-files-found: ignore
-          retention-days: 7

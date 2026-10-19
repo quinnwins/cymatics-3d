@@ -1,7 +1,7 @@
 # SoundForm 3D
 ### See sound as matter, space, and resonance.
 
-[![Validate SoundForm](https://github.com/quinnwins/cymatics-3d/actions/workflows/validate.yml/badge.svg)](https://github.com/quinnwins/cymatics-3d/actions/workflows/validate.yml)
+[![Build SoundForm](https://github.com/quinnwins/cymatics-3d/actions/workflows/validate.yml/badge.svg)](https://github.com/quinnwins/cymatics-3d/actions/workflows/validate.yml)
 [![WebGL2](https://img.shields.io/badge/WebGL2-GPU_Cymatics-purple.svg)](./src/visualizer/)
 [![Web Audio](https://img.shields.io/badge/Web_Audio-Live_DSP-cyan.svg)](./src/audio/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue.svg)](./src/)
@@ -144,7 +144,7 @@ For contributors and the curious:
 - **Zero-GC render loop** — Pre-allocated uniform buffers, no garbage collection pauses at 120 FPS.
 - **Real math** — NIST Bessel functions, Legendre spherical harmonics, and Gor'kov acoustic potentials. Not approximations.
 - **Auto-centering viewport** — The 3D scene rebalances optically when sidebars open or close so the resonator always stays visually centered.
-- **316 passing tests** + headless Chrome E2E verification on every push.
+- App changes get a quick build check on pushes and pull requests. The full test suite and headless Chrome check run nightly or on demand.
 
 ---
 
